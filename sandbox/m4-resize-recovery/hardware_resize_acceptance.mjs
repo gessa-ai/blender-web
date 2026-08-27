@@ -88,6 +88,7 @@ const RESIZE_DIAGNOSTIC_PATTERNS = Object.freeze([
   /^WGPUWeb-resize:/,
   /^WGPUWeb-resize-trace:/,
   /^WGPUWeb-resize-present-barrier:/,
+  /WGPUShader '.*': assembled group-0 resources do not match surviving WGSL bindings:/,
 ]);
 
 function isDescendant(parent, candidate) {
@@ -450,6 +451,14 @@ function isResizeDiagnosticLine(line) {
   return RESIZE_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(line));
 }
 
+function retainResizeDiagnostic(line, active, retained, limit = DIAGNOSTIC_CONSOLE_LIMIT) {
+  if (!active || retained.length >= limit || !isResizeDiagnosticLine(line)) {
+    return false;
+  }
+  retained.push(line);
+  return true;
+}
+
 async function sampleRuntimeCounters(page) {
   try {
     return await page.evaluate(() => {
@@ -759,9 +768,23 @@ async function runSelfcheck() {
     "WGPUWeb-resize: backing -> 1100x640",
     "WGPUWeb-resize-trace: episode=1 sample=0",
     "WGPUWeb-resize-present-barrier: episode=1 synchronous-present=1",
+    "gpu.webgpu | WARNING WGPUShader 'overlay_background': assembled group-0 resources do not match surviving WGSL bindings: surviving=[0] assembled=[] missing=[0] extra=[]",
   ].every(isResizeDiagnosticLine), "resize diagnostics were not retained");
   check(!isResizeDiagnosticLine("[bw] ordinary resize") && DIAGNOSTIC_CONSOLE_LIMIT === 128,
     "resize diagnostic filtering or bound drifted");
+  const retainedDiagnostics = [];
+  check(!retainResizeDiagnostic("WGPUWeb-resize: before boundary", false, retainedDiagnostics) &&
+    retainedDiagnostics.length === 0, "pre-resize diagnostic escaped the capture boundary");
+  check(retainResizeDiagnostic(
+    "gpu.webgpu | WARNING WGPUShader 'overlay_background': assembled group-0 resources do not match surviving WGSL bindings: surviving=[0] assembled=[] missing=[0] extra=[]",
+    true,
+    retainedDiagnostics,
+  ) && retainedDiagnostics.length === 1, "post-resize draw drop was not retained");
+  const cappedDiagnostics = Array(DIAGNOSTIC_CONSOLE_LIMIT).fill("fixture");
+  check(!retainResizeDiagnostic(
+    "WGPUWeb-resize: over cap", true, cappedDiagnostics,
+  ) && cappedDiagnostics.length === DIAGNOSTIC_CONSOLE_LIMIT,
+  "resize diagnostic cap was not fail closed");
   const counterFixture = await sampleRuntimeCounters({
     evaluate: async () => ({ticks: 11, presents: 7, redrawEpisodes: 2}),
   });
@@ -908,6 +931,7 @@ async function runLive(options) {
       const relevantErrors = emptyErrorCounts();
       const relevantConsole = [];
       const resizeDiagnostics = [];
+      let resizeDiagnosticWindowOpen = false;
       const pageErrors = [];
       const images = {};
       let runtimeBeforeResize = null;
@@ -915,10 +939,9 @@ async function runLive(options) {
       page.on("console", (message) => {
         const line = message.text();
         if (classifyConsoleLine(line, relevantErrors)) relevantConsole.push(line);
-        if (isResizeDiagnosticLine(line) &&
-            resizeDiagnostics.length < DIAGNOSTIC_CONSOLE_LIMIT) {
-          resizeDiagnostics.push(line);
-        }
+        retainResizeDiagnostic(
+          line, resizeDiagnosticWindowOpen, resizeDiagnostics,
+        );
       });
       page.on("pageerror", (error) => {
         pageErrors.push({name: error.name || "Error", message: error.message || String(error)});
@@ -949,6 +972,10 @@ async function runLive(options) {
         }
 
         runtimeBeforeResize = await sampleRuntimeCounters(page);
+        /* Bind failure diagnostics to the same zero-input acceptance boundary as the semantic
+         * pixels. Boot-time shader warmup can otherwise consume the bounded console budget and
+         * hide the exact draw drops from the resized frame admitted by the present barrier. */
+        resizeDiagnosticWindowOpen = true;
         await page.setViewportSize({width: SHRUNK_EXTENT[0], height: SHRUNK_EXTENT[1]});
         /* Acceptance boundary: no keyboard or pointer operation may occur after this call. */
         const shrink = await waitForSemanticPaint(

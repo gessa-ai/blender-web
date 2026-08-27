@@ -3100,6 +3100,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   activation/adoption and `wm_window_make_drawable()` before the context frame begins
   (`20260827T143522-2119087`). Native/wasm32 queue behavior and the draw-trace contract remain
   exact. This is contract-only: all five pending CAPTURE artifacts remain unchanged.
+  **Atomic adoption candidate 2026-08-27 (`f5e1f19`, patch 0290):** the frame-episode fix still
+  read texture/format/extent and generation through separate owner-lifetime entries, so an
+  `AllowSpontaneous` resize commit could pair the previous texture with the replacement episode.
+  GHOST now returns one lifetime-gated `BackbufferFrameSnapshot` and publishes its episode in the
+  same protected callback that commits the replacement handle; `sync_backbuffer()` carries that
+  episode through frame completion without a separate `begin_frame()` resample. Source 58/33,
+  trace 35-mutation, native/wasm32 GPU integration, canonical replay, CAPTURE preflight,
+  producer 37/17, consumer 2/13, fallback shrink/restore, and REUSE are green. **RELINKED
+  windowed-opt @ `f5e1f19`:** `.wasm.orig` is 119,152,820 bytes at SHA-256
+  `fbd46f816a418cf7b3c647df59f5b6ea7acf1f55ddcd66615f8780eedbe16e7c`.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

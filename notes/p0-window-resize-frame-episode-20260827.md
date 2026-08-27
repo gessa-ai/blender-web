@@ -5,20 +5,21 @@
 
 ## Outcome
 
-Commit `5a48bb4` corrects the completed-frame barrier's generation boundary. The rejected
-`2f45a8ed62eb` Apple candidate read `redraw_episode_generation()` only in
-`WGPUContext::end_frame()`. A replacement backbuffer can commit after a browser frame has already
-activated and begun encoding against the previous drawable. That old frame was then mislabeled as
-the first complete frame of the new episode; when the barrier became ready, GHOST copied the
-untouched replacement backbuffer while the genuine new-extent submissions remained queued behind
-it. The deterministic 3,458-byte all-black round-six result follows without a WebGPU validation
-error.
+Commit `f5e1f19` closes a remaining time-of-check/time-of-use hole in the completed-frame barrier's
+generation boundary. The first frame-episode candidate sampled the persistent backbuffer texture,
+format, extent, and redraw episode through separate calls. Each call entered GHOST's owner callback
+lifetime independently, so an `AllowSpontaneous` replacement commit could interleave them. A frame
+could adopt the previous texture while carrying the replacement episode, become eligible at the
+queue tail, and copy an untouched new backbuffer. That is the rejected round-six candidate's
+deterministic 3,458-byte all-black failure shape without a WebGPU validation error.
 
-The window context now captures the redraw episode at `begin_frame()` and may schedule the resize
-barrier only when that frame-start episode still matches the current episode at the queue tail.
-Offscreen contexts cannot schedule the window barrier. A late commit is retried by the existing
-bounded redraw episode, so the next frame activates and adopts the replacement backbuffer before
-it becomes eligible.
+GHOST now publishes a `BackbufferFrameSnapshot` containing texture, format, extent, and committed
+redraw episode under one callback-lifetime execution token. The asynchronous resize callback
+records the generation in the same protected commit that replaces the handle and extent.
+`WGPUContext::sync_backbuffer()` adopts that snapshot and carries its episode through frame
+completion; `begin_frame()` no longer independently resamples global generation. Only a frame
+whose adopted snapshot still matches the current episode may schedule the barrier. Offscreen
+contexts remain ineligible, and a late commit is retried by the existing bounded redraw episode.
 
 The retained draw-plan diagnostic now remains available to a ready barrier after the ordinary
 180-tick capture heartbeat has stopped. This does not extend drawing or presentation; it only lets
@@ -60,20 +61,39 @@ hardware producer instead of freezing evidence at an unrelated six-second delay.
   (`20260827T143835-2122317`), and the pinned-container regression restores M0 6/6 while preserving
   every later named boundary (`20260827T143913-2122901`). This changed no runtime or CAPTURE
   artifact.
+- The predecessor fails the atomic-snapshot contract at all six adoption fields, the GHOST
+  snapshot/lifetime gate, commit publication, and the forbidden frame-start resample
+  (`20260827T144747-2130053`). The final source verifier reports 58 checks and rejects 33
+  mutations (`20260827T150133-2144314`). Patch 0290 reverse-applies exactly
+  (`20260827T145231-2133162`); canonical replay and receipt self-check bind patch SHA-256
+  `319c38d205aa2c373b132da26a24db9e4be4c6d90bb9eb143880bc8e1de35c19`
+  (`20260827T150133-2144322`, `20260827T150133-2144332`).
+- The complete native/wasm32 GPU matrix remains byte-identical
+  (`20260827T150133-2144315`). The exact fallback product shrinks and restores at ticks
+  `246/524/618`, presents `16/17/18`, episodes `0/1/2`, one barrier present per extent, and 18
+  complete/current/contained/VIEW_3D-bound trace rows with zero rejection or device loss
+  (`20260827T145651-2139775`). This is software-adapter diagnostic evidence only.
+- The locked relink produces this exact CAPTURE generation and the committed runtime state is a
+  locked no-op (`20260827T145503-2138195`, `20260827T150215-2146044`).
+- CAPTURE preflight, capture-profile self-check, hardware producer 37/17, independent consumer
+  2/13, and REUSE 6.2.0 are green (`20260827T145858-2141483`,
+  `20260827T145858-2141484`, `20260827T145858-2141489`, `20260827T145858-2141496`,
+  `20260827T150133-2144344`). Direct M4 remains red only at its unsupported hardware binding
+  (`20260827T150012-2142273`); pinned-container regression restores M0 6/6 and preserves the named
+  later receipt/APPLY/hardware/product boundaries (`20260827T150037-2142751`).
 
 ## Relinked CAPTURE generation
 
 - `blender_browser.js`: 707,565 bytes,
   `5b6ed02286fda34d4483734d23e347f3439dad985150463faad82c5f449d5214`
-- `blender_browser.wasm`: 120,506,270 bytes,
-  `1cfff18d313f6e99f06066d19a974e35165f2b0e6dc8379cd9a0fae9b83ecdac`
-- `blender_browser.wasm.orig`: 119,152,955 bytes,
-  `6fb76b7f760930385cb6be4b18f828c6fca1cfae02e65ce240e72ae78568cdfa`
-  (136,772 defined functions)
+- `blender_browser.wasm`: 120,506,125 bytes,
+  `db2bb9a8b0f9e22f0edd0616df19eeffbea4efb8a276c6eaa212c5dc1b64c81f`
+- `blender_browser.wasm.orig`: 119,152,820 bytes,
+  `fbd46f816a418cf7b3c647df59f5b6ea7acf1f55ddcd66615f8780eedbe16e7c`
 - `blender_browser.data`: 168,637,598 bytes,
   `095d0ba748c3cdc2fcd0956def221e0f0d347d41d95e0a150a28670ab1cea24c`
 - `blender_browser.split-build.json`: 13,251 bytes,
-  `1580fd549bf3b60c5ac6bdae34b8df87a503eec0535836d4f736a97b970a3fc3`
+  `838a0d832e57e6677a33ae4f2a1c3e14c5d78eaa15ad42affce3ef871cee64a6`
 
 ## Boundary
 

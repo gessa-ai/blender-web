@@ -108,6 +108,7 @@ build-wasm-*/
 /sandbox/gpu-r61/lb-async-probe/evidence/
 /sandbox/gpu-r61/cycles-windowed/evidence/
 /sandbox/gpu-r61/workbench-preview/reconciled/
+/sandbox/m4-resize-recovery/hardware-evidence/
 /sandbox/m8-wasm-split/image-policy-probe-build/
 /sandbox/m8-wasm-split/image-policy-probe/evidence/
 /sandbox/m8-wasm-split/profile-evidence/

@@ -81,6 +81,14 @@ hardware producer instead of freezing evidence at an unrelated six-second delay.
   `20260827T150133-2144344`). Direct M4 remains red only at its unsupported hardware binding
   (`20260827T150012-2142273`); pinned-container regression restores M0 6/6 and preserves the named
   later receipt/APPLY/hardware/product boundaries (`20260827T150037-2142751`).
+- The post-candidate full-screen retry contract binds the ready barrier's synthetic
+  `GHOST_kEventWindowUpdate` through Emscripten's `NC_SCREEN | NA_EDITED` notifier before ordinary
+  window invalidation. Its six-source verifier reports 65 checks and rejects 36 mutations
+  (`20260827T151335-2154130`); the draw-trace self-check and native/wasm32 GPU matrix remain green
+  (`20260827T151346-2154200`, `20260827T151346-2154195`). Pinned REUSE 6.2.0 is green
+  (`20260827T151420-2155636`). Direct M4 remains hardware-pixel red
+  (`20260827T151503-2156629`), while container-backed regression restores M0 6/6 and preserves
+  every named later boundary (`20260827T151511-2156708`). Commit `06732e5` changes no runtime byte.
 
 ## Relinked CAPTURE generation
 

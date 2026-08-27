@@ -3110,6 +3110,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   producer 37/17, consumer 2/13, fallback shrink/restore, and REUSE are green. **RELINKED
   windowed-opt @ `f5e1f19`:** `.wasm.orig` is 119,152,820 bytes at SHA-256
   `fbd46f816a418cf7b3c647df59f5b6ea7acf1f55ddcd66615f8780eedbe16e7c`.
+  **Full-screen retry contract 2026-08-27 (`06732e5`):** the completed-frame source verifier now
+  binds the ready barrier's synthetic `GHOST_kEventWindowUpdate` to Emscripten's ordered
+  `NC_SCREEN | NA_EDITED` invalidation before the ordinary window notifier. The six-source
+  contract reports 65 checks and rejects 36 mutations, including a missing screen notifier,
+  wrong platform scope, and a chrome-before-screen ordering. The native/wasm32 GPU matrix,
+  draw-trace self-check, and REUSE remain green. This is contract-only: the pending CAPTURE
+  generation and its hardware-pixel boundary are unchanged.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

@@ -3282,7 +3282,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   every chrome-only/clear viewport frame. Do not infer readiness from elapsed time or present
   count. This requires a C++ relink and same-rig cold-boot pixel verification; keep the current
   P0-E candidate stable until its filed acceptance run completes.
-  **Source candidate 2026-08-27:** cold boot now starts a bounded semantic episode; successful
+  **Source candidate 2026-08-27 (`2c82c19`):** cold boot now starts a bounded semantic episode; successful
   `overlay_background` -> `overlay_grid_next` -> `OCIO_Display` encoding plus the matching
   validated surface submission publishes a one-shot browser export, and the shell has no generic
   present fallback. Native/wasm32 behavior, controlled Chromium, canonical replay, public-shell

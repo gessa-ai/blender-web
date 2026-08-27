@@ -2997,6 +2997,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   LAUNCH.md's 15 MB bar. The exact 48-function controller closure remains PASS. This does not
   authorize APPLY; accepted hash-bound Apple profiles remain mandatory. See
   `notes/m8-provisional-split-shape-20260826.md`.
+- [x] **P1-M8-STAGE0-MONO-FONT-BOOTSTRAP [driver]:** Stage 0 now carries an exact-hash
+  18,272-byte DejaVu Sans Mono subset and Stage 1 restores the pinned 145,192-byte source before
+  one shared UI/mono/fallback-stack refresh. Chromium proves identical Basic-Latin advances and
+  raster at six console sizes, identical Latin-1 advances, exact initial monolith/staged pixels,
+  exact full-font restoration, trusted console input, and zero page/serious errors. The bounded
+  two-bootstrap loader rejects duplicate/excess/identity mutations; provenance, licensing, and
+  release inventories bind both fonts. Same-codec accounting recovers 125,123 net critical bytes,
+  revising the provisional complete-wire shape to 14,616,981 bytes. **Boundary:** no Wasm was
+  relinked and no APPLY, hardware-pixel, <=8-second, <=15-MB, or launch receipt was promoted. See
+  `notes/m8-stage0-mono-font-bootstrap-20260826.md`.
 - [x] **P1-M8-STAGED-PACKER-RECONCILIATION [driver] (`cb459b9`):** the fail-closed manifest
   parser and post-first-pixel partition behind the provisional measurement are now committed and
   covered by the staged provenance and release-freeze consumers. Product probing found and fixed

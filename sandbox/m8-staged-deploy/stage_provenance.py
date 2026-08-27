@@ -226,6 +226,7 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "legal/PROVENANCE.md": source_root / "PROVENANCE.md",
         "legal/LICENSES/Apache-2.0.txt": source_root / "LICENSES/Apache-2.0.txt",
         "legal/LICENSES/BSD-3-Clause.txt": source_root / "LICENSES/BSD-3-Clause.txt",
+        "legal/LICENSES/Bitstream-Vera.txt": source_root / "LICENSES/Bitstream-Vera.txt",
         "legal/LICENSES/CC0-1.0.txt": source_root / "LICENSES/CC0-1.0.txt",
         "legal/LICENSES/GPL-2.0-or-later.txt": source_root / "LICENSES/GPL-2.0-or-later.txt",
         "legal/LICENSES/GPL-3.0-or-later.txt": source_root / "LICENSES/GPL-3.0-or-later.txt",
@@ -304,7 +305,8 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "scenes/stress-mixed.blend", "scenes/stress-mixed.blend.license",
         "legal/LICENSE.txt", "legal/AUTHORS.txt", "legal/NOTICE.txt", "legal/THIRD-PARTY.md",
         "legal/PROVENANCE.md", "legal/LICENSES/Apache-2.0.txt",
-        "legal/LICENSES/BSD-3-Clause.txt", "legal/LICENSES/CC0-1.0.txt",
+        "legal/LICENSES/BSD-3-Clause.txt", "legal/LICENSES/Bitstream-Vera.txt",
+        "legal/LICENSES/CC0-1.0.txt",
         "legal/LICENSES/GPL-2.0-or-later.txt", "legal/LICENSES/GPL-3.0-or-later.txt",
         "legal/LICENSES/OFL-1.1.txt",
         "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
@@ -424,7 +426,7 @@ def selfcheck() -> None:
                 else:
                     minified_wire += encoded.stat().st_size
     wire_tuple = (raw_wire, minified_wire, raw_wire - minified_wire)
-    assert wire_tuple == (26265, 13099, 13166), wire_tuple
+    assert wire_tuple == (26342, 13194, 13148), wire_tuple
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -527,7 +529,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "minifier=5/6 minified_stage=20 wire=24719->12063(-12656) packer=572/5/7/12 "
+          "minifier=5/6 minified_stage=23 wire=26342->13194(-13148) packer=572/5/9/13 "
           "coherent=diagnostics+worker+register")
 
 

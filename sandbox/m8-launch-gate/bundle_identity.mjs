@@ -33,6 +33,7 @@ export const STATIC_BUNDLE_NAMES = [
   "legal/LICENSE.txt", "legal/AUTHORS.txt", "legal/NOTICE.txt",
   "legal/THIRD-PARTY.md", "legal/PROVENANCE.md",
   "legal/LICENSES/Apache-2.0.txt", "legal/LICENSES/BSD-3-Clause.txt",
+  "legal/LICENSES/Bitstream-Vera.txt",
   "legal/LICENSES/CC0-1.0.txt", "legal/LICENSES/GPL-2.0-or-later.txt",
   "legal/LICENSES/GPL-3.0-or-later.txt",
   "legal/LICENSES/OFL-1.1.txt",

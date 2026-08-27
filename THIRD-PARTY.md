@@ -42,6 +42,7 @@ components remain explicit in `ledger/deps.json` (`forced_off`) and
 | Brotli | 1.0.9 | MIT | FreeType/WOFF2 compression runtime |
 | FreeType | 2.13.3 | FTL OR GPL-2.0-or-later | font runtime |
 | Inter layout-preserving subset | 4.001 | OFL-1.1 | local loading-shell and Stage-0 UI typography |
+| DejaVu Sans Mono layout-preserving subset | 2.37 | Bitstream-Vera | transient Stage-0 console typography |
 | CPython | 3.13.13 | PSF-2.0 | embedded Python runtime |
 | NumPy | 2.3.4 | BSD-3-Clause | embedded Python extension/runtime |
 | cattrs | 25.1.1 | MIT | Blender extension-system Python runtime |
@@ -57,6 +58,11 @@ components remain explicit in `ledger/deps.json` (`forced_off`) and
 Inter layout-preserving subset: Copyright 2016 The Inter Project Authors. The
 subset is a renamed OFL-1.1 Modified Version derived from the font distributed
 at the Blender pin.
+
+DejaVu Sans Mono layout-preserving subset: Copyright (c) 2003 by Bitstream,
+Inc. All Rights Reserved. DejaVu changes are in the public domain. The subset
+retains the DejaVu family name and contains neither reserved name prohibited by
+the Bitstream Vera Font License; see `LICENSES/Bitstream-Vera.txt`.
 
 The browser bundle is fully client-side. No Blender-derived server component is part
 of this inventory. Source and notices for the exact pins are retained by their build

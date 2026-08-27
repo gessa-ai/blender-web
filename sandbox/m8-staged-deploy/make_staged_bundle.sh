@@ -66,6 +66,8 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     die "derived staged source directory does not match repository layout: ${SELF_DIR}"
   for f in GOAL.md platform_web/shell/windowed.html \
     platform_web/shell/fonts/bw-interface-sans.woff2 \
+    platform_web/shell/fonts/bw-console-mono.woff2 \
+    LICENSES/Bitstream-Vera.txt \
     LICENSES/OFL-1.1.txt \
     sandbox/m8-staged-deploy/brotli_q11.mjs \
     sandbox/m8-staged-deploy/stage_pack.py \
@@ -81,7 +83,7 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     die "deterministic Brotli q11/lgwin=24 self-check failed"
   "${PINNED_NODE}" "${PUBLIC_MINIFIER}" --selfcheck >/dev/null || \
     die "deterministic public-shell minifier self-check failed"
-  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=11 brotli=q11-lgwin24 minifier=terser-5.39.0 apply_manifest_reads=0 writes=0"
+  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=13 brotli=q11-lgwin24 minifier=terser-5.39.0 apply_manifest_reads=0 writes=0"
   exit 0
 fi
 
@@ -90,6 +92,8 @@ for f in windowed.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js 
 done
 [ -f "${SHELL_DIR}/fonts/bw-interface-sans.woff2" ] || \
   die "shell font missing (${SHELL_DIR}/fonts/bw-interface-sans.woff2)"
+[ -f "${SHELL_DIR}/fonts/bw-console-mono.woff2" ] || \
+  die "Stage-0 mono font missing (${SHELL_DIR}/fonts/bw-console-mono.woff2)"
 [ -x "${PINNED_NODE}" ] || die "pinned Node executable missing: ${PINNED_NODE}"
 [ "$("${PINNED_NODE}" --version)" = "v22.16.0" ] || \
   die "public bundle requires pinned Node v22.16.0: ${PINNED_NODE}"
@@ -109,7 +113,7 @@ done
 for f in LICENSE AUTHORS NOTICE THIRD-PARTY.md PROVENANCE.md; do
   [ -f "${REPO}/${f}" ] || die "public legal file missing: ${f}"
 done
-for f in Apache-2.0.txt BSD-3-Clause.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt OFL-1.1.txt; do
+for f in Apache-2.0.txt BSD-3-Clause.txt Bitstream-Vera.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt OFL-1.1.txt; do
   [ -f "${REPO}/LICENSES/${f}" ] || die "public license text missing: LICENSES/${f}"
 done
 for f in LicenseRef-OpenSubdiv-TOST-1.0.txt; do
@@ -146,7 +150,7 @@ cp "${REPO}/AUTHORS" "${OUT}/legal/AUTHORS.txt"
 cp "${REPO}/NOTICE" "${OUT}/legal/NOTICE.txt"
 cp "${REPO}/THIRD-PARTY.md" "${OUT}/legal/THIRD-PARTY.md"
 cp "${REPO}/PROVENANCE.md" "${OUT}/legal/PROVENANCE.md"
-for f in Apache-2.0.txt BSD-3-Clause.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt OFL-1.1.txt; do
+for f in Apache-2.0.txt BSD-3-Clause.txt Bitstream-Vera.txt CC0-1.0.txt GPL-2.0-or-later.txt GPL-3.0-or-later.txt OFL-1.1.txt; do
   cp "${REPO}/LICENSES/${f}" "${OUT}/legal/LICENSES/${f}"
 done
 cp "${REPO}/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt" \
@@ -234,6 +238,7 @@ cache_files=(
            legal/LICENSE.txt legal/AUTHORS.txt legal/NOTICE.txt \
            legal/THIRD-PARTY.md legal/PROVENANCE.md \
            legal/LICENSES/Apache-2.0.txt legal/LICENSES/BSD-3-Clause.txt \
+           legal/LICENSES/Bitstream-Vera.txt \
            legal/LICENSES/CC0-1.0.txt legal/LICENSES/GPL-2.0-or-later.txt \
            legal/LICENSES/GPL-3.0-or-later.txt \
            legal/LICENSES/OFL-1.1.txt \

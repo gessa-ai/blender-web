@@ -14,6 +14,20 @@
       "rationale": "The release loader and transient Stage-0 Blender UI require a fully local Inter face with no CSP-sensitive external fetch. The 22,480-byte static Latin-1 subset retains source shaping so the English first frame does not reflow before Stage 1 restores the complete font; it is renamed BW Interface Sans because subsetting creates an OFL Modified Version.",
       "runtime_linked": false,
       "runtime_asset": true
+    },
+    "stage0_mono_font": {
+      "name": "DejaVu Sans Mono layout-preserving subset",
+      "version": "2.37",
+      "status": "ship",
+      "license": "Bitstream-Vera",
+      "gpl_compatible": true,
+      "source": "upstream/release/datafiles/fonts/DejaVuSansMono.woff2 @ fbe6228777e7",
+      "source_sha256": "eb072b01f0f06ce11530a90cc11f094c60819d65ed47156540e23198ae149612",
+      "artifact": "platform_web/shell/fonts/bw-console-mono.woff2",
+      "artifact_sha256": "48af4c490eef98385cc4e4ee96b35b772880f751e72a906ec5b3ba645d57903b",
+      "rationale": "The exact full DejaVu Sans Mono remains in Stage 1. Stage 0 uses an 18,272-byte Basic Latin/Latin-1 subset with exact Basic Latin advances/raster across 10-24 px and exact Latin-1 advances; three unused ordinal/superscript Latin-1 glyphs share the accepted Inter-bootstrap transient raster boundary. Blender's stock font update reloads the exact full UI/mono/fallback stack after restoration.",
+      "runtime_linked": false,
+      "runtime_asset": true
     }
   },
   "pending": [],

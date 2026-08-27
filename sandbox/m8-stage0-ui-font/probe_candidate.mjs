@@ -6,7 +6,7 @@
 
 import {createHash} from "node:crypto";
 import {createRequire} from "node:module";
-import {mkdirSync, writeFileSync} from "node:fs";
+import {mkdirSync, readFileSync, writeFileSync} from "node:fs";
 import {dirname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
@@ -33,9 +33,16 @@ if (!chromium || !PNG) {
 const baselinePort = Number(process.argv[2] || 8136);
 const candidatePort = Number(process.argv[3] || 8137);
 const artifactDir = resolve(root, "sandbox/m8-stage0-ui-font/artifacts");
+const stage1Loader = resolve(root, "sandbox/m8-staged-deploy/stage1-loader.js");
 mkdirSync(artifactDir, {recursive: true});
 
 const fontPath = "/bw/datafiles/fonts/Inter.woff2";
+const monoFontPath = "/bw/datafiles/fonts/DejaVuSansMono.woff2";
+const fullInterControl = readFileSync(resolve(root, "upstream/release/datafiles/fonts/Inter.woff2"));
+const fullMonoControl = readFileSync(
+  resolve(root, "upstream/release/datafiles/fonts/DejaVuSansMono.woff2"));
+const monoSubsetControl = readFileSync(
+  resolve(root, "platform_web/shell/fonts/bw-console-mono.woff2"));
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -162,7 +169,80 @@ async function browserFontRasterContract(page) {
   });
 }
 
-async function fontIdentity(page) {
+async function browserMonoRasterContract(page) {
+  return page.evaluate(async () => {
+    const full = new FontFace("BW Mono Full Control",
+      "url('/fonts/full-mono-control.woff2')", {style: "normal", weight: "400"});
+    const subset = new FontFace("BW Mono Subset Control",
+      "url('/fonts/subset-mono-control.woff2')", {style: "normal", weight: "400"});
+    await Promise.all([full.load(), subset.load()]);
+    document.fonts.add(full);
+    document.fonts.add(subset);
+    const corpus = [
+      ...Array.from({length: 0x7f - 0x20}, (_, index) => index + 0x20),
+      ...Array.from({length: 0x100 - 0xa0}, (_, index) => index + 0xa0),
+    ].filter((codepoint) => codepoint !== 0xad)
+      .map((codepoint) => String.fromCodePoint(codepoint)).join("");
+    const basicLatin = Array.from({length: 0x7f - 0x20}, (_, index) =>
+      String.fromCodePoint(index + 0x20)).join("");
+    const render = (family, text, px) => {
+      const canvas = new OffscreenCanvas(8192, 80);
+      const context = canvas.getContext("2d", {alpha: false});
+      context.fillStyle = "#000";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#fff";
+      context.textBaseline = "alphabetic";
+      context.fontKerning = "normal";
+      context.font = `400 ${px}px "${family}"`;
+      const width = context.measureText(text).width;
+      context.fillText(text, 8, 48);
+      return {width, pixels: context.getImageData(0, 0, canvas.width, canvas.height).data};
+    };
+    const results = [];
+    for (const px of [10, 11, 12, 14, 16, 24]) {
+      const left = render("BW Mono Full Control", corpus, px);
+      const right = render("BW Mono Subset Control", corpus, px);
+      const basicLeft = render("BW Mono Full Control", basicLatin, px);
+      const basicRight = render("BW Mono Subset Control", basicLatin, px);
+      let changedChannels = 0;
+      let maxChannelDelta = 0;
+      let basicLatinChangedChannels = 0;
+      for (let index = 0; index < left.pixels.length; index++) {
+        const delta = Math.abs(left.pixels[index] - right.pixels[index]);
+        if (delta) changedChannels += 1;
+        maxChannelDelta = Math.max(maxChannelDelta, delta);
+      }
+      for (let index = 0; index < basicLeft.pixels.length; index++) {
+        if (basicLeft.pixels[index] !== basicRight.pixels[index]) {
+          basicLatinChangedChannels += 1;
+        }
+      }
+      results.push({
+        px,
+        fullWidth: left.width,
+        subsetWidth: right.width,
+        changedChannels,
+        maxChannelDelta,
+        basicLatinFullWidth: basicLeft.width,
+        basicLatinSubsetWidth: basicRight.width,
+        basicLatinChangedChannels,
+      });
+    }
+    const changedCodepoints = [];
+    for (const character of corpus) {
+      const renderGlyph = (family) => render(family, character, 14);
+      const left = renderGlyph("BW Mono Full Control");
+      const right = renderGlyph("BW Mono Subset Control");
+      if (left.width !== right.width ||
+          left.pixels.some((value, index) => value !== right.pixels[index])) {
+        changedCodepoints.push(character.codePointAt(0));
+      }
+    }
+    return {codepoints: [...corpus].length, results, changedCodepoints};
+  });
+}
+
+async function fontIdentity(page, path) {
   return page.evaluate(async (path) => {
     const bytes = window.__bwModule.FS.readFile(path);
     const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -170,7 +250,7 @@ async function fontIdentity(page) {
       bytes: bytes.length,
       sha256: Array.from(digest, (value) => value.toString(16).padStart(2, "0")).join(""),
     };
-  }, fontPath);
+  }, path);
 }
 
 async function run(browser, port, label, staged) {
@@ -179,6 +259,15 @@ async function run(browser, port, label, staged) {
     deviceScaleFactor: 1,
   });
   const page = await context.newPage();
+  await page.route("**/fonts/full-inter-control.woff2", (route) => route.fulfill({
+    status: 200, contentType: "font/woff2", body: fullInterControl,
+  }));
+  await page.route("**/fonts/full-mono-control.woff2", (route) => route.fulfill({
+    status: 200, contentType: "font/woff2", body: fullMonoControl,
+  }));
+  await page.route("**/fonts/subset-mono-control.woff2", (route) => route.fulfill({
+    status: 200, contentType: "font/woff2", body: monoSubsetControl,
+  }));
   const consoleErrors = [];
   const pageErrors = [];
   page.on("console", (message) => {
@@ -192,12 +281,13 @@ async function run(browser, port, label, staged) {
   await page.addInitScript(({manual}) => {
     if (manual) window.__BW_STAGE1_MANUAL = true;
   }, {manual: staged});
-  await page.goto(`http://127.0.0.1:${port}/windowed.html`, {
+  await page.goto(`http://127.0.0.1:${port}/index.html`, {
     waitUntil: "domcontentloaded",
     timeout: 180000,
   });
   await waitForProduct(page);
-  const initialFont = await fontIdentity(page);
+  const initialFont = await fontIdentity(page, fontPath);
+  const initialMono = await fontIdentity(page, monoFontPath);
   const fontRaster = staged ? await browserFontRasterContract(page) : null;
   if (fontRaster && (fontRaster.basicLatinChangedChannels !== 0 ||
       fontRaster.basicLatinFullWidth !== fontRaster.basicLatinSubsetWidth ||
@@ -205,27 +295,41 @@ async function run(browser, port, label, staged) {
       JSON.stringify(fontRaster.changedCodepoints) !== JSON.stringify([170, 179, 186]))) {
     throw new Error(`font raster mismatch: ${JSON.stringify(fontRaster)}`);
   }
+  const monoRaster = staged ? await browserMonoRasterContract(page) : null;
+  if (monoRaster && (monoRaster.results.some((row) =>
+    row.fullWidth !== row.subsetWidth ||
+    row.basicLatinFullWidth !== row.basicLatinSubsetWidth ||
+    row.basicLatinChangedChannels !== 0) ||
+      JSON.stringify(monoRaster.changedCodepoints) !== JSON.stringify([170, 179, 186]))) {
+    throw new Error(`mono font raster mismatch: ${JSON.stringify(monoRaster)}`);
+  }
   const initialPng = await page.locator("#canvas").screenshot();
   let restoredFont = null;
+  let restoredMono = null;
   let stage1 = null;
   let restoredPng = null;
   if (staged) {
+    await page.addScriptTag({path: stage1Loader});
     stage1 = await page.evaluate(() => window.__bwStage1Load());
     if (stage1?.phase !== "done" || stage1?.error !== null ||
-        stage1?.bootstrapDone !== 1 || stage1?.fontRefresh !== "done") {
+        stage1?.bootstrapDone !== 2 || stage1?.fontRefresh !== "done") {
       throw new Error(`Stage 1 failed: ${JSON.stringify(stage1)}`);
     }
     await page.waitForFunction(() => !document.getElementById("bw-stage-progress"), null,
       {timeout: 10000});
     await page.waitForTimeout(500);
-    restoredFont = await fontIdentity(page);
+    restoredFont = await fontIdentity(page, fontPath);
+    restoredMono = await fontIdentity(page, monoFontPath);
     restoredPng = await page.locator("#canvas").screenshot();
   }
   const result = {
     label,
     initialFont,
+    initialMono,
     restoredFont,
+    restoredMono,
     fontRaster,
+    monoRaster,
     stage1,
     initialPng: {bytes: initialPng.length, sha256: sha256(initialPng)},
     restoredPng: restoredPng && {bytes: restoredPng.length, sha256: sha256(restoredPng)},
@@ -249,7 +353,7 @@ try {
   const baseline = await run(browser, baselinePort, "baseline", false);
   const candidate = await run(browser, candidatePort, "candidate", true);
   const result = {
-    contract: "stage0-ui-font-bootstrap-diagnostic-v1",
+    contract: "stage0-font-bootstrap-diagnostic-v2",
     diagnosticNonreceipt: true,
     baseline: baseline.result,
     candidate: candidate.result,
@@ -262,7 +366,11 @@ try {
     `restored_changed=${result.restoredDelta.changed} ` +
     `initial_font=${candidate.result.initialFont.bytes} ` +
     `restored_font=${candidate.result.restoredFont.bytes} ` +
+    `initial_mono=${candidate.result.initialMono.bytes} ` +
+    `restored_mono=${candidate.result.restoredMono.bytes} ` +
     `basic_latin_raster_changed=${candidate.result.fontRaster.basicLatinChangedChannels} ` +
+    `mono_basic_raster_changed=${candidate.result.monoRaster.results.reduce((n, row) => n + row.basicLatinChangedChannels, 0)} ` +
+    `mono_latin1_variants=${candidate.result.monoRaster.changedCodepoints.join(",")} ` +
     `page_errors=${candidate.result.pageErrors.length}`,
   );
 }

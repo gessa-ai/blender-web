@@ -137,8 +137,8 @@
       "            action = getattr(anim, 'action', None) if anim else None",
       "            _bwfb_ack(tok, {'ok': True, 'op': op, 'mode': getattr(active, 'mode', 'NONE') if active else 'NONE', 'active': getattr(active, 'name', None), 'objectCount': len(bpy.data.objects), 'objects': sorted(o.name for o in bpy.data.objects), 'meshVertices': len(data.vertices) if data and hasattr(data, 'vertices') else None, 'modifiers': [m.type for m in active.modifiers] if active else [], 'materials': [m.name for m in data.materials if m] if data and hasattr(data, 'materials') else [], 'hasAction': bool(action), 'frameRange': list(action.frame_range) if action else None, 'renderEngine': bpy.context.scene.render.engine})",
       "        elif op == 'reload_interface_fonts':",  // bounded Stage-1 bootstrap finalizer
-      "            font_path = '/bw/datafiles/fonts/Inter.woff2'",
-      "            font_bytes = os.path.getsize(font_path)",
+      "            font_paths = ('/bw/datafiles/fonts/Inter.woff2', '/bw/datafiles/fonts/DejaVuSansMono.woff2')",
+      "            font_bytes = {path: os.path.getsize(path) for path in font_paths}",
       "            view = bpy.context.preferences.view",
       "            view.font_path_ui = view.font_path_ui",  // RNA update reloads UI/mono/fallback stack
       "            _bwfb_ack(tok, {'ok': True, 'op': op, 'fontBytes': font_bytes})",
@@ -302,10 +302,10 @@
     return ack;
   }
 
-  // Finalize the one constrained Stage-0 bootstrap asset after Stage 1 restores
-  // Blender's exact Inter bytes. No expression, path, or caller data crosses the
-  // bridge; assigning the existing RNA value invokes Blender's stock font-update
-  // callback and reloads the complete UI/mono/fallback stack.
+  // Finalize the constrained Stage-0 font bootstraps after Stage 1 restores the
+  // exact Inter and DejaVu Mono bytes. No expression, path, or caller data crosses
+  // the bridge; assigning the existing RNA value invokes Blender's stock font-update
+  // callback and reloads the complete UI/mono/fallback stack once.
   async function refreshInterfaceFonts() {
     const mod = requireMod();
     ensureDirs(mod);

@@ -713,23 +713,28 @@ for (let i = 0; i < 120; i++) { st = await page.evaluate(() => window.__bwStage1
 log('stage1 state: ' + JSON.stringify(st));
 const bootstrapProof = await page.evaluate(async () => {
   const manifest = await (await fetch('/bin/stage1-manifest.json')).json();
-  const row = Array.isArray(manifest.bootstrap) && manifest.bootstrap.length === 1 ?
-    manifest.bootstrap[0] : null;
-  if (!row) return {valid: false, error: 'exact singleton bootstrap row missing'};
-  const bytes = window.__bwModule.FS.readFile(row.filename);
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  const sha256 = Array.from(digest, (value) => value.toString(16).padStart(2, '0')).join('');
-  return {
-    valid: bytes.length === row.restored_bytes && sha256 === row.restored_sha256,
-    filename: row.filename,
-    bytes: bytes.length,
-    sha256,
-    expectedBytes: row.restored_bytes,
-    expectedSha256: row.restored_sha256,
-  };
+  const rows = Array.isArray(manifest.bootstrap) && manifest.bootstrap.length === 2 ?
+    manifest.bootstrap : null;
+  if (!rows) return {valid: false, count: 0, error: 'exact two-font bootstrap rows missing'};
+  const files = [];
+  for (const row of rows) {
+    const bytes = window.__bwModule.FS.readFile(row.filename);
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    const sha256 = Array.from(digest, (value) => value.toString(16).padStart(2, '0')).join('');
+    files.push({
+      valid: bytes.length === row.restored_bytes && sha256 === row.restored_sha256,
+      filename: row.filename,
+      bytes: bytes.length,
+      sha256,
+      expectedBytes: row.restored_bytes,
+      expectedSha256: row.restored_sha256,
+    });
+  }
+  return {valid: files.every((file) => file.valid), count: files.length, files};
 });
-receipt.stage1_bootstrap_restored = !!st && st.bootstrapTotal === 1 &&
-  st.bootstrapDone === 1 && st.fontRefresh === 'done' && bootstrapProof.valid === true;
+receipt.stage1_bootstrap_restored = !!st && bootstrapProof.count === 2 &&
+  st.bootstrapTotal === bootstrapProof.count && st.bootstrapDone === bootstrapProof.count &&
+  st.fontRefresh === 'done' && bootstrapProof.valid === true;
 log('stage1 bootstrap restore: ' + JSON.stringify(bootstrapProof));
 receipt.stage1_complete = !!st && st.phase === 'done' && !st.error &&
   st.filesDone === st.filesTotal && st.filesTotal > 0 &&

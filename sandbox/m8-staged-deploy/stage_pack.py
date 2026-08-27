@@ -36,10 +36,10 @@
 #           non-default colormanagement LUTs (keep config.ocio + the default AgX display
 #           path), build-time/compiled-in source assets and external StudioLight images.
 #           [--defer-datafiles]
-#   BOOTSTRAP - a launch-equivalent compact asset in stage-0 plus the exact
-#           Blender source asset in stage-1. The UI font is reloaded after
-#           restoration, so the compact first-frame copy never becomes the
-#           session's permanent font.
+#   BOOTSTRAP - launch-equivalent compact assets in stage-0 plus the exact
+#           Blender source assets in stage-1. The UI/mono font stack is reloaded
+#           after restoration, so compact first-frame copies never become the
+#           session's permanent fonts.
 #   KEEP  - everything else (-> stage-0).
 import argparse
 from decimal import Decimal, InvalidOperation
@@ -66,6 +66,28 @@ UI_FONT_SOURCE_BYTES = 351_132
 UI_FONT_SOURCE_SHA256 = "fb865a5087637ba194b14aef6f0558214f3c4b3ec939e3c0812c66de41036a47"
 UI_FONT_BOOTSTRAP_BYTES = 22_480
 UI_FONT_BOOTSTRAP_SHA256 = "47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f"
+MONO_FONT_PATH = "/bw/datafiles/fonts/DejaVuSansMono.woff2"
+MONO_FONT_BOOTSTRAP = ROOT / "platform_web/shell/fonts/bw-console-mono.woff2"
+MONO_FONT_SOURCE_BYTES = 145_192
+MONO_FONT_SOURCE_SHA256 = "eb072b01f0f06ce11530a90cc11f094c60819d65ed47156540e23198ae149612"
+MONO_FONT_BOOTSTRAP_BYTES = 18_272
+MONO_FONT_BOOTSTRAP_SHA256 = "48af4c490eef98385cc4e4ee96b35b772880f751e72a906ec5b3ba645d57903b"
+FONT_BOOTSTRAPS = {
+    UI_FONT_PATH: (
+        UI_FONT_BOOTSTRAP,
+        UI_FONT_SOURCE_BYTES,
+        UI_FONT_SOURCE_SHA256,
+        UI_FONT_BOOTSTRAP_BYTES,
+        UI_FONT_BOOTSTRAP_SHA256,
+    ),
+    MONO_FONT_PATH: (
+        MONO_FONT_BOOTSTRAP,
+        MONO_FONT_SOURCE_BYTES,
+        MONO_FONT_SOURCE_SHA256,
+        MONO_FONT_BOOTSTRAP_BYTES,
+        MONO_FONT_BOOTSTRAP_SHA256,
+    ),
+}
 
 # --- oracle-validated partition sets (notes/m8-staged-loading.md sec 2-3) --------
 DEAD_STDLIB = (
@@ -663,19 +685,28 @@ def requires_discovery_placeholder(fn):
     return fn.startswith(STUDIOLIGHT_DISCOVERY_PREFIXES) and not fn.endswith("/license.txt")
 
 
-def ui_font_bootstrap_payload(source):
-    """Validate both font generations and return the compact Stage-0 bytes."""
-    if len(source) != UI_FONT_SOURCE_BYTES or hashlib.sha256(source).hexdigest() != \
-            UI_FONT_SOURCE_SHA256:
-        sys.exit("stage_pack: FATAL: Blender UI font source identity drifted")
+def font_bootstrap_payload(filename, source):
+    """Validate both generations of one font and return its compact Stage-0 bytes."""
     try:
-        bootstrap = UI_FONT_BOOTSTRAP.read_bytes()
+        bootstrap_path, source_bytes, source_sha256, bootstrap_bytes, bootstrap_sha256 = \
+            FONT_BOOTSTRAPS[filename]
+    except KeyError:
+        sys.exit(f"stage_pack: FATAL: unknown font bootstrap path: {filename}")
+    if len(source) != source_bytes or hashlib.sha256(source).hexdigest() != source_sha256:
+        sys.exit(f"stage_pack: FATAL: Blender font source identity drifted: {filename}")
+    try:
+        bootstrap = bootstrap_path.read_bytes()
     except OSError as error:
-        sys.exit(f"stage_pack: FATAL: UI font bootstrap is unreadable: {error}")
-    if len(bootstrap) != UI_FONT_BOOTSTRAP_BYTES or \
-            hashlib.sha256(bootstrap).hexdigest() != UI_FONT_BOOTSTRAP_SHA256:
-        sys.exit("stage_pack: FATAL: UI font bootstrap identity drifted")
+        sys.exit(f"stage_pack: FATAL: font bootstrap is unreadable ({filename}): {error}")
+    if len(bootstrap) != bootstrap_bytes or \
+            hashlib.sha256(bootstrap).hexdigest() != bootstrap_sha256:
+        sys.exit(f"stage_pack: FATAL: font bootstrap identity drifted: {filename}")
     return bootstrap
+
+
+def ui_font_bootstrap_payload(source):
+    """Compatibility wrapper for the original singleton bootstrap contract."""
+    return font_bootstrap_payload(UI_FONT_PATH, source)
 
 
 def classify(fn, defer_datafiles):
@@ -745,7 +776,7 @@ def classify(fn, defer_datafiles):
         # its Basic Latin advances/raster are byte-identical for the English first
         # frame. Stage 1 restores Blender's full font and explicitly reloads the UI
         # font before reporting Assets ready.
-        if fn == UI_FONT_PATH:
+        if fn in FONT_BOOTSTRAPS:
             return "bootstrap"
         icon_prefix = "/bw/datafiles/icons/"
         if fn.startswith(icon_prefix) and fn[len(icon_prefix):] in BOOT_COLD_TOOL_ICONS:
@@ -950,13 +981,13 @@ def main():
     for b in ("keep", "defer", "bootstrap", "drop"):
         n = len(buckets[b]); t = total(b)
         print(f"  {b:5s}: {n:5d} files  {t:12,d} bytes  ({t/1048576:7.2f} MiB)")
-    if len(buckets["bootstrap"]) > 1:
-        sys.exit("stage_pack: FATAL: multiple UI font bootstrap entries")
-    bootstrap_payload = b""
-    if buckets["bootstrap"]:
-        _, start, end = buckets["bootstrap"][0]
-        bootstrap_payload = ui_font_bootstrap_payload(blob[start:end])
-    stage0_bytes = total("keep") + len(bootstrap_payload)
+    if len(buckets["bootstrap"]) > len(FONT_BOOTSTRAPS):
+        sys.exit("stage_pack: FATAL: too many font bootstrap entries")
+    bootstrap_payloads = {
+        filename: font_bootstrap_payload(filename, blob[start:end])
+        for filename, start, end in buckets["bootstrap"]
+    }
+    stage0_bytes = total("keep") + sum(map(len, bootstrap_payloads.values()))
     stage1_bytes = total("defer") + total("bootstrap")
     classified_bytes = sum(
         total(bucket) for bucket in ("keep", "defer", "bootstrap", "drop")
@@ -996,6 +1027,7 @@ def main():
             stage0 += blob[s:e]
             new_entries.append((fn, start, len(stage0)))
         elif b == "bootstrap":
+            bootstrap_payload = bootstrap_payloads[fn]
             start = len(stage0)
             stage0 += bootstrap_payload
             new_entries.append((fn, start, len(stage0)))
@@ -1007,9 +1039,9 @@ def main():
             bootstrap_manifest.append({
                 "filename": fn,
                 "stage0_bytes": len(bootstrap_payload),
-                "stage0_sha256": UI_FONT_BOOTSTRAP_SHA256,
+                "stage0_sha256": FONT_BOOTSTRAPS[fn][4],
                 "restored_bytes": e - s,
-                "restored_sha256": UI_FONT_SOURCE_SHA256,
+                "restored_sha256": FONT_BOOTSTRAPS[fn][2],
                 "action": "reload-interface-fonts",
             })
         elif b == "defer":

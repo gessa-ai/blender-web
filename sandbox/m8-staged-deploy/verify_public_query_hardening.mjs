@@ -376,35 +376,101 @@ async function assertStageContract(stageSource) {
   const stage0FontHash = createHash('sha256').update(stage0Font).digest('hex');
   const restoredFont = Uint8Array.from([70, 79, 78, 84]);
   const restoredFontHash = createHash('sha256').update(restoredFont).digest('hex');
+  const stage0Mono = Uint8Array.from([77, 48]);
+  const stage0MonoHash = createHash('sha256').update(stage0Mono).digest('hex');
+  const restoredMono = Uint8Array.from([77, 79, 78, 79]);
+  const restoredMonoHash = createHash('sha256').update(restoredMono).digest('hex');
+  const restoredPayload = Uint8Array.from([...restoredFont, ...restoredMono]);
   const bootstrap = makeStageEnvironment(stageSource, {
     trustedManual: true,
-    chunks: [Array.from(restoredFont)],
-    total: restoredFont.length,
-    manifestFiles: [{filename: '/bw/font.woff2', start: 0, end: restoredFont.length}],
-    manifestBootstrap: [{
-      filename: '/bw/font.woff2',
-      stage0_bytes: 2,
-      stage0_sha256: stage0FontHash,
-      restored_bytes: restoredFont.length,
-      restored_sha256: restoredFontHash,
-      action: 'reload-interface-fonts',
-    }],
+    chunks: [Array.from(restoredPayload)],
+    total: restoredPayload.length,
+    manifestFiles: [
+      {filename: '/bw/font.woff2', start: 0, end: restoredFont.length},
+      {filename: '/bw/mono.woff2', start: restoredFont.length, end: restoredPayload.length},
+    ],
+    manifestBootstrap: [
+      {
+        filename: '/bw/font.woff2',
+        stage0_bytes: stage0Font.length,
+        stage0_sha256: stage0FontHash,
+        restored_bytes: restoredFont.length,
+        restored_sha256: restoredFontHash,
+        action: 'reload-interface-fonts',
+      },
+      {
+        filename: '/bw/mono.woff2',
+        stage0_bytes: stage0Mono.length,
+        stage0_sha256: stage0MonoHash,
+        restored_bytes: restoredMono.length,
+        restored_sha256: restoredMonoHash,
+        action: 'reload-interface-fonts',
+      },
+    ],
     bridge: {
       ready: async () => true,
       refreshInterfaceFonts: async () => {
         fontRefreshCount += 1;
-        return {ok: true, fontBytes: restoredFont.length};
+        return {ok: true, fontBytes: {
+          '/bw/font.woff2': restoredFont.length,
+          '/bw/mono.woff2': restoredMono.length,
+        }};
       },
     },
-    initialFiles: {'/bw/font.woff2': stage0Font},
+    initialFiles: {'/bw/font.woff2': stage0Font, '/bw/mono.woff2': stage0Mono},
   });
   const bootstrapState = await bootstrap.window.__bwStage1Load();
   assert.equal(bootstrapState.phase, 'done');
-  assert.equal(bootstrapState.bootstrapTotal, 1);
-  assert.equal(bootstrapState.bootstrapDone, 1);
+  assert.equal(bootstrapState.bootstrapTotal, 2);
+  assert.equal(bootstrapState.bootstrapDone, 2);
   assert.equal(bootstrapState.fontRefresh, 'done');
   assert.equal(fontRefreshCount, 1);
   assert.equal(bootstrap.directoryMode('/bw'), 0o40555);
+
+  const excessBootstrapRows = [0, 1, 2].map((index) => ({
+    filename: `/bw/font-${index}.woff2`,
+    stage0_bytes: stage0Font.length,
+    stage0_sha256: stage0FontHash,
+    restored_bytes: 1,
+    restored_sha256: createHash('sha256').update(Uint8Array.of(index)).digest('hex'),
+    action: 'reload-interface-fonts',
+  }));
+  const excessBootstrap = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [[0, 1, 2]],
+    total: 3,
+    manifestFiles: excessBootstrapRows.map((row, index) => ({
+      filename: row.filename, start: index, end: index + 1,
+    })),
+    manifestBootstrap: excessBootstrapRows,
+    initialFiles: Object.fromEntries(excessBootstrapRows.map((row) =>
+      [row.filename, stage0Font])),
+  });
+  const excessBootstrapState = await excessBootstrap.window.__bwStage1Load();
+  assert.equal(excessBootstrapState.phase, 'error');
+  assert.match(excessBootstrapState.error, /bootstrap manifest is invalid/);
+  assert.equal(excessBootstrap.dataFetchCount(), 0);
+
+  const duplicateRow = {
+    filename: '/bw/font.woff2',
+    stage0_bytes: stage0Font.length,
+    stage0_sha256: stage0FontHash,
+    restored_bytes: restoredFont.length,
+    restored_sha256: restoredFontHash,
+    action: 'reload-interface-fonts',
+  };
+  const duplicateBootstrap = makeStageEnvironment(stageSource, {
+    trustedManual: true,
+    chunks: [Array.from(restoredFont)],
+    total: restoredFont.length,
+    manifestFiles: [{filename: duplicateRow.filename, start: 0, end: restoredFont.length}],
+    manifestBootstrap: [duplicateRow, duplicateRow],
+    initialFiles: {[duplicateRow.filename]: stage0Font},
+  });
+  const duplicateBootstrapState = await duplicateBootstrap.window.__bwStage1Load();
+  assert.equal(duplicateBootstrapState.phase, 'error');
+  assert.match(duplicateBootstrapState.error, /bootstrap entry 1 is invalid/);
+  assert.equal(duplicateBootstrap.dataFetchCount(), 0);
 
   const corruptBootstrap = makeStageEnvironment(stageSource, {
     trustedManual: true,
@@ -419,7 +485,9 @@ async function assertStageContract(stageSource) {
       restored_sha256: '0'.repeat(64),
       action: 'reload-interface-fonts',
     }],
-    bridge: {ready: async () => true, refreshInterfaceFonts: async () => ({ok: true})},
+    bridge: {ready: async () => true, refreshInterfaceFonts: async () => ({
+      ok: true, fontBytes: {'/bw/font.woff2': restoredFont.length},
+    })},
     initialFiles: {'/bw/font.woff2': stage0Font},
   });
   const corruptBootstrapState = await corruptBootstrap.window.__bwStage1Load();
@@ -440,7 +508,9 @@ async function assertStageContract(stageSource) {
       restored_sha256: restoredFontHash,
       action: 'reload-interface-fonts',
     }],
-    bridge: {ready: async () => true, refreshInterfaceFonts: async () => ({ok: true})},
+    bridge: {ready: async () => true, refreshInterfaceFonts: async () => ({
+      ok: true, fontBytes: {'/bw/font.woff2': restoredFont.length},
+    })},
     initialFiles: {'/bw/font.woff2': [0, 0]},
   });
   const corruptStage0State = await corruptStage0.window.__bwStage1Load();
@@ -719,7 +789,14 @@ await rejectStage('stage0_bootstrap_identity_check_removed', replaceOnce(stageSo
   'if (false && (stage0.length !== row.stage0_bytes || digest !== row.stage0_sha256)) {'));
 await rejectStage('bootstrap_font_refresh_removed', replaceOnce(stageSource,
   'const ack = await bridge.refreshInterfaceFonts();',
-  'const ack = {ok: true, fontBytes: row.restored_bytes};'));
+  'const ack = {ok: true, fontBytes: Object.fromEntries(bootstrap.map(' +
+  'row => [row.filename, row.restored_bytes]))};'));
+await rejectStage('bootstrap_limit_removed', replaceOnce(stageSource,
+  '!Array.isArray(bootstrap) || bootstrap.length > 2',
+  '!Array.isArray(bootstrap) || false'));
+await rejectStage('bootstrap_duplicate_gate_removed', replaceOnce(stageSource,
+  '          bootstrapSeen.has(row.filename)) {',
+  '          false) {'));
 await rejectStage('stream_chunk_ceiling_removed', replaceOnce(stageSource,
   'if (bytes > MAX_STREAM_CHUNK_BYTES) {',
   'if (false && bytes > MAX_STREAM_CHUNK_BYTES) {'));
@@ -727,12 +804,12 @@ await rejectStage('transient_peak_accounting_removed', replaceOnce(stageSource,
   'state.peakTransientBytes = Math.max(state.peakTransientBytes, transient);',
   'state.peakTransientBytes += 0;'));
 
-assert.equal(stageNegative, 27);
+assert.equal(stageNegative, 29);
 const measureSource = fs.readFileSync(MEASURE, 'utf8');
 assert.equal(count(measureSource, 'window.__BW_STAGE1_MANUAL = true;'), 2,
   'cold and warm timing contexts must install the trusted Stage-1 manual control');
 assert.equal(count(measureSource, 'stage1=manual'), 0,
   'timing harness still relies on a public query-controlled Stage-1 hook');
 console.log('M8_PUBLIC_QUERY_HARDENING_CONTRACT_PASS positive=3 negative=6 ' +
-  'python=off argv=off controls=off stage1_positive=23 stage1_negative=27 recovery=4 ' +
+  'python=off argv=off controls=off stage1_positive=23 stage1_negative=29 recovery=4 ' +
   'progress=visible memory=bounded stage1_query_controls=off trusted_measurement_contexts=2');

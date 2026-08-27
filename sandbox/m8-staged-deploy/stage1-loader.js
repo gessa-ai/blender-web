@@ -152,9 +152,10 @@
       throw new Error("stage1 manifest spans end at " + cursor + " instead of " + expected);
     }
     const bootstrap = man.bootstrap === undefined ? [] : man.bootstrap;
-    if (!Array.isArray(bootstrap) || bootstrap.length > 1) {
+    if (!Array.isArray(bootstrap) || bootstrap.length > 2) {
       throw new Error("stage1 bootstrap manifest is invalid");
     }
+    const bootstrapSeen = new Set();
     for (let i = 0; i < bootstrap.length; i++) {
       const row = bootstrap[i];
       if (!row || row.action !== "reload-interface-fonts" ||
@@ -162,9 +163,11 @@
           !Number.isSafeInteger(row.restored_bytes) || row.restored_bytes <= 0 ||
           !/^[0-9a-f]{64}$/.test(row.stage0_sha256) ||
           !/^[0-9a-f]{64}$/.test(row.restored_sha256) ||
-          spans.get(row.filename) !== row.restored_bytes) {
+          spans.get(row.filename) !== row.restored_bytes ||
+          bootstrapSeen.has(row.filename)) {
         throw new Error("stage1 bootstrap entry " + i + " is invalid");
       }
+      bootstrapSeen.add(row.filename);
     }
     return {expected, largestFileBytes, bootstrap};
   }
@@ -280,19 +283,25 @@
       if (restored.length !== row.restored_bytes || digest !== row.restored_sha256) {
         throw new Error("restored bootstrap identity mismatch: " + row.filename);
       }
-      const bridge = window.BWFileBridge;
-      if (!bridge || typeof bridge.refreshInterfaceFonts !== "function") {
-        throw new Error("interface-font refresh bridge unavailable");
-      }
-      const ready = await bridge.ready();
-      if (!ready) throw new Error("interface-font refresh daemon unavailable");
-      const ack = await bridge.refreshInterfaceFonts();
-      if (!ack?.ok || ack.fontBytes !== row.restored_bytes) {
-        throw new Error("interface-font refresh rejected");
-      }
-      state.bootstrapDone += 1;
     }
-    if (bootstrap.length) state.fontRefresh = "done";
+    if (!bootstrap.length) return;
+    const bridge = window.BWFileBridge;
+    if (!bridge || typeof bridge.refreshInterfaceFonts !== "function") {
+      throw new Error("interface-font refresh bridge unavailable");
+    }
+    const ready = await bridge.ready();
+    if (!ready) throw new Error("interface-font refresh daemon unavailable");
+    const ack = await bridge.refreshInterfaceFonts();
+    if (!ack?.ok || !ack.fontBytes || typeof ack.fontBytes !== "object") {
+      throw new Error("interface-font refresh rejected");
+    }
+    for (const row of bootstrap) {
+      if (ack.fontBytes[row.filename] !== row.restored_bytes) {
+        throw new Error("interface-font refresh rejected: " + row.filename);
+      }
+    }
+    state.bootstrapDone = bootstrap.length;
+    state.fontRefresh = "done";
   }
 
   async function fetchAndStage(FS, man, expected, generation, temporaryFiles) {

@@ -52,6 +52,18 @@ const discoveryPaths = [
   "/bw/datafiles/studiolights/matcap/basic_bright.exr",
   "/bw/datafiles/studiolights/world/forest.exr",
 ];
+const fontContracts = [
+  {
+    path: "/bw/datafiles/fonts/Inter.woff2",
+    source: {bytes: 351132, sha256: "fb865a5087637ba194b14aef6f0558214f3c4b3ec939e3c0812c66de41036a47"},
+    stage0: {bytes: 22480, sha256: "47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f"},
+  },
+  {
+    path: "/bw/datafiles/fonts/DejaVuSansMono.woff2",
+    source: {bytes: 145192, sha256: "eb072b01f0f06ce11530a90cc11f094c60819d65ed47156540e23198ae149612"},
+    stage0: {bytes: 18272, sha256: "48af4c490eef98385cc4e4ee96b35b772880f751e72a906ec5b3ba645d57903b"},
+  },
+];
 const bootPaths = [
   "/bw/python/lib/python3.13/_collections_abc.py",
   "/bw/python/lib/python3.13/email/message.py",
@@ -62,8 +74,6 @@ const bootPaths = [
   "/bw/scripts/modules/_bpy_types.py",
   "/bw/scripts/addons_core/bl_pkg/bl_extension_ops.py",
   "/bw/scripts/presets/keyconfig/keymap_data/blender_default.py",
-  "/bw/datafiles/fonts/Inter.woff2",
-  "/bw/datafiles/fonts/DejaVuSansMono.woff2",
   "/bw/datafiles/icons/ops.generic.cursor.dat",
   "/bw/datafiles/icons/ops.generic.select_box.dat",
   "/bw/datafiles/icons/ops.mesh.primitive_cube_add_gizmo.dat",
@@ -110,6 +120,7 @@ from bl_ui import space_toolsystem_common
 
 _bw_cold_paths = ${JSON.stringify(coldPaths)}
 _bw_discovery_paths = ${JSON.stringify(discoveryPaths)}
+_bw_font_paths = ${JSON.stringify(fontContracts.map((row) => row.path))}
 _bw_boot_paths = ${JSON.stringify(bootPaths)}
 _bw_cold_module_names = ${JSON.stringify(coldModuleNames)}
 _bw_cold_icon_names = ${JSON.stringify(coldIconNames)}
@@ -157,6 +168,7 @@ def _bw_initial_probe():
         'cold_modules': sorted(name for name in _bw_cold_module_names if name in sys.modules),
         'cold_files': {path: _bw_file_info(path) for path in _bw_cold_paths},
         'discovery_files': {path: _bw_file_info(path) for path in _bw_discovery_paths},
+        'font_files': {path: _bw_file_info(path) for path in _bw_font_paths},
         'boot_files': {path: _bw_file_info(path) for path in _bw_boot_paths},
     }
     with open(_bw_initial_result, 'w') as handle:
@@ -230,7 +242,7 @@ def _bw_stage1_probe():
         info = {
             'error': None,
             'restored': {path: _bw_file_info(path)
-                         for path in _bw_cold_paths + _bw_discovery_paths},
+                         for path in _bw_cold_paths + _bw_discovery_paths + _bw_font_paths},
             'decimal': str(decimal.Decimal('1.25') * decimal.Decimal('4')),
             'xml_tag': element_tree.Element('stage').tag,
             'logging_handler': handlers.RotatingFileHandler.__name__,
@@ -446,6 +458,16 @@ for (const path of discoveryPaths) {
     failures.push(`discovery filename was not retained as a zero-byte Stage-0 entry: ${path}`);
   }
 }
+for (const contract of fontContracts) {
+  if (JSON.stringify(baseline.initial.font_files[contract.path]) !==
+      JSON.stringify({...contract.source, error: null})) {
+    failures.push(`monolith font source identity changed: ${contract.path}`);
+  }
+  if (JSON.stringify(staged.initial.font_files[contract.path]) !==
+      JSON.stringify({...contract.stage0, error: null})) {
+    failures.push(`Stage-0 font bootstrap identity changed: ${contract.path}`);
+  }
+}
 for (const path of bootPaths) {
   if (!(baseline.initial.boot_files[path]?.bytes > 0) ||
       JSON.stringify(staged.initial.boot_files[path]) !==
@@ -469,7 +491,10 @@ for (const result of [baseline, staged]) {
 }
 if (!staged.stage1 || staged.stage1.phase !== "done" || staged.stage1.error ||
     staged.stage1.filesDone !== staged.stage1.filesTotal ||
-    staged.stage1.bytesDone !== staged.stage1.bytesTotal) {
+    staged.stage1.bytesDone !== staged.stage1.bytesTotal ||
+    staged.stage1.bootstrapTotal !== fontContracts.length ||
+    staged.stage1.bootstrapDone !== fontContracts.length ||
+    staged.stage1.fontRefresh !== "done") {
   failures.push("Stage-1 loader did not restore every deferred byte");
 }
 if (!staged.restored || staged.restored.error || staged.restored.decimal !== "5.00" ||
@@ -505,6 +530,12 @@ for (const path of discoveryPaths) {
     failures.push(`Stage 1 did not restore discovery asset byte-exactly: ${path}`);
   }
 }
+for (const contract of fontContracts) {
+  if (JSON.stringify(staged.restored?.restored?.[contract.path]) !==
+      JSON.stringify(baseline.initial.font_files[contract.path])) {
+    failures.push(`Stage 1 did not restore font byte-exactly: ${contract.path}`);
+  }
+}
 
 if (failures.length) {
   console.error(JSON.stringify({failures, baseline, staged}, null, 2));
@@ -512,6 +543,7 @@ if (failures.length) {
 }
 console.log(
   `BW_STAGE0_PYTHON_RUNTIME_PASS cold=${coldPaths.length} boot=${bootPaths.length} ` +
+  `fonts=${fontContracts.length}/${staged.stage1.bootstrapDone} ` +
   `restored=${staged.stage1.filesDone}/${staged.stage1.bytesDone} ` +
   `vertices=${staged.interaction.vertices} console=${staged.restored.console_area} ` +
   `ocio=${staged.initial.color_management.view}->${staged.restored.false_color_view} ` +

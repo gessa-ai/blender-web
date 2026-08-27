@@ -153,7 +153,7 @@ def main() -> None:
         "/bw/datafiles/studiolights/world/studio.exr": "defer",
         "/bw/datafiles/studiolights/matcap/basic.exr": "defer",
         "/bw/datafiles/fonts/Inter.woff2": "bootstrap",
-        "/bw/datafiles/fonts/DejaVuSansMono.woff2": "keep",
+        "/bw/datafiles/fonts/DejaVuSansMono.woff2": "bootstrap",
         "/bw/datafiles/fonts/Noto Sans CJK Regular.woff2": "defer",
         "/bw/datafiles/colormanagement/config.ocio": "keep",
         "/bw/datafiles/colormanagement/luts/AgX_Base_sRGB.cube": "keep",
@@ -213,10 +213,15 @@ def main() -> None:
             raise AssertionError(f"discovery placeholder {filename}: {actual} != {expected}")
 
     full_font = (HERE.parents[1] / "upstream/release/datafiles/fonts/Inter.woff2").read_bytes()
-    bootstrap_font = MODULE.ui_font_bootstrap_payload(full_font)
+    bootstrap_font = MODULE.font_bootstrap_payload(MODULE.UI_FONT_PATH, full_font)
+    full_mono = (
+        HERE.parents[1] / "upstream/release/datafiles/fonts/DejaVuSansMono.woff2"
+    ).read_bytes()
+    bootstrap_mono = MODULE.font_bootstrap_payload(MODULE.MONO_FONT_PATH, full_mono)
     font_start = 10
     font_end = font_start + len(full_font)
-    template_end = font_end + 4
+    mono_end = font_end + len(full_mono)
+    template_end = mono_end + 4
     numpy_end = template_end + 4
     forest_end = numpy_end + 4
     entries = [
@@ -225,13 +230,14 @@ def main() -> None:
         ("/bw/python/lib/python3.13/__pycache__/x.pyc", "3", "6"),
         ("/usd/plugin.json", "6", "1e+1"),
         ("/bw/datafiles/fonts/Inter.woff2", str(font_start), str(font_end)),
+        ("/bw/datafiles/fonts/DejaVuSansMono.woff2", str(font_end), str(mono_end)),
         ("/bw/scripts/startup/bl_app_templates_system/VFX/startup.blend",
-         str(font_end), str(template_end)),
+         str(mono_end), str(template_end)),
         ("/bw/python/lib/python3.13/site-packages/numpy/__init__.py",
          str(template_end), str(numpy_end)),
         ("/bw/datafiles/studiolights/world/forest.exr", str(numpy_end), str(forest_end)),
     ]
-    source_data = b"ABBCCCDDDD" + full_font + b"FFFFGGGGHHHH"
+    source_data = b"ABBCCCDDDD" + full_font + full_mono + b"FFFFGGGGHHHH"
     with tempfile.TemporaryDirectory(prefix="bw-stage-pack-contract-") as temp_text:
         temp = Path(temp_text)
         source = write_source(temp, manifest(entries, len(source_data)), source_data)
@@ -239,9 +245,10 @@ def main() -> None:
         result = run_packer(source, output)
         if result.returncode != 0:
             raise AssertionError(f"valid pack failed: {result.stderr or result.stdout}")
-        if (output / "blender_browser.data").read_bytes() != b"A" + bootstrap_font:
+        expected_stage0 = b"A" + bootstrap_font + bootstrap_mono
+        if (output / "blender_browser.data").read_bytes() != expected_stage0:
             raise AssertionError("stage-0 concatenation changed")
-        expected_stage1 = b"BBDDDD" + full_font + b"FFFFGGGGHHHH"
+        expected_stage1 = b"BBDDDD" + full_font + full_mono + b"FFFFGGGGHHHH"
         if (output / "stage1.data").read_bytes() != expected_stage1:
             raise AssertionError("stage-1 concatenation changed")
         _, _, packed_entries, packed_size = MODULE.parse_manifest(
@@ -250,9 +257,10 @@ def main() -> None:
         expected_entries = [
             (entries[0][0], 0, 1),
             (entries[4][0], 1, 1 + len(bootstrap_font)),
-            (entries[7][0], 0, 0),
+            (entries[5][0], 1 + len(bootstrap_font), len(expected_stage0)),
+            (entries[8][0], 0, 0),
         ]
-        if packed_entries != expected_entries or packed_size != 1 + len(bootstrap_font):
+        if packed_entries != expected_entries or packed_size != len(expected_stage0):
             raise AssertionError(
                 f"rewritten preload manifest changed: {packed_entries!r}/{packed_size}"
             )
@@ -264,27 +272,39 @@ def main() -> None:
                 {"filename": entries[3][0], "start": 2, "end": 6},
                 {"filename": entries[4][0], "start": 6, "end": 6 + len(full_font)},
                 {"filename": entries[5][0], "start": 6 + len(full_font),
-                 "end": 10 + len(full_font)},
-                {"filename": entries[6][0], "start": 10 + len(full_font),
-                 "end": 14 + len(full_font)},
-                {"filename": entries[7][0], "start": 14 + len(full_font),
-                 "end": 18 + len(full_font)},
+                 "end": 6 + len(full_font) + len(full_mono)},
+                {"filename": entries[6][0], "start": 6 + len(full_font) + len(full_mono),
+                 "end": 10 + len(full_font) + len(full_mono)},
+                {"filename": entries[7][0], "start": 10 + len(full_font) + len(full_mono),
+                 "end": 14 + len(full_font) + len(full_mono)},
+                {"filename": entries[8][0], "start": 14 + len(full_font) + len(full_mono),
+                 "end": 18 + len(full_font) + len(full_mono)},
             ],
-            "bootstrap": [{
-                "filename": entries[4][0],
-                "stage0_bytes": len(bootstrap_font),
-                "stage0_sha256": MODULE.UI_FONT_BOOTSTRAP_SHA256,
-                "restored_bytes": len(full_font),
-                "restored_sha256": MODULE.UI_FONT_SOURCE_SHA256,
-                "action": "reload-interface-fonts",
-            }],
+            "bootstrap": [
+                {
+                    "filename": entries[4][0],
+                    "stage0_bytes": len(bootstrap_font),
+                    "stage0_sha256": MODULE.UI_FONT_BOOTSTRAP_SHA256,
+                    "restored_bytes": len(full_font),
+                    "restored_sha256": MODULE.UI_FONT_SOURCE_SHA256,
+                    "action": "reload-interface-fonts",
+                },
+                {
+                    "filename": entries[5][0],
+                    "stage0_bytes": len(bootstrap_mono),
+                    "stage0_sha256": MODULE.MONO_FONT_BOOTSTRAP_SHA256,
+                    "restored_bytes": len(full_mono),
+                    "restored_sha256": MODULE.MONO_FONT_SOURCE_SHA256,
+                    "action": "reload-interface-fonts",
+                },
+            ],
         }:
             raise AssertionError(f"stage-1 manifest changed: {stage1!r}")
         deferred_names = {row["filename"] for row in stage1["files"]}
         retained_deferred = deferred_names.intersection(
             filename for filename, _, _ in packed_entries
         )
-        if retained_deferred != {entries[4][0], entries[7][0]}:
+        if retained_deferred != {entries[4][0], entries[5][0], entries[8][0]}:
             raise AssertionError(
                 f"bootstrap/discovery Stage-0 filenames changed: {retained_deferred!r}"
             )
@@ -293,7 +313,7 @@ def main() -> None:
         expect_exit(
             "unparsed manifest entry",
             lambda: MODULE.parse_manifest(malformed),
-            "parsed 7 of 8 manifest entries",
+            "parsed 8 of 9 manifest entries",
         )
         invalid_source = temp / "invalid"
         invalid_source.mkdir()
@@ -326,8 +346,13 @@ def main() -> None:
 
     expect_exit(
         "UI font source identity",
-        lambda: MODULE.ui_font_bootstrap_payload(b"not Blender's Inter"),
-        "UI font source identity drifted",
+        lambda: MODULE.font_bootstrap_payload(MODULE.UI_FONT_PATH, b"not Blender's Inter"),
+        "Blender font source identity drifted",
+    )
+    expect_exit(
+        "mono font source identity",
+        lambda: MODULE.font_bootstrap_payload(MODULE.MONO_FONT_PATH, b"not DejaVu Mono"),
+        "Blender font source identity drifted",
     )
     expect_exit(
         "unsafe precreated directory",

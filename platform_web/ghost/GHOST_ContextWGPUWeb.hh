@@ -160,6 +160,14 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
     }
     return surface_format_;
   }
+  struct BackbufferFrameSnapshot {
+    wgpu::Texture texture;
+    wgpu::TextureFormat format = wgpu::TextureFormat::BGRA8Unorm;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint64_t redraw_episode = 0;
+  };
+
   /* The PERSISTENT offscreen back-buffer the WebGPU backend renders into every frame
    * (M4.T21). Unlike the surface's per-frame GetCurrentTexture() — which the browser
    * destroys on event-loop yield, so any command buffer that outlives the rAF tick
@@ -167,17 +175,24 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
    * per-frame lifetime: the backend adopts it once into back_left/front_left and every
    * viewport/overlay/UI pass accumulates here with zero surface references. It is
    * blitted to the real surface as the LAST op of each frame in swapBufferRelease().
-   * Null until configureSurface() has run. */
-  wgpu::Texture getBackbufferTexture() const
+   * The texture, format, extent, and resize episode are one lifetime-gated snapshot:
+   * an AllowSpontaneous resize completion must not interleave an old texture with the
+   * new episode. The texture is null until configureSurface() has run. */
+  BackbufferFrameSnapshot getBackbufferFrameSnapshot() const
   {
     const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
     auto owner_execution = lifetime->enter();
     if (!owner_execution) {
       return {};
     }
-    return ghost_web::device_state_allows_callback_work(device_state_) ?
-               backbuffer_ :
-               wgpu::Texture();
+    if (!ghost_web::device_state_allows_callback_work(device_state_)) {
+      return {};
+    }
+    return {backbuffer_,
+            surface_format_,
+            backbuffer_w_,
+            backbuffer_h_,
+            backbuffer_redraw_episode_};
   }
 
  private:
@@ -222,10 +237,12 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   wgpu::Queue queue_;
   wgpu::Surface surface_;
   wgpu::TextureFormat surface_format_ = wgpu::TextureFormat::BGRA8Unorm;
-  /* Persistent offscreen back-buffer (see getBackbufferTexture). Recreated on resize. */
+  /* Persistent offscreen back-buffer (see getBackbufferFrameSnapshot). Recreated on resize. */
   wgpu::Texture backbuffer_;
   uint32_t backbuffer_w_ = 0;
   uint32_t backbuffer_h_ = 0;
+  /** Redraw episode committed with backbuffer_ under callback_lifetime_'s execution gate. */
+  uint64_t backbuffer_redraw_episode_ = 0;
   bool backbuffer_pending_ = false;
 
   /* Present blit: a fullscreen-triangle render pass that textureLoad()s the offscreen

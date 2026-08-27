@@ -1982,7 +1982,7 @@ for label, marker in (
     ("queue", "wgpu::Queue getQueue() const"),
     ("surface", "wgpu::Surface getSurface() const"),
     ("surface-format", "wgpu::TextureFormat getSurfaceFormat() const"),
-    ("backbuffer-texture", "wgpu::Texture getBackbufferTexture() const"),
+    ("backbuffer-frame", "BackbufferFrameSnapshot getBackbufferFrameSnapshot() const"),
 ):
     body = method_from(header, marker)
     if body.count(owner_boundary) != 1:

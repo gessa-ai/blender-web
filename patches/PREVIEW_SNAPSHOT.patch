@@ -36280,10 +36280,10 @@ index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc985
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f67cc1118723a0d8d31eb51a048840d7bf525e13
+index 0000000000000000000000000000000000000000..3cf12038d30f7ed7ad880d71cd58394f8dba5f65
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1363 @@
+@@ -0,0 +1,1362 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37529,13 +37529,15 @@ index 0000000000000000000000000000000000000000..f67cc1118723a0d8d31eb51a048840d7
 +   * per-frame lifetime, so that whole family is eliminated by construction; GHOST blits it
 +   * onto the real surface as the last op of each frame (presentBackbuffer in
 +   * swapBufferRelease). */
-+  wgpu::Texture backbuffer = wgpu_ghost->getBackbufferTexture();
++  const WGPUGhostContext::BackbufferFrameSnapshot backbuffer_snapshot =
++      wgpu_ghost->getBackbufferFrameSnapshot();
++  wgpu::Texture backbuffer = backbuffer_snapshot.texture;
 +  if (backbuffer == nullptr) {
 +    return; /* surface not configured yet (canvas unresolved / pre-first-configure) */
 +  }
-+  const int w = int(backbuffer.GetWidth());
-+  const int h = int(backbuffer.GetHeight());
-+  const wgpu::TextureFormat fmt = wgpu_ghost->getSurfaceFormat();
++  const int w = int(backbuffer_snapshot.width);
++  const int h = int(backbuffer_snapshot.height);
++  const wgpu::TextureFormat fmt = backbuffer_snapshot.format;
 +
 +  const bool first = (surface_texture_ == nullptr);
 +  webgpu::WGPUTexture *back;
@@ -37550,6 +37552,7 @@ index 0000000000000000000000000000000000000000..f67cc1118723a0d8d31eb51a048840d7
 +   * it at the new extent), and re-adopting refreshes the wrapped texture + size in place
 +   * while the attachment keeps pointing at this same WGPUTexture wrapper. */
 +  back->adopt_external(backbuffer, fmt, w, h);
++  redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;
 +
 +  if (first) {
 +    if (back_left != nullptr) {
@@ -37587,12 +37590,8 @@ index 0000000000000000000000000000000000000000..f67cc1118723a0d8d31eb51a048840d7
 +/* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */
 +void WGPUContext::begin_frame()
 +{
-+#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
-+  /* Bind the queue epoch to the drawable generation that was active at frame start. A browser
-+   * resize commit can settle while this frame is still encoding; reading only at end_frame()
-+   * would mislabel old-backbuffer work as the first complete frame of the replacement extent. */
-+  redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();
-+#endif
++  /* The web window context captured its resize episode atomically with backbuffer adoption in
++   * sync_backbuffer(), which activation runs immediately before this frame begins. */
 +  queue_scheduler_.begin_epoch();
 +}
 +void WGPUContext::end_frame()
@@ -37649,7 +37648,7 @@ index 0000000000000000000000000000000000000000..f67cc1118723a0d8d31eb51a048840d7
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..ca73a5c18db600bb14e5b48ebb559e9f61b29c12
+index 0000000000000000000000000000000000000000..999ff99ff78ff4d329317abc5908ab2e510b9c0c
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
 @@ -0,0 +1,383 @@
@@ -37986,9 +37985,9 @@ index 0000000000000000000000000000000000000000..ca73a5c18db600bb14e5b48ebb559e9f
 +  /** Serializes async validation with queue writes/submissions without changing their order. */
 +  webgpu::OrderedQueueScheduler queue_scheduler_;
 +#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
-+  /** Resize episode observed when this window frame began. A replacement backbuffer can settle
-+   * while the frame is encoding; only a frame that began in the current episode may place that
-+   * episode's completed-frame barrier at its queue tail. */
++  /** Resize episode adopted atomically with this window frame's persistent backbuffer. A
++   * replacement can settle while the frame is encoding; only an adopted frame from the current
++   * episode may place that episode's completed-frame barrier at its queue tail. */
 +  uint64_t redraw_present_frame_episode_ = 0;
 +#endif
 +  /** Device-bound pipeline handles must not outlive this context or reach a later device. */

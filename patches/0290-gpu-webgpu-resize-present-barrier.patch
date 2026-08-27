@@ -6,9 +6,9 @@ diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webg
    /** Serializes async validation with queue writes/submissions without changing their order. */
    webgpu::OrderedQueueScheduler queue_scheduler_;
 +#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
-+  /** Resize episode observed when this window frame began. A replacement backbuffer can settle
-+   * while the frame is encoding; only a frame that began in the current episode may place that
-+   * episode's completed-frame barrier at its queue tail. */
++  /** Resize episode adopted atomically with this window frame's persistent backbuffer. A
++   * replacement can settle while the frame is encoding; only an adopted frame from the current
++   * episode may place that episode's completed-frame barrier at its queue tail. */
 +  uint64_t redraw_present_frame_episode_ = 0;
 +#endif
    /** Device-bound pipeline handles must not outlive this context or reach a later device. */
@@ -32,14 +32,49 @@ diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webg
    /* Drop the back-buffer wrapper first: the base Texture dtor detaches it from
     * back_left/front_left (which are still alive here), releasing the surface
     * texture ref without destroying the surface's own texture. */
-@@ -1296,6 +1296,36 @@ void WGPUContext::begin_frame()
+@@ -1237,31 +1237,34 @@ void WGPUContext::sync_backbuffer()
+   WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context_);
+   /* M4.T21 present seam: adopt the GHOST context's PERSISTENT offscreen back-buffer as
+    * back_left/front_left, NOT the surface's per-frame GetCurrentTexture(). The transient
+    * surface texture is destroyed by the browser on event-loop yield, so any draw/composite
+    * command buffer that outlives the rAF tick submitted a destroyed texture ("Destroyed
+    * texture … WebgpuSwapChainTexture used in a submit", 725x/boot). The offscreen has NO
+    * per-frame lifetime, so that whole family is eliminated by construction; GHOST blits it
+    * onto the real surface as the last op of each frame (presentBackbuffer in
+    * swapBufferRelease). */
+-  wgpu::Texture backbuffer = wgpu_ghost->getBackbufferTexture();
++  const WGPUGhostContext::BackbufferFrameSnapshot backbuffer_snapshot =
++      wgpu_ghost->getBackbufferFrameSnapshot();
++  wgpu::Texture backbuffer = backbuffer_snapshot.texture;
+   if (backbuffer == nullptr) {
+     return; /* surface not configured yet (canvas unresolved / pre-first-configure) */
+   }
+-  const int w = int(backbuffer.GetWidth());
+-  const int h = int(backbuffer.GetHeight());
+-  const wgpu::TextureFormat fmt = wgpu_ghost->getSurfaceFormat();
++  const int w = int(backbuffer_snapshot.width);
++  const int h = int(backbuffer_snapshot.height);
++  const wgpu::TextureFormat fmt = backbuffer_snapshot.format;
+
+   const bool first = (surface_texture_ == nullptr);
+   webgpu::WGPUTexture *back;
+   if (first) {
+     back = new webgpu::WGPUTexture("back_left_backbuffer");
+     surface_texture_ = back;
+   }
+   else {
+     back = static_cast<webgpu::WGPUTexture *>(surface_texture_);
+   }
+   /* Re-adopt each activate: the offscreen handle only changes on resize (GHOST recreates
+    * it at the new extent), and re-adopting refreshes the wrapped texture + size in place
+    * while the attachment keeps pointing at this same WGPUTexture wrapper. */
+   back->adopt_external(backbuffer, fmt, w, h);
++  redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;
+
+@@ -1296,6 +1301,32 @@ void WGPUContext::begin_frame()
  {
-+#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
-+  /* Bind the queue epoch to the drawable generation that was active at frame start. A browser
-+   * resize commit can settle while this frame is still encoding; reading only at end_frame()
-+   * would mislabel old-backbuffer work as the first complete frame of the replacement extent. */
-+  redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();
-+#endif
++  /* The web window context captured its resize episode atomically with backbuffer adoption in
++   * sync_backbuffer(), which activation runs immediately before this frame begins. */
    queue_scheduler_.begin_epoch();
  }
 -void WGPUContext::end_frame() {}

@@ -333,6 +333,7 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
   backbuffer_ = std::move(candidate_backbuffer);
   width_ = requested_width_ = backbuffer_w_ = candidate_width;
   height_ = requested_height_ = backbuffer_h_ = candidate_height;
+  backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();
   configured_ = true;
   completeInitialization(true);
   return GHOST_kSuccess;
@@ -800,6 +801,7 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
                      * backbuffer and exhausted the tail of a prior recovery episode. Start a
                      * fresh bounded episode only now that the replacement extent is coherent. */
                     ghost_web::request_redraw_episode();
+                    owner.backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();
                     if (!owner.initialization_settled_) {
                       owner.completeInitialization(true);
                     }

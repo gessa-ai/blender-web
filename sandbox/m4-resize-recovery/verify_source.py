@@ -42,6 +42,9 @@ FORBIDDEN_DEFERRED_PRESENT_MARKERS = (
 )
 
 FRAME_EPISODE_MEMBER = "uint64_t redraw_present_frame_episode_ = 0;"
+BACKBUFFER_SNAPSHOT_TYPE = "struct BackbufferFrameSnapshot"
+BACKBUFFER_SNAPSHOT_METHOD = "BackbufferFrameSnapshot getBackbufferFrameSnapshot() const"
+BACKBUFFER_EPISODE_MEMBER = "uint64_t backbuffer_redraw_episode_ = 0;"
 
 
 def method(source: str, marker: str) -> str:
@@ -99,6 +102,32 @@ def validate(
         if positions != tuple(sorted(positions)):
             errors.append("persistent backbuffer adoption is not ordered inside activation")
 
+    # One activation must adopt the handle, extent, format, and redraw episode from one GHOST
+    # lifetime-gated snapshot. Separate getters can be interleaved by an AllowSpontaneous resize
+    # completion, producing an old texture tagged with the new episode and admitting an empty
+    # replacement backbuffer at the completed-frame barrier.
+    sync = method(context_source, "void WGPUContext::sync_backbuffer()")
+    sync_tokens = (
+        "wgpu_ghost->getBackbufferFrameSnapshot()",
+        "backbuffer_snapshot.texture",
+        "backbuffer_snapshot.format",
+        "backbuffer_snapshot.width",
+        "backbuffer_snapshot.height",
+        "redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;",
+    )
+    for token in sync_tokens:
+        if sync.count(token) != 1:
+            errors.append(f"atomic backbuffer frame snapshot differs: {token}")
+    if "wgpu_ghost->getBackbufferTexture()" in sync:
+        errors.append("frame adoption still reads the backbuffer through a split getter")
+    adopt_token = "back->adopt_external(backbuffer, fmt, w, h);"
+    if sync and adopt_token in sync and all(token in sync for token in sync_tokens):
+        snapshot_at = sync.index(sync_tokens[0])
+        adopt_at = sync.index(adopt_token)
+        episode_at = sync.index(sync_tokens[-1])
+        if not snapshot_at < adopt_at < episode_at:
+            errors.append("backbuffer snapshot is not bound to the adopted frame")
+
     if wm_source.count(REACTIVATION_BLOCK) != 1:
         errors.append("browser WebGPU does not reactivate the window context before each draw")
     update_at = wm_source.find("void wm_draw_update(bContext *C)")
@@ -154,17 +183,45 @@ def validate(
     if context_header.count(FRAME_EPISODE_MEMBER) != 1:
         errors.append("window frame does not retain its resize episode")
 
+    if ghost_header.count(BACKBUFFER_SNAPSHOT_TYPE) != 1:
+        errors.append("GHOST does not expose one coherent backbuffer frame snapshot type")
+    snapshot = method(ghost_header, BACKBUFFER_SNAPSHOT_METHOD)
+    for token in (
+        "const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;",
+        "auto owner_execution = lifetime->enter();",
+        "device_state_allows_callback_work(device_state_)",
+        "return {backbuffer_,",
+        "surface_format_",
+        "backbuffer_w_",
+        "backbuffer_h_",
+        "backbuffer_redraw_episode_",
+    ):
+        if snapshot.count(token) != 1:
+            errors.append(f"coherent GHOST backbuffer snapshot differs: {token}")
+    if ghost_header.count(BACKBUFFER_EPISODE_MEMBER) != 1:
+        errors.append("GHOST backbuffer does not retain its committed redraw episode")
+
+    ensure = method(ghost_source, "void GHOST_ContextWGPUWeb::ensureBackbuffer()")
+    commit_tokens = (
+        "ghost_web::request_redraw_episode();",
+        "owner.backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();",
+    )
+    for token in commit_tokens:
+        if ensure.count(token) != 1:
+            errors.append(f"backbuffer commit episode publication differs: {token}")
+    if ensure and all(token in ensure for token in commit_tokens):
+        if ensure.index(commit_tokens[0]) > ensure.index(commit_tokens[1]):
+            errors.append("backbuffer episode is captured before the redraw episode publishes")
+
     begin_frame = method(context_source, "void WGPUContext::begin_frame()")
     begin_frame_tokens = (
-        "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
         "queue_scheduler_.begin_epoch();",
     )
     for token in begin_frame_tokens:
         if begin_frame.count(token) != 1:
             errors.append(f"resize frame-start binding differs: {token}")
-    if begin_frame and all(token in begin_frame for token in begin_frame_tokens):
-        if begin_frame.index(begin_frame_tokens[0]) > begin_frame.index(begin_frame_tokens[1]):
-            errors.append("resize episode is captured after the backend frame begins")
+    if "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();" in begin_frame:
+        errors.append("frame start resamples the episode separately from backbuffer adoption")
 
     end_frame = method(context_source, "void WGPUContext::end_frame()")
     end_frame_tokens = (
@@ -302,6 +359,16 @@ def main() -> int:
             "  immActivate();\n  sync_backbuffer();",
             1,
         ),
+        "snapshot_call": context_source.replace(
+            "wgpu_ghost->getBackbufferFrameSnapshot()",
+            "WGPUGhostContext::BackbufferFrameSnapshot()",
+            1,
+        ),
+        "snapshot_episode": context_source.replace(
+            "redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;",
+            "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
+            1,
+        ),
         "deferred_present_registration": context_source.replace(
             "  instance_ = wgpu_ghost->getInstance();",
             "  wgpu_ghost->setPresentQueueEnqueue([](WGPUGhostContext::QueuedPresent) {});\n"
@@ -320,11 +387,6 @@ def main() -> int:
         ),
         "barrier_cancel": context_source.replace(
             "ghost_web::cancel_redraw_present_barrier(episode);",
-            "",
-            1,
-        ),
-        "frame_episode_capture": context_source.replace(
-            "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
             "",
             1,
         ),
@@ -403,6 +465,18 @@ def main() -> int:
         ),
     }
     ghost_header_mutations = {
+        "backbuffer_snapshot_type": ghost_header.replace(
+            BACKBUFFER_SNAPSHOT_TYPE, "struct DisabledBackbufferFrameSnapshot", 1
+        ),
+        "backbuffer_snapshot_method": ghost_header.replace(
+            BACKBUFFER_SNAPSHOT_METHOD,
+            "BackbufferFrameSnapshot disabledBackbufferFrameSnapshot() const",
+            1,
+        ),
+        "backbuffer_snapshot_episode": ghost_header.replace(
+            "backbuffer_redraw_episode_", "uint64_t(0)", 1
+        ),
+        "backbuffer_episode_member": ghost_header.replace(BACKBUFFER_EPISODE_MEMBER, "", 1),
         "deferred_present_alias": ghost_header.replace(
             "  bool presentBackbuffer();",
             "  using PresentCompletion = std::function<void(bool success)>;\n"
@@ -411,6 +485,11 @@ def main() -> int:
         ),
         "present_signature": ghost_header.replace("bool presentBackbuffer();", "", 1),
     }
+    ghost_source_mutations["backbuffer_commit_episode"] = ghost_source.replace(
+        "owner.backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();",
+        "",
+        1,
+    )
     escaped = [
         name
         for name, mutant in context_mutations.items()
@@ -440,7 +519,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=5 checks=44 mutations=27")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=5 checks=58 mutations=33")
     return 0
 
 

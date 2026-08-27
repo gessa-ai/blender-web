@@ -1805,3 +1805,19 @@ experiments in numbered history, but add an explicit rollback patch and forbid t
 in the live source contract. See `platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
 `patches/0289-gpu-webgpu-restore-synchronous-window-present.patch`, and
 `notes/p0-boot-crash-ordered-present-rollback-20260827.md`.
+
+## Class 123 — separately lifetime-gated getters do not form a coherent drawable snapshot
+
+Signature: a browser resize replaces a persistent backbuffer and increments its redraw generation
+under an owner callback gate, while frame activation reads the texture, format, extent, and later
+the generation through separate individually guarded calls. Every read is race-free in isolation,
+but an `AllowSpontaneous` completion can commit between calls. The frame may then adopt the old
+texture while carrying the new generation, so a queue-tail barrier treats old-drawable work as the
+completed replacement frame and presents the untouched new backbuffer without any validation
+error. Return the complete drawable identity and its committed generation from one lifetime-gated
+snapshot, publish the generation in the same callback that commits the replacement handle, and
+carry that snapshot value through frame completion. Device-free contracts can bind the atomic
+read/publication and reject split getters; only repeated semantic pixels on conformant hardware
+can close the race. See `platform_web/ghost/GHOST_ContextWGPUWeb.hh`,
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
+`sandbox/m4-resize-recovery/verify_source.py`.

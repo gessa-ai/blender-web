@@ -10,6 +10,11 @@ adopts a coherently committed replacement texture before any region encodes into
 framebuffer. The source contract binds that activation through `sync_backbuffer()` and requires
 `wm_window_make_drawable()` to precede `GPU_context_begin_frame()`, so the frame-episode barrier
 cannot be labeled before the replacement drawable and cached extents have actually been adopted.
+Texture, format, extent, and committed redraw episode are read through one GHOST
+`BackbufferFrameSnapshot` under one callback-lifetime execution token. Individually guarded
+getters are insufficient: an `AllowSpontaneous` resize completion may commit between them and
+pair the previous texture with the replacement episode, admitting an untouched backbuffer at the
+completed-frame barrier.
 The integrated first-pixel contract also requires every applied browser extent to
 request a redraw after surface reconfiguration and the WM size event, then requires the
 asynchronously validated replacement surface/backbuffer commit to start a fresh bounded episode.

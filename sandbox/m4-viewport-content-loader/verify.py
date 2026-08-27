@@ -16,6 +16,7 @@ GHOST_CONTEXT = ROOT / "platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 WGPU_CONTEXT = ROOT / "upstream/source/blender/gpu/webgpu/wgpu_context.cc"
 FRAMEBUFFER = ROOT / "upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc"
 BOOT = ROOT / "platform_web/shell/boot-windowed.js"
+MEASURE = ROOT / "sandbox/m4-frame-coherence/measure_boot.mjs"
 PATCH = ROOT / "patches/0294-gpu-webgpu-viewport-content-ready.patch"
 SERIES = ROOT / "patches/series"
 
@@ -55,6 +56,7 @@ def validate(sources: dict[str, str]) -> None:
     wgpu = sources["wgpu"]
     framebuffer = sources["framebuffer"]
     boot = sources["boot"]
+    measure = sources["measure"]
     series = sources["series"]
 
     for token in (
@@ -75,7 +77,7 @@ def validate(sources: dict[str, str]) -> None:
     strict = method(display, "inline bool viewport_content_trace_complete(")
     for token in (
         "redraw_present_trace_complete(trace, episode)",
-        "trace.grid.sequence > trace.background.sequence",
+        "trace.grid.sequence > 0u",
         "!trace.grid.window_target",
         "trace.display.sequence > trace.grid.sequence",
     ):
@@ -157,6 +159,16 @@ def validate(sources: dict[str, str]) -> None:
     require('noteViewportContentReady("presentBackbuffer")' not in boot,
             "present log can dismiss the loader")
 
+    for token in (
+        'contract: "fallback-boot-frame-coherence-diagnostic-v2"',
+        'typeof mod?._bw_viewport_content_present_count === "function" ?',
+        "loaderHidden && !(Number(loaderHidden.viewportContentPresents) > 0)",
+        'if (!firstViewportContent) failures.push("no validated VIEW_3D content presentation");',
+        'if (!loaderHidden) failures.push("loader did not dismiss after validated VIEW_3D content");',
+        "if (failures.length !== 0)",
+    ):
+        require_once(measure, token, "exact-product VIEW_3D diagnostic")
+
     require(PATCH.is_file(), "numbered patch 0294 is missing")
     require_once(series, PATCH.name, "numbered patch series")
 
@@ -169,7 +181,7 @@ def mutate_once(source: str, old: str, new: str) -> str:
 def selfcheck(sources: dict[str, str]) -> int:
     validate(sources)
     mutations = (
-        ("display", "trace.grid.sequence > trace.background.sequence", "true"),
+        ("display", "trace.grid.sequence > 0u", "true"),
         ("display", "!trace.grid.window_target", "true"),
         ("display", "trace.display.sequence > trace.grid.sequence", "true"),
         ("display", "viewport_content_trace_complete(trace, episode)", "true"),
@@ -185,6 +197,12 @@ def selfcheck(sources: dict[str, str]) -> int:
         ("boot", 'typeof mod._bw_viewport_content_present_count === "function"',
          'typeof mod._bw_present_count === "function"'),
         ("boot", "contentPresents > 0", "contentPresents >= 0"),
+        ("measure", 'typeof mod?._bw_viewport_content_present_count === "function" ?',
+         'typeof mod?._bw_present_count === "function" ?'),
+        ("measure", "if (!firstViewportContent)", "if (false)"),
+        ("measure", "loaderHidden && !(Number(loaderHidden.viewportContentPresents) > 0)",
+         "false"),
+        ("measure", "if (failures.length !== 0)", "if (false)"),
         ("series", PATCH.name, ""),
     )
     rejected = 0
@@ -207,6 +225,7 @@ def load_sources() -> dict[str, str]:
         "wgpu": WGPU_CONTEXT.read_text(encoding="utf-8"),
         "framebuffer": FRAMEBUFFER.read_text(encoding="utf-8"),
         "boot": BOOT.read_text(encoding="utf-8"),
+        "measure": MEASURE.read_text(encoding="utf-8"),
         "series": SERIES.read_text(encoding="utf-8"),
     }
 

@@ -1895,11 +1895,14 @@ visible, but one lazily validated editor region still contains only its clear/ba
 Neither a runtime marker nor an uncapped present counter proves that region's meaningful content
 encoded. Define a frame-local semantic predicate from successful draw-encoding call sites, carry
 that exact snapshot through the queue-tail barrier, and publish readiness only after the matching
-surface submission validates. For Blender's default VIEW_3D boot, require the offscreen
-`overlay_background`, a later successfully encoded `overlay_grid_next`, and the final direct-window
-`OCIO_Display` composite in order. Keep the loader visible if the marker is absent or invalid;
+surface submission validates. Do not invent ordering between passes that render into separate
+offscreen targets: the exact browser product encodes `overlay_grid_next` immediately before
+`overlay_background`, even though both feed the later direct-window `OCIO_Display` composite.
+For Blender's default VIEW_3D boot, require both successfully encoded offscreen passes and require
+the display composite after each. Keep the loader visible if the marker is absent or invalid;
 never infer it from elapsed time or a generic present. Prove the shell rejects generic presents,
-but retain conformant-hardware cold-boot pixels as the closure bar. See
+bind the measured live order in native/wasm behavior tests, and retain conformant-hardware
+cold-boot pixels as the closure bar. See
 `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
 `sandbox/m4-viewport-content-loader/verify.py`.

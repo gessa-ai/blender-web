@@ -32,9 +32,7 @@ if (!chromium) {
 const port = Number(process.argv[2] || 8123);
 const tag = String(process.argv[3] || "boot").replace(/[^a-zA-Z0-9_.-]/g, "_");
 const maxMs = Number(process.env.BW_COHERENCE_TIMEOUT_MS || 180000);
-const settleMs = Number(process.env.BW_COHERENCE_SETTLE_MS || 5000);
-const maskPresentMarker = process.env.BW_MASK_PRESENT_MARKER === "1";
-const forceLegacyWmTimer = process.env.BW_FORCE_LEGACY_WM_TIMER === "1";
+const settleMs = Number(process.env.BW_COHERENCE_SETTLE_MS || 30000);
 const started = Date.now();
 const consoleLines = [];
 const pageErrors = [];
@@ -57,32 +55,6 @@ try {
     deviceScaleFactor: 1,
   });
   page = await context.newPage();
-  if (maskPresentMarker || forceLegacyWmTimer) {
-    await page.route("**/boot-windowed.js", async (route) => {
-      const response = await route.fetch();
-      let source = await response.text();
-      if (maskPresentMarker) {
-        const anchor = 'line.indexOf("presentBackbuffer") !== -1';
-        if (source.split(anchor).length !== 2) {
-          throw new Error("primary present marker anchor drifted");
-        }
-        source = source.replace(
-          anchor, 'line.indexOf("masked-presentBackbuffer") !== -1');
-      }
-      if (forceLegacyWmTimer) {
-        const anchor = "armFirstPixelsCounterFallback(mod);";
-        if (source.split(anchor).length !== 2) {
-          throw new Error("counter fallback call anchor drifted");
-        }
-        source = source.replace(
-          anchor, 'setTimeout(() => noteFirstPixels("WM_main settle"), 2500);');
-      }
-      await route.fulfill({
-        response,
-        body: source,
-      });
-    });
-  }
   page.on("console", (message) => {
     consoleLines.push({ elapsedMs: Date.now() - started, text: message.text() });
   });
@@ -115,6 +87,9 @@ try {
         loaderGone: Boolean(loader?.classList.contains("bw-gone")),
         presents: typeof mod?._bw_present_count === "function" ?
           Number(mod._bw_present_count()) : null,
+        viewportContentPresents:
+          typeof mod?._bw_viewport_content_present_count === "function" ?
+            Number(mod._bw_viewport_content_present_count()) : null,
         ticks: typeof mod?._bw_wm_tick_count === "function" ?
           Number(mod._bw_wm_tick_count()) : null,
       };
@@ -126,6 +101,7 @@ try {
       sample.loaderHidden,
       sample.loaderGone,
       sample.presents,
+      sample.viewportContentPresents,
     ]);
     if (key !== previous) {
       transitions.push({ elapsedMs: Date.now() - started, ...sample });
@@ -142,18 +118,32 @@ try {
   }
 
   const firstPresented = transitions.find((entry) => Number(entry.presents) > 0) || null;
+  const firstViewportContent = transitions.find(
+    (entry) => Number(entry.viewportContentPresents) > 0) || null;
   const loaderHidden = transitions.find((entry) => entry.loaderHidden) || null;
   const final = lastSample ? { elapsedMs: Date.now() - started, ...lastSample } : null;
+  const failures = [];
+  const loaderHiddenBeforeViewportContent = Boolean(
+    loaderHidden && !(Number(loaderHidden.viewportContentPresents) > 0));
+  if (!firstViewportContent) failures.push("no validated VIEW_3D content presentation");
+  if (!loaderHidden) failures.push("loader did not dismiss after validated VIEW_3D content");
+  if (loaderHiddenBeforeViewportContent) {
+    failures.push("loader hid before a validated VIEW_3D content presentation");
+  }
+  if (pageErrors.length !== 0) failures.push(`page errors: ${pageErrors.length}`);
   const result = {
-    contract: "fallback-boot-frame-coherence-diagnostic-v1",
+    contract: "fallback-boot-frame-coherence-diagnostic-v2",
+    verdict: failures.length === 0 ? "PASS" : "FAIL",
+    failures,
     tag,
     diagnosticNonreceipt: true,
-    maskPresentMarker,
-    forceLegacyWmTimer,
     runningAtMs,
     firstPresented,
+    firstViewportContent,
     loaderHidden,
     loaderHiddenAtPresent: loaderHidden?.presents ?? null,
+    loaderHiddenAtViewportContent: loaderHidden?.viewportContentPresents ?? null,
+    loaderHiddenBeforeViewportContent,
     presentsAfterLoaderHidden:
       final && loaderHidden && Number.isFinite(final.presents) &&
       Number.isFinite(loaderHidden.presents) ? final.presents - loaderHidden.presents : null,
@@ -163,10 +153,15 @@ try {
     pageErrors,
   };
   writeFileSync(resolve(outDir, `${tag}.json`), `${JSON.stringify(result, null, 2)}\n`);
-  console.log(`BW_FRAME_COHERENCE_DIAGNOSTIC tag=${tag} running_ms=${runningAtMs} ` +
+  if (failures.length !== 0) {
+    throw new Error(failures.join("; "));
+  }
+  console.log(`BW_FRAME_COHERENCE_DIAGNOSTIC verdict=PASS tag=${tag} running_ms=${runningAtMs} ` +
     `first_present_ms=${firstPresented?.elapsedMs ?? -1} ` +
+    `first_viewport_content_ms=${firstViewportContent?.elapsedMs ?? -1} ` +
     `loader_hidden_ms=${loaderHidden?.elapsedMs ?? -1} ` +
     `loader_present=${result.loaderHiddenAtPresent} ` +
+    `loader_viewport_content=${result.loaderHiddenAtViewportContent} ` +
     `post_loader_presents=${result.presentsAfterLoaderHidden} ` +
     `final_presents=${final?.presents} page_errors=${pageErrors.length}`);
 }

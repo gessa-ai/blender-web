@@ -418,8 +418,57 @@ int main()
     return 1;
   }
 
-  /* Loader readiness is stricter than resize-frame coherence. The stock grid draw must encode
-   * successfully between the region background and its direct-window display composite, and one
+  /* The live overlay manager encodes its stock grid before overlay_background; both feed the
+   * later direct-window display composite. Loader readiness must accept that real order while
+   * still rejecting a grid that arrives after the composite it is meant to qualify. */
+  ghost_web::redraw_trace_frame_begin(frame_episode);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayGrid,
+                               false,
+                               900,
+                               547,
+                               0,
+                               0,
+                               900,
+                               547,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayBackground,
+                               false,
+                               900,
+                               547,
+                               0,
+                               0,
+                               900,
+                               547,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OcioDisplay,
+                               true,
+                               1100,
+                               640,
+                               0,
+                               0,
+                               1100,
+                               640,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  if (!require(ghost_web::viewport_content_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "grid-background-display frame qualifies as VIEW_3D content"))
+  {
+    return 1;
+  }
+
+  /* The alternate background-grid-display order remains semantically complete, and one
    * validated surface submission publishes exactly one process-wide readiness edge. */
   ghost_web::redraw_trace_frame_begin(frame_episode);
   ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayBackground,
@@ -465,9 +514,10 @@ int main()
       ghost_web::redraw_trace_snapshot();
   if (!require(ghost_web::viewport_content_trace_complete(viewport_content_frame, frame_episode),
                "background-grid-display frame qualifies as VIEW_3D content") ||
-      !require(viewport_content_frame.grid.sequence > viewport_content_frame.background.sequence &&
-                   viewport_content_frame.display.sequence > viewport_content_frame.grid.sequence,
-               "VIEW_3D trace preserves grid ordering") ||
+      !require(viewport_content_frame.display.sequence > viewport_content_frame.grid.sequence &&
+                   viewport_content_frame.display.sequence >
+                       viewport_content_frame.background.sequence,
+               "VIEW_3D trace keeps both region passes before the display composite") ||
       !require(ghost_web::note_viewport_content_presented(viewport_content_frame, frame_episode) &&
                    ghost_web::viewport_content_present_count() == 1,
                "the first validated VIEW_3D present publishes loader readiness") ||
@@ -619,5 +669,5 @@ int main()
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 65 ? 0 : 1;
+  return checks == 66 ? 0 : 1;
 }

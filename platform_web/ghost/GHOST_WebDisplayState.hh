@@ -305,15 +305,17 @@ inline bool redraw_present_trace_complete(const RedrawTraceSnapshot &trace,
 /**
  * A generic complete VIEW_3D composite may still contain only its clear/background pass while
  * the lazily validated overlay pipeline is unavailable. Loader dismissal is stricter: require a
- * successfully encoded stock grid draw between the visible region background and the final
- * direct-window OCIO composite. `debug_note_draw()` runs only after bind-group completeness and
- * draw encoding succeed, so this cannot be satisfied by a dropped `overlay_grid_next` draw.
+ * successfully encoded stock grid draw in the same frame before the final direct-window OCIO
+ * composite. The live overlay manager may encode grid before or after `overlay_background`, so
+ * the two offscreen passes are independently required without inventing an order between them.
+ * `debug_note_draw()` runs only after bind-group completeness and draw encoding succeed, so this
+ * cannot be satisfied by a dropped `overlay_grid_next` draw.
  */
 inline bool viewport_content_trace_complete(const RedrawTraceSnapshot &trace,
                                              const uint64_t episode)
 {
   return redraw_present_trace_complete(trace, episode) &&
-         trace.grid.sequence > trace.background.sequence && !trace.grid.window_target &&
+         trace.grid.sequence > 0u && !trace.grid.window_target &&
          trace.display.sequence > trace.grid.sequence;
 }
 

@@ -443,7 +443,7 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
       std::printf(
           "WGPUWeb-resize-frame-incomplete: episode=%llu frame_draws=%llu offscreen=%llu "
           "window=%llu first_offscreen=%llu last_window=%llu last=%llu background=%llu "
-          "display=%llu\n",
+          "grid=%llu display=%llu\n",
           static_cast<unsigned long long>(active_redraw_episode),
           static_cast<unsigned long long>(incomplete_frame.frame_draw_count),
           static_cast<unsigned long long>(incomplete_frame.frame_offscreen_draw_count),
@@ -452,6 +452,7 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
           static_cast<unsigned long long>(incomplete_frame.frame_last_window_sequence),
           static_cast<unsigned long long>(incomplete_frame.last.sequence),
           static_cast<unsigned long long>(incomplete_frame.background.sequence),
+          static_cast<unsigned long long>(incomplete_frame.grid.sequence),
           static_cast<unsigned long long>(incomplete_frame.display.sequence));
       incomplete_frame_log_count++;
     }

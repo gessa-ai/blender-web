@@ -13,9 +13,13 @@ rendering, no rewrite. After load, it runs entirely on your device.
 [![WebGPU](https://img.shields.io/badge/GPU-WebGPU%20%2F%20Dawn-green.svg)](#architecture)
 [![Release](https://img.shields.io/github/v/release/gessa-ai/blender-web?include_prereleases)](../../releases)
 
-![Live extrude in edit mode, in a browser tab](docs/media/still-extrude.png)
+![Blender's real UI, running in a browser tab](docs/media/still-object-mode.png)
 
-*Modal extrude with live numeric readout, edit mode, the standard keymap — in a tab.*
+*The real Blender 5.2 UI — menus, Outliner, Properties, viewport gizmo — in a tab.*
+
+![Orbiting the default scene](docs/media/still-orbit.png)
+
+*Middle-mouse orbit on real hardware WebGPU.*
 
 ![Correct repaint after a live window resize (v0.1.1)](docs/media/still-resized-fixed.png)
 

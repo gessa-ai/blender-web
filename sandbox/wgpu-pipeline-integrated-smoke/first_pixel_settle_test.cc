@@ -324,6 +324,130 @@ int main()
     return 1;
   }
 
+  /* A coherent drawable may commit in the middle of an old frame. Episode-wide tracing can then
+   * contain valid-looking draws from that old drawable before the first replacement frame begins.
+   * A resize present must admit only a frame-local offscreen -> window composite; otherwise an
+   * empty next frame can present the untouched replacement backbuffer as a validation-clean black
+   * canvas. */
+  const uint64_t frame_episode = ghost_web::request_redraw_episode();
+  ghost_web::redraw_trace_frame_begin(frame_episode);
+  if (!require(!ghost_web::redraw_present_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "an empty replacement frame cannot authorize resize presentation"))
+  {
+    return 1;
+  }
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::Other,
+                               false,
+                               900,
+                               547,
+                               0,
+                               0,
+                               900,
+                               547,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  if (!require(!ghost_web::redraw_present_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "offscreen-only work cannot authorize resize presentation"))
+  {
+    return 1;
+  }
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::Other,
+                               true,
+                               1100,
+                               640,
+                               0,
+                               0,
+                               1100,
+                               640,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  if (!require(!ghost_web::redraw_present_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "generic offscreen-to-window work cannot impersonate 3D region content"))
+  {
+    return 1;
+  }
+  ghost_web::redraw_trace_frame_begin(frame_episode);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayBackground,
+                               false,
+                               900,
+                               547,
+                               0,
+                               0,
+                               900,
+                               547,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OcioDisplay,
+                               true,
+                               1100,
+                               640,
+                               0,
+                               0,
+                               1100,
+                               640,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  if (!require(ghost_web::redraw_present_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "frame-local 3D background followed by window display authorizes presentation"))
+  {
+    return 1;
+  }
+
+  /* Beginning the next frame must retire the prior frame's semantic admission facts while
+   * preserving episode-wide diagnostic counters. */
+  const ghost_web::RedrawTraceSnapshot completed_frame = ghost_web::redraw_trace_snapshot();
+  ghost_web::redraw_trace_frame_begin(frame_episode);
+  const ghost_web::RedrawTraceSnapshot empty_next_frame = ghost_web::redraw_trace_snapshot();
+  if (!require(empty_next_frame.draw_count == completed_frame.draw_count &&
+                   empty_next_frame.window_draw_count == completed_frame.window_draw_count,
+               "frame reset preserves episode-wide diagnostic counts") ||
+      !require(ghost_web::redraw_present_frame_matches_episode(frame_episode, frame_episode),
+               "the adopted resize episode remains current") ||
+      !require(!ghost_web::redraw_present_trace_complete(empty_next_frame, frame_episode),
+               "a prior frame composite cannot authorize an empty later frame"))
+  {
+    return 1;
+  }
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::Other,
+                               true,
+                               1100,
+                               640,
+                               0,
+                               0,
+                               1100,
+                               640,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  if (!require(!ghost_web::redraw_present_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "window-only work cannot authorize resize presentation") ||
+      !require(!ghost_web::redraw_present_frame_matches_episode(frame_episode - 1u,
+                                                                 frame_episode),
+               "frame-local completeness cannot override an adopted episode mismatch"))
+  {
+    return 1;
+  }
+  episode_generation_seen = frame_episode;
+
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
   retry_generation_seen = resize_request;
   drop_generation_seen = active_drop;
@@ -423,5 +547,5 @@ int main()
       "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact wrap=rearmed\n",
       checks);
-  return checks == 48 ? 0 : 1;
+  return checks == 57 ? 0 : 1;
 }

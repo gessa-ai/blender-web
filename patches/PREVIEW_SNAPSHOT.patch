@@ -1230,6 +1230,21 @@ index 0f134a4c1e52e81ed3e5d096f8410de57f0043f4..6dceec15f64eb27a4b5d24f7aa762f5d
  };
  
  uint BKE_idtype_cache_key_hash(const void *key_v);
+diff --git a/source/blender/blenkernel/BKE_wm_runtime.hh b/source/blender/blenkernel/BKE_wm_runtime.hh
+index e8819c1eaba123e08f0fb82e6b149889bafc6faa..21790918dc124a8fb26c845f128736d3c91909d8 100644
+--- a/source/blender/blenkernel/BKE_wm_runtime.hh
++++ b/source/blender/blenkernel/BKE_wm_runtime.hh
+@@ -146,6 +146,10 @@ struct WindowRuntime {
+ 
+   /** Don't want to include gpu stuff. */
+   void *gpuctx = nullptr;
++#ifdef __EMSCRIPTEN__
++  /** Carry one synthetic browser WindowUpdate through screen relayout. */
++  bool web_full_redraw_after_window_update = false;
++#endif
+ 
+   /** Window+screen handlers, handled last. */
+   ListBaseT<wmEventHandler> handlers = {nullptr, nullptr};
 diff --git a/source/blender/blenkernel/intern/image.cc b/source/blender/blenkernel/intern/image.cc
 index f7636903c935c0adb3f44b4738900b1bea07aef2..c7c58d764305bfee51a2b31fd884635990dd1bc0 100644
 --- a/source/blender/blenkernel/intern/image.cc
@@ -36280,10 +36295,10 @@ index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc985
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..cea8c02d8b841fa4cb40af6972851014ae2a2ea7
+index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f09703b5d926
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1363 @@
+@@ -0,0 +1,1369 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37590,8 +37605,11 @@ index 0000000000000000000000000000000000000000..cea8c02d8b841fa4cb40af6972851014
 +/* --- Frame machinery: no-ops until the render pipeline lands (T10/lane B). - */
 +void WGPUContext::begin_frame()
 +{
-+  /* The web window context captured its resize episode atomically with backbuffer adoption in
-+   * sync_backbuffer(), which activation runs immediately before this frame begins. */
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* Activation already adopted this frame's backbuffer episode. Reset its semantic trace once at
++   * the real WM frame boundary; later context reactivations must not erase earlier region draws. */
++  ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);
++#endif
 +  queue_scheduler_.begin_epoch();
 +}
 +void WGPUContext::end_frame()
@@ -37604,11 +37622,14 @@ index 0000000000000000000000000000000000000000..cea8c02d8b841fa4cb40af6972851014
 +   * frame which began before the replacement backbuffer committed is not eligible: its commands
 +   * target the previous drawable even if the resize episode becomes current before this tail. */
 +  const uint64_t episode = ghost_web::redraw_episode_generation();
++  const ghost_web::RedrawTraceSnapshot completed_frame =
++      ghost_web::redraw_trace_snapshot();
 +  if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
 +                                      redraw_present_frame_episode_, episode) &&
 +      ghost_web::redraw_trace_active(episode) &&
++      ghost_web::redraw_present_trace_complete(completed_frame, episode) &&
 +      ghost_web::schedule_redraw_present_barrier(
-+          episode, ghost_web::redraw_trace_snapshot()))
++          episode, completed_frame))
 +  {
 +    queue_scheduler_.enqueue(
 +        [episode](std::function<void(bool)> done) {
@@ -57446,7 +57467,7 @@ index a39a8dbc3f56700b7904f3885fa284a06eb15272..ec9e3331409794e0680de11ecebe143d
  
  }  // namespace blender
 diff --git a/source/blender/windowmanager/intern/wm_draw.cc b/source/blender/windowmanager/intern/wm_draw.cc
-index 82fb63076af4d971ee613b12da05fbc1f7e180f8..1d6c555d75e7cdbb6f25fd171074751a2df8ecab 100644
+index 82fb63076af4d971ee613b12da05fbc1f7e180f8..69eeee47d96551e2fef0557cccb688717893c834 100644
 --- a/source/blender/windowmanager/intern/wm_draw.cc
 +++ b/source/blender/windowmanager/intern/wm_draw.cc
 @@ -8,8 +8,11 @@
@@ -57635,7 +57656,17 @@ index 82fb63076af4d971ee613b12da05fbc1f7e180f8..1d6c555d75e7cdbb6f25fd171074751a
  bool WM_window_pixels_read_sample_from_offscreen(bContext *C,
                                                   wmWindow *win,
                                                   const int pos[2],
-@@ -1656,7 +1819,8 @@ void wm_draw_update(bContext *C)
+@@ -1546,6 +1709,9 @@ static bool wm_draw_update_test_window(Main *bmain, bContext *C, wmWindow *win)
+   Depsgraph *depsgraph = BKE_scene_ensure_depsgraph(bmain, scene, view_layer);
+   bScreen *screen = WM_window_get_active_screen(win);
+   bool do_draw = false;
++#ifdef __EMSCRIPTEN__
++  do_draw = win->runtime->web_full_redraw_after_window_update;
++#endif
+ 
+   for (ARegion &region : screen->regionbase) {
+     if (region.runtime->do_draw_paintcursor) {
+@@ -1656,7 +1822,8 @@ void wm_draw_update(bContext *C)
  
    BKE_image_free_unused_gpu_textures();
  
@@ -57645,6 +57676,24 @@ index 82fb63076af4d971ee613b12da05fbc1f7e180f8..1d6c555d75e7cdbb6f25fd171074751a
    /* Reset drawable to ensure GPU context activation happens at least once per frame if only a
     * single context exists. This is required to ensure the default framebuffer is updated
     * to be the latest backbuffer. */
+@@ -1685,6 +1852,17 @@ void wm_draw_update(bContext *C)
+ 
+       /* Notifiers for screen redraw. */
+       ED_screen_ensure_updated(C, wm, &win);
++#ifdef __EMSCRIPTEN__
++      if (win.runtime->web_full_redraw_after_window_update) {
++        /* Resize notifiers may rebuild region runtime state. Apply the browser's full-redraw
++         * request after that relayout, immediately before encoding the replacement frame. */
++        win.runtime->web_full_redraw_after_window_update = false;
++        bScreen *updated_screen = WM_window_get_active_screen(&win);
++        ED_screen_areas_iter (&win, updated_screen, area) {
++          ED_area_tag_redraw(area);
++        }
++      }
++#endif
+ 
+       wm_draw_window(C, &win);
+       wm_draw_update_clear_window(C, &win);
 diff --git a/source/blender/windowmanager/intern/wm_jobs.cc b/source/blender/windowmanager/intern/wm_jobs.cc
 index 8d6cdb030311df4b9536fa069369923de3c028c2..761427c2e11af1a42b4345488005b3ebf793773e 100644
 --- a/source/blender/windowmanager/intern/wm_jobs.cc
@@ -58260,25 +58309,24 @@ index 0000000000000000000000000000000000000000..92fab92954aa0777c41ad137a22ec224
 +
 +}  // namespace blender::windowmanager::tests
 diff --git a/source/blender/windowmanager/intern/wm_window.cc b/source/blender/windowmanager/intern/wm_window.cc
-index 4c0aa2cd5c6d2402459c5b4f2f83de8e493cb1a9..f80b4d96aff68a36bada58bd2ed1169c28a37985 100644
+index 4c0aa2cd5c6d2402459c5b4f2f83de8e493cb1a9..650e8511e4d1d58be0fdb7cca2c932741f926214 100644
 --- a/source/blender/windowmanager/intern/wm_window.cc
 +++ b/source/blender/windowmanager/intern/wm_window.cc
-@@ -1873,6 +1873,14 @@ static bool ghost_event_proc(const GHOST_IEvent *ghost_event, GHOST_TUserDataPtr
+@@ -1873,6 +1873,13 @@ static bool ghost_event_proc(const GHOST_IEvent *ghost_event, GHOST_TUserDataPtr
        }
  
        wm_window_make_drawable(wm, win);
 +#ifdef __EMSCRIPTEN__
-+      /* A web surface may publish its cleared frame before regions receive their
-+       * first redraw tag. GHOST_SystemWeb sends bounded WindowUpdate events until
-+       * the second present; invalidate the screen as well as window chrome so the
-+       * next publish contains Blender UI. Native window-system semantics stay
-+       * unchanged. */
++      /* Screen relayout may rebuild region state. Carry this request to wm_draw_update, which
++       * tags the updated areas after ED_screen_ensure_updated and before frame encoding. Native
++       * window-system semantics stay unchanged. */
++      win->runtime->web_full_redraw_after_window_update = true;
 +      WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);
 +#endif
        WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);
  
        break;
-@@ -2387,6 +2395,14 @@ GHOST_TDrawingContextType wm_ghost_drawing_context_type(const GPUBackendType gpu
+@@ -2387,6 +2394,14 @@ GHOST_TDrawingContextType wm_ghost_drawing_context_type(const GPUBackendType gpu
      case GPU_BACKEND_METAL:
  #ifdef WITH_METAL_BACKEND
        return GHOST_kDrawingContextTypeMetal;

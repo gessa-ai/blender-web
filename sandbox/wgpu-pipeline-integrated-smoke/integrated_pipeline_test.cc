@@ -1215,6 +1215,80 @@ bool resize_present_barrier_queue_contract()
     return false;
   }
 
+  /* A barrier can drain successfully even when the adopted replacement frame itself encoded no
+   * retained-region content. Model GHOST's synchronous admission boundary: reject that untouched
+   * backbuffer, release the queued update as failed, and leave the same episode retryable. */
+  {
+    constexpr uint64_t incomplete_frame_episode = episode + 20;
+    gw::RedrawTraceSnapshot incomplete_frame = {};
+    incomplete_frame.episode_generation = incomplete_frame_episode;
+    incomplete_frame.frame_draw_count = 2;
+    incomplete_frame.frame_offscreen_draw_count = 1;
+    incomplete_frame.frame_window_draw_count = 1;
+    incomplete_frame.frame_first_offscreen_sequence = 1;
+    incomplete_frame.frame_last_window_sequence = 2;
+    incomplete_frame.last.sequence = 2;
+    if (!require(!gw::redraw_present_trace_complete(incomplete_frame,
+                                                     incomplete_frame_episode),
+                 "empty replacement trace is not presentable"))
+    {
+      return false;
+    }
+
+    bw::OrderedQueueScheduler incomplete_frame_scheduler;
+    gw::RedrawPresentBarrier incomplete_frame_barrier;
+    bool later_epoch_ran = false;
+    if (!require(incomplete_frame_barrier.schedule(incomplete_frame_episode, incomplete_frame),
+                 "incomplete frame still schedules a suppressing barrier"))
+    {
+      return false;
+    }
+    incomplete_frame_scheduler.enqueue([&](auto done) {
+      incomplete_frame_barrier.arrive(
+          incomplete_frame_episode,
+          [done = std::move(done)](const bool valid) mutable { done(valid); });
+    });
+    incomplete_frame_scheduler.begin_epoch();
+    incomplete_frame_scheduler.enqueue([&](auto done) {
+      later_epoch_ran = true;
+      done(true);
+    });
+    if (!require(incomplete_frame_barrier.is_ready() &&
+                     incomplete_frame_scheduler.pending_count() == 2,
+                 "incomplete frame waits at the synchronous GHOST boundary") ||
+        !require(incomplete_frame_barrier.complete(incomplete_frame_episode, false) &&
+                     later_epoch_ran && incomplete_frame_scheduler.pending_count() == 0,
+                 "rejecting an incomplete frame releases the retry epoch"))
+    {
+      return false;
+    }
+
+    gw::RedrawTraceSnapshot complete_frame = {};
+    complete_frame.episode_generation = incomplete_frame_episode;
+    complete_frame.frame_draw_count = 2;
+    complete_frame.frame_offscreen_draw_count = 1;
+    complete_frame.frame_window_draw_count = 1;
+    complete_frame.frame_first_offscreen_sequence = 1;
+    complete_frame.frame_last_window_sequence = 2;
+    complete_frame.last.sequence = 2;
+    complete_frame.background.sequence = 1;
+    complete_frame.background.window_target = false;
+    complete_frame.display.sequence = 2;
+    complete_frame.display.window_target = true;
+    if (!require(incomplete_frame_barrier.schedule(incomplete_frame_episode, complete_frame),
+                 "rejected incomplete frame leaves its episode retryable") ||
+        !require(incomplete_frame_barrier.arrive(incomplete_frame_episode, [](bool) {}),
+                 "complete retry reaches the synchronous GHOST boundary") ||
+        !require(gw::redraw_present_trace_complete(
+                     incomplete_frame_barrier.ready_trace_snapshot(), incomplete_frame_episode),
+                 "retry carries one complete frame-local trace") ||
+        !require(incomplete_frame_barrier.complete(incomplete_frame_episode, true),
+                 "complete retry can retire the resize episode"))
+    {
+      return false;
+    }
+  }
+
   /* A failed frame submission ahead of the barrier must run its cancel callback, clear the
    * barrier, and let a later epoch proceed. This is the resize form of a transient browser error
    * storm: recovery must not leave swapBufferRelease() suppressing presentation forever. */
@@ -1466,9 +1540,9 @@ bool resize_present_barrier_queue_contract()
     }
   }
 
-  std::puts("CONTRACT resize_present_barrier_queue PASS cases=31 frame_binding=3 "
+  std::puts("CONTRACT resize_present_barrier_queue PASS cases=39 frame_binding=3 "
             "order=prior,barrier,present,release,later "
-            "recovery=failed-frame,failed-present,retry "
+            "recovery=incomplete-frame,failed-frame,failed-present,retry "
             "supersession=queued,ready,stale-completion");
   return true;
 }
@@ -4468,7 +4542,7 @@ int main()
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
-      "resize_present_barrier_cases=31 "
+      "resize_present_barrier_cases=39 "
       "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

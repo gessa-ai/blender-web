@@ -1176,3 +1176,12 @@
 # 0290: bind one coherently resized frame to the drawable episode active at its
 # start, then hold its queue tail until GHOST synchronously submits the surface copy.
 0290-gpu-webgpu-resize-present-barrier.patch
+# 0291: carry a web WindowUpdate across screen relayout, then tag the updated editor
+# areas before the resize barrier can admit replacement VIEW_3D content.
+0291-wm-web-resize-area-redraw.patch
+# 0292: do not occupy the resize queue barrier with a chrome-only frame; only a
+# complete VIEW_3D frame may schedule it while GHOST withholds unbarriered presents.
+0292-gpu-webgpu-complete-resize-barrier.patch
+# 0293: reset resize semantics at WGPUContext::begin_frame, not at every context
+# activation, so late reactivation cannot erase the frame's VIEW_3D draw evidence.
+0293-gpu-webgpu-window-frame-trace.patch

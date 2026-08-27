@@ -48,6 +48,14 @@ The shipping commit path now binds that second case directly: it publishes the r
 episode on the new backbuffer before atomically canceling any older scheduled or ready barrier.
 This ordering prevents GHOST from copying a newly committed, untouched texture under the prior
 episode while cancellation releases the backend queue.
+The barrier's admission evidence is frame-local as well as episode-bound. Atomic backbuffer
+adoption resets the frame facts immediately before `begin_frame()`, while the episode-wide counts
+remain available for diagnostics. A drained barrier may present only when that one adopted frame
+contains the offscreen `overlay_background` draw for the visible 3D region, a later direct-window
+`OCIO_Display` composite, and ends on a window-target draw. An empty, chrome-only, window-only, or
+unfinished frame stays suppressed; GHOST completes the barrier as invalid so the ordered queue
+releases its later epoch and the same bounded resize episode retries. This prevents the tail of a
+pre-commit frame from lending plausible draw counts to an untouched replacement backbuffer.
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped
@@ -81,8 +89,8 @@ harness/buildwrap.sh env BW_NODE_MODULES="$PWD/.m4-node/node_modules" \
   sandbox/m4-resize-recovery/live_resize_repro.mjs 8137
 ```
 
-The fallback adapter can bind this rejection/recovery contract but cannot bind an M4 pixel
-receipt. Final resize pixel recovery remains a conformant-hardware check.
+The fallback adapter can bind this frame-admission/rejection/recovery contract but cannot bind an
+M4 pixel receipt. Final resize pixel recovery remains a conformant-hardware check.
 
 `hardware_resize_acceptance.mjs` is that hardware-only check. It preserves the driver's calibrated
 fixed VIEW_3D sample box and `dominant_fraction < 0.95` decision, but removes the saved script's

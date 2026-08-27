@@ -384,6 +384,32 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
       return GHOST_kSuccess;
     }
     const uint64_t episode = ghost_web::redraw_present_barrier_ready_episode();
+    const ghost_web::RedrawTraceSnapshot completed_frame =
+        ghost_web::redraw_present_barrier_ready_trace_snapshot();
+    if (!ghost_web::redraw_present_trace_complete(completed_frame, episode)) {
+      /* A resize can commit midway through an old frame, and WM may then run an empty or
+       * window-only update before the replacement's retained regions have redrawn. Keep that
+       * candidate off the surface, release work queued by the synthetic update, and retry the
+       * same bounded episode. Otherwise the untouched replacement texture presents as a
+       * validation-clean black canvas. */
+      ghost_web::complete_redraw_present_barrier(episode, false);
+      static uint32_t incomplete_barrier_log_count = 0;
+      if (incomplete_barrier_log_count < 8) {
+        std::printf(
+            "WGPUWeb-resize-present-barrier: episode=%llu synchronous-present=0 "
+            "frame_draws=%llu offscreen=%llu window=%llu first_offscreen=%llu "
+            "last_window=%llu last=%llu\n",
+            static_cast<unsigned long long>(episode),
+            static_cast<unsigned long long>(completed_frame.frame_draw_count),
+            static_cast<unsigned long long>(completed_frame.frame_offscreen_draw_count),
+            static_cast<unsigned long long>(completed_frame.frame_window_draw_count),
+            static_cast<unsigned long long>(completed_frame.frame_first_offscreen_sequence),
+            static_cast<unsigned long long>(completed_frame.frame_last_window_sequence),
+            static_cast<unsigned long long>(completed_frame.last.sequence));
+        incomplete_barrier_log_count++;
+      }
+      return GHOST_kSuccess;
+    }
     const bool presented = presentBackbuffer();
     ghost_web::complete_redraw_present_barrier(episode, presented);
     static uint32_t barrier_log_count = 0;
@@ -394,6 +420,31 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
       barrier_log_count++;
     }
     return presented ? GHOST_kSuccess : GHOST_kFailure;
+  }
+  const uint64_t active_redraw_episode = ghost_web::redraw_episode_generation();
+  if (ghost_web::redraw_trace_active(active_redraw_episode)) {
+    /* Do not expose a chrome-only or partially rebuilt persistent backbuffer while the resize
+     * episode is waiting for its first complete VIEW_3D frame. WGPUContext::end_frame schedules
+     * the queue-tail barrier only after that frame's semantic trace is complete. */
+    static uint32_t incomplete_frame_log_count = 0;
+    if (incomplete_frame_log_count < 24) {
+      const ghost_web::RedrawTraceSnapshot incomplete_frame = ghost_web::redraw_trace_snapshot();
+      std::printf(
+          "WGPUWeb-resize-frame-incomplete: episode=%llu frame_draws=%llu offscreen=%llu "
+          "window=%llu first_offscreen=%llu last_window=%llu last=%llu background=%llu "
+          "display=%llu\n",
+          static_cast<unsigned long long>(active_redraw_episode),
+          static_cast<unsigned long long>(incomplete_frame.frame_draw_count),
+          static_cast<unsigned long long>(incomplete_frame.frame_offscreen_draw_count),
+          static_cast<unsigned long long>(incomplete_frame.frame_window_draw_count),
+          static_cast<unsigned long long>(incomplete_frame.frame_first_offscreen_sequence),
+          static_cast<unsigned long long>(incomplete_frame.frame_last_window_sequence),
+          static_cast<unsigned long long>(incomplete_frame.last.sequence),
+          static_cast<unsigned long long>(incomplete_frame.background.sequence),
+          static_cast<unsigned long long>(incomplete_frame.display.sequence));
+      incomplete_frame_log_count++;
+    }
+    return GHOST_kSuccess;
   }
   return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;
 }

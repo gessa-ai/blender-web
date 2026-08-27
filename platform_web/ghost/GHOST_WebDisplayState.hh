@@ -110,6 +110,11 @@ struct RedrawTraceSnapshot {
   uint64_t episode_generation = 0;
   uint64_t draw_count = 0;
   uint64_t window_draw_count = 0;
+  uint64_t frame_draw_count = 0;
+  uint64_t frame_offscreen_draw_count = 0;
+  uint64_t frame_window_draw_count = 0;
+  uint64_t frame_first_offscreen_sequence = 0;
+  uint64_t frame_last_window_sequence = 0;
   RedrawTracePlan last;
   RedrawTracePlan background;
   RedrawTracePlan display;
@@ -144,6 +149,27 @@ inline void redraw_trace_finish(const uint64_t episode_generation)
   }
 }
 
+/**
+ * Start the trace facts for one adopted window-backbuffer frame without discarding the
+ * episode-wide diagnostic counters. A coherent resize can commit while an older frame is still
+ * encoding; clearing the frame-local facts at the next backbuffer adoption prevents those old
+ * drawable commands from authorizing presentation of an untouched replacement texture.
+ */
+inline void redraw_trace_frame_begin(const uint64_t episode_generation)
+{
+  if (!redraw_trace_active(episode_generation)) {
+    return;
+  }
+  redraw_trace_state.frame_draw_count = 0;
+  redraw_trace_state.frame_offscreen_draw_count = 0;
+  redraw_trace_state.frame_window_draw_count = 0;
+  redraw_trace_state.frame_first_offscreen_sequence = 0;
+  redraw_trace_state.frame_last_window_sequence = 0;
+  redraw_trace_state.last = {};
+  redraw_trace_state.background = {};
+  redraw_trace_state.display = {};
+}
+
 inline void redraw_trace_note(const RedrawTracePass pass,
                               const bool window_target,
                               const int32_t target_width,
@@ -176,8 +202,17 @@ inline void redraw_trace_note(const RedrawTracePass pass,
   plan.scissor_width = scissor_width;
   plan.scissor_height = scissor_height;
   redraw_trace_state.last = plan;
+  redraw_trace_state.frame_draw_count++;
   if (window_target) {
     redraw_trace_state.window_draw_count++;
+    redraw_trace_state.frame_window_draw_count++;
+    redraw_trace_state.frame_last_window_sequence = plan.sequence;
+  }
+  else {
+    redraw_trace_state.frame_offscreen_draw_count++;
+    if (redraw_trace_state.frame_first_offscreen_sequence == 0) {
+      redraw_trace_state.frame_first_offscreen_sequence = plan.sequence;
+    }
   }
   if (pass == RedrawTracePass::OverlayBackground) {
     redraw_trace_state.background = plan;
@@ -240,6 +275,25 @@ inline bool redraw_present_frame_matches_episode(const uint64_t frame_episode,
                                                  const uint64_t current_episode)
 {
   return frame_episode == current_episode;
+}
+
+/**
+ * True only when one adopted replacement-backbuffer frame encoded the visible 3D region's
+ * background and a later direct-window display composite, with the frame ending on a window
+ * target. Episode-wide trace history is intentionally insufficient: a resize callback can start a
+ * new episode in the middle of an old drawable's frame, while generic offscreen/window work may
+ * describe chrome without any replacement VIEW_3D content.
+ */
+inline bool redraw_present_trace_complete(const RedrawTraceSnapshot &trace,
+                                           const uint64_t episode)
+{
+  return trace.episode_generation == episode && trace.frame_draw_count >= 2u &&
+         trace.frame_offscreen_draw_count > 0u && trace.frame_window_draw_count > 0u &&
+         trace.frame_first_offscreen_sequence > 0u &&
+         trace.frame_last_window_sequence > trace.frame_first_offscreen_sequence &&
+         trace.frame_last_window_sequence == trace.last.sequence &&
+         trace.background.sequence > 0u && !trace.background.window_target &&
+         trace.display.sequence > trace.background.sequence && trace.display.window_target;
 }
 
 /**

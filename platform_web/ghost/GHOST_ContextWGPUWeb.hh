@@ -30,6 +30,7 @@
 #include <webgpu/webgpu_cpp.h>
 
 #include "GHOST_Context.hh"
+#include "GHOST_WebDisplayState.hh"
 #include "GHOST_WGPUTransaction.hh"
 
 /**

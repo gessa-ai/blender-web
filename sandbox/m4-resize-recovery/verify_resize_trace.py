@@ -51,8 +51,10 @@ def validate(
         "inline bool redraw_trace_capturing()",
         "inline bool redraw_trace_active(",
         "inline void redraw_trace_finish(",
+        "inline void redraw_trace_frame_begin(",
         "inline void redraw_trace_note(",
         "inline RedrawTraceSnapshot redraw_trace_snapshot()",
+        "inline bool redraw_present_trace_complete(",
         "inline RedrawTraceSnapshot redraw_present_barrier_ready_trace_snapshot()",
     ):
         require_once(display, token, "shared resize trace")
@@ -60,6 +62,11 @@ def validate(
         "episode_generation",
         "draw_count",
         "window_draw_count",
+        "frame_draw_count",
+        "frame_offscreen_draw_count",
+        "frame_window_draw_count",
+        "frame_first_offscreen_sequence",
+        "frame_last_window_sequence",
         "background",
         "display",
         "target_width",
@@ -82,6 +89,30 @@ def validate(
     require_once(helper, "redraw_trace_finish(episode_generation);", "bounded trace stop")
     if helper.index("redraw_trace_finish(episode_generation);") > helper.index("return false;"):
         raise ValueError("trace stops after the recovery helper returns")
+    frame_begin = method(display, "inline void redraw_trace_frame_begin(")
+    for token in (
+        "redraw_trace_state.frame_draw_count = 0;",
+        "redraw_trace_state.frame_offscreen_draw_count = 0;",
+        "redraw_trace_state.frame_window_draw_count = 0;",
+        "redraw_trace_state.frame_first_offscreen_sequence = 0;",
+        "redraw_trace_state.frame_last_window_sequence = 0;",
+    ):
+        require_once(frame_begin, token, "frame-local resize trace reset")
+    frame_complete = method(display, "inline bool redraw_present_trace_complete(")
+    for token in (
+        "trace.episode_generation == episode",
+        "trace.frame_draw_count >= 2u",
+        "trace.frame_offscreen_draw_count > 0u",
+        "trace.frame_window_draw_count > 0u",
+        "trace.frame_first_offscreen_sequence > 0u",
+        "trace.frame_last_window_sequence > trace.frame_first_offscreen_sequence",
+        "trace.frame_last_window_sequence == trace.last.sequence",
+        "trace.background.sequence > 0u",
+        "!trace.background.window_target",
+        "trace.display.sequence > trace.background.sequence",
+        "trace.display.window_target",
+    ):
+        require_once(frame_complete, token, "completed resize frame trace")
 
     require_once(
         framebuffer_header,
@@ -138,6 +169,22 @@ def validate(
     if present.index("if (!valid)") > log_at:
         raise ValueError("resize trace can describe a rejected present")
 
+    swap = method(context, "GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()")
+    for token in (
+        "ghost_web::redraw_present_barrier_ready_trace_snapshot()",
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
+        "ghost_web::complete_redraw_present_barrier(episode, false);",
+        "const bool presented = presentBackbuffer();",
+    ):
+        require_once(swap, token, "completed resize frame present gate")
+    if not (
+        swap.index("ghost_web::redraw_present_barrier_ready_trace_snapshot()")
+        < swap.index("ghost_web::redraw_present_trace_complete(completed_frame, episode)")
+        < swap.index("ghost_web::complete_redraw_present_barrier(episode, false);")
+        < swap.index("const bool presented = presentBackbuffer();")
+    ):
+        raise ValueError("incomplete resize frame trace can reach presentation")
+
     entry = "0286-gpu-webgpu-resize-draw-trace.patch"
     require_once(series, entry, "numbered trace patch")
 
@@ -168,8 +215,14 @@ def validate(
         "epoch.length !== 1",
         "was not encoded before the barrier present",
         'line.includes("WGPUWeb-resize-present-barrier:")',
-        "counters.resizeBarrier !== 2",
+        'line.includes("synchronous-present=1")',
+        'line.includes("synchronous-present=0")',
+        "counters.resizeBarrierSuccess !== 2",
+        "counters.resizeBarrierRejected > 8",
+        "counters.resizeBarrier !==\n"
+        "      counters.resizeBarrierSuccess + counters.resizeBarrierRejected",
         "single barrier presents differ",
+        "barriers=${counters.resizeBarrierSuccess}/${counters.resizeBarrierRejected}",
         "plans=complete,current,contained,view3d-bound",
     ):
         require_once(live, token, "live trace consumer")
@@ -186,7 +239,27 @@ def selfcheck(sources: tuple[str, ...]) -> int:
     mutations: list[tuple[str, str, str]] = [
         ("display", "redraw_trace_begin(generation);", ""),
         ("display", "redraw_trace_finish(episode_generation);", ""),
+        (
+            "display",
+            "redraw_trace_state.frame_draw_count = 0;",
+            "redraw_trace_state.frame_draw_count = 1;",
+        ),
+        (
+            "display",
+            "trace.frame_offscreen_draw_count > 0u",
+            "true",
+        ),
+        (
+            "display",
+            "trace.background.sequence > 0u",
+            "true",
+        ),
         ("display", "inline void redraw_trace_note(", "inline void disabled_trace_note("),
+        (
+            "context",
+            "if (!ghost_web::redraw_present_trace_complete(completed_frame, episode))",
+            "if (false)",
+        ),
         ("context", "resize_trace_total_samples < 64", "resize_trace_total_samples < 63"),
         ("context", "resize_trace_episode_samples < 24", "resize_trace_episode_samples < 23"),
         (
@@ -281,8 +354,28 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         ),
         (
             "live",
-            "counters.resizeBarrier !== 2",
+            'line.includes("synchronous-present=1")',
+            'line.includes("synchronous-present=2")',
+        ),
+        (
+            "live",
+            'line.includes("synchronous-present=0")',
+            'line.includes("synchronous-present=-1")',
+        ),
+        (
+            "live",
+            "counters.resizeBarrierSuccess !== 2",
             "false",
+        ),
+        (
+            "live",
+            "counters.resizeBarrierRejected > 8",
+            "false",
+        ),
+        (
+            "live",
+            "counters.resizeBarrierSuccess + counters.resizeBarrierRejected",
+            "counters.resizeBarrierSuccess",
         ),
         (
             "live",

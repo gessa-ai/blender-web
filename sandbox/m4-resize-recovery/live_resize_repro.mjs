@@ -22,6 +22,9 @@ const counters = {
   resizeApplied: 0,
   resizeTrace: 0,
   resizeBarrier: 0,
+  resizeBarrierSuccess: 0,
+  resizeBarrierRejected: 0,
+  resizeFrameIncomplete: 0,
   wmResizeProcessed: 0,
 };
 
@@ -212,21 +215,28 @@ function dimensionsMatch(sampleValue, width, height) {
 const RESIZE_COMPLETION_TIMEOUT_MS = 24000;
 
 async function waitForResizeFrame(page, width, height, baseline) {
-  await page.waitForFunction(({width, height, baseline}) => {
-    const module = window.__bwModule;
-    const canvas = document.querySelector("#canvas");
-    const presents = Number(module?._bw_present_count?.());
-    const episodes = Number(module?._bw_redraw_episode_count?.());
-    return window.innerWidth === width && window.innerHeight === height &&
-      canvas?.width === width && canvas?.height === height &&
-      canvas?.clientWidth === width && canvas?.clientHeight === height &&
-      Number.isFinite(presents) && presents > baseline.presents &&
-      Number.isFinite(episodes) && episodes > baseline.episodes;
-  }, {width, height, baseline}, {timeout: RESIZE_COMPLETION_TIMEOUT_MS, polling: 100});
+  let waitTimedOut = false;
+  try {
+    await page.waitForFunction(({width, height, baseline}) => {
+      const module = window.__bwModule;
+      const canvas = document.querySelector("#canvas");
+      const presents = Number(module?._bw_present_count?.());
+      const episodes = Number(module?._bw_redraw_episode_count?.());
+      return window.innerWidth === width && window.innerHeight === height &&
+        canvas?.width === width && canvas?.height === height &&
+        canvas?.clientWidth === width && canvas?.clientHeight === height &&
+        Number.isFinite(presents) && presents > baseline.presents &&
+        Number.isFinite(episodes) && episodes > baseline.episodes;
+    }, {width, height, baseline}, {timeout: RESIZE_COMPLETION_TIMEOUT_MS, polling: 100});
+  }
+  catch (error) {
+    if (error?.name !== "TimeoutError") throw error;
+    waitTimedOut = true;
+  }
   /* Console delivery follows the same completion callback that advances the counter. Give the
    * bounded draw-plan line one message turn before freezing the evidence snapshot. */
   await page.waitForTimeout(250);
-  return sample(page);
+  return {...await sample(page), waitTimedOut};
 }
 
 const browser = await chromium.launch({
@@ -244,7 +254,14 @@ try {
     if (line.includes("present transaction rejected")) counters.transactionRejected++;
     if (line.includes("[bw][GPU-LOST]")) counters.deviceLost++;
     if (line.includes("WGPUWeb-resize: backing ->")) counters.resizeApplied++;
-    if (line.includes("WGPUWeb-resize-present-barrier:")) counters.resizeBarrier++;
+    if (line.includes("WGPUWeb-resize-present-barrier:")) {
+      counters.resizeBarrier++;
+      if (line.includes("synchronous-present=1")) counters.resizeBarrierSuccess++;
+      if (line.includes("synchronous-present=0")) counters.resizeBarrierRejected++;
+    }
+    if (line.includes("WGPUWeb-resize-frame-incomplete:")) {
+      counters.resizeFrameIncomplete++;
+    }
     if (line.includes("WGPUWeb-resize-trace:")) {
       counters.resizeTrace++;
       const trace = parseResizeTrace(line);
@@ -257,7 +274,7 @@ try {
     if (line.includes("ghost_event_proc: window") && line.includes("state =")) {
       counters.wmResizeProcessed++;
     }
-    if (/WGPUWeb-resize:|WGPUWeb-resize-trace:|WGPUWeb-resize-present-barrier:|bw-resize-python|Scissor rect|draw encoding rejected|queue submission rejected|present transaction rejected|ghost_event_proc: window|GPU-LOST/.test(line)) {
+    if (/WGPUWeb-resize:|WGPUWeb-resize-trace:|WGPUWeb-resize-present-barrier:|WGPUWeb-resize-frame-incomplete:|bw-resize-python|Scissor rect|draw encoding rejected|queue submission rejected|present transaction rejected|ghost_event_proc: window|GPU-LOST/.test(line)) {
       lines.push(line);
     }
   });
@@ -300,8 +317,15 @@ try {
     failures.push(`single barrier presents differ: ${shrinkRedrawPresents}/${restoreRedrawPresents}`);
   }
   if (counters.resizeApplied < 3) failures.push("shell backing resize was not observed");
-  if (counters.resizeBarrier !== 2) {
-    failures.push(`resize barrier count=${counters.resizeBarrier}`);
+  if (counters.resizeBarrierSuccess !== 2) {
+    failures.push(`successful resize barrier count=${counters.resizeBarrierSuccess}`);
+  }
+  if (counters.resizeBarrierRejected > 8) {
+    failures.push(`rejected resize barrier log bound=${counters.resizeBarrierRejected}`);
+  }
+  if (counters.resizeBarrier !==
+      counters.resizeBarrierSuccess + counters.resizeBarrierRejected) {
+    failures.push(`unclassified resize barrier count=${counters.resizeBarrier}`);
   }
   if (counters.wmResizeProcessed < 2) failures.push("WM resize processing was not observed");
   const traceEpochs = [
@@ -327,7 +351,8 @@ try {
               `wm=${counters.wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
               `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
-              `barriers=${counters.resizeBarrier} redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
+              `barriers=${counters.resizeBarrierSuccess}/${counters.resizeBarrierRejected} ` +
+              `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
               `trace=${resizeTraces.length} plans=complete,current,contained,view3d-bound`);
 }
 finally {

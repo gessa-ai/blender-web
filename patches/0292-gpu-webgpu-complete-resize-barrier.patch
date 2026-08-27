@@ -1,0 +1,31 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -1313,23 +1313,26 @@ void WGPUContext::end_frame()
+ #if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
+   /* Browser command validation settles after WM has finished encoding this frame. During a
+    * coherent resize episode, reserve one tail barrier before GHOST reaches swapBufferRelease().
+    * The barrier holds later queue work until GHOST has synchronously submitted a copy of this
+    * completed frame, preventing an intermediate backbuffer pass from reaching the canvas. A
+    * frame which began before the replacement backbuffer committed is not eligible: its commands
+    * target the previous drawable even if the resize episode becomes current before this tail. */
+   const uint64_t episode = ghost_web::redraw_episode_generation();
++  const ghost_web::RedrawTraceSnapshot completed_frame =
++      ghost_web::redraw_trace_snapshot();
+   if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
+                                       redraw_present_frame_episode_, episode) &&
+       ghost_web::redraw_trace_active(episode) &&
++      ghost_web::redraw_present_trace_complete(completed_frame, episode) &&
+       ghost_web::schedule_redraw_present_barrier(
+-          episode, ghost_web::redraw_trace_snapshot()))
++          episode, completed_frame))
+   {
+     queue_scheduler_.enqueue(
+         [episode](std::function<void(bool)> done) {
+           ghost_web::arrive_redraw_present_barrier(episode, std::move(done));
+         },
+         [episode]() {
+           ghost_web::cancel_redraw_present_barrier(episode);
+         });
+   }
+ #endif

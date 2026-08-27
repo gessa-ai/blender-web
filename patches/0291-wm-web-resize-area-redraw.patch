@@ -1,0 +1,72 @@
+diff --git a/source/blender/blenkernel/BKE_wm_runtime.hh b/source/blender/blenkernel/BKE_wm_runtime.hh
+--- a/source/blender/blenkernel/BKE_wm_runtime.hh
++++ b/source/blender/blenkernel/BKE_wm_runtime.hh
+@@ -147,5 +147,9 @@ struct WindowRuntime {
+   /** Don't want to include gpu stuff. */
+   void *gpuctx = nullptr;
+-
++#ifdef __EMSCRIPTEN__
++  /** Carry one synthetic browser WindowUpdate through screen relayout. */
++  bool web_full_redraw_after_window_update = false;
++#endif
++
+   /** Window+screen handlers, handled last. */
+   ListBaseT<wmEventHandler> handlers = {nullptr, nullptr};
+diff --git a/source/blender/windowmanager/intern/wm_draw.cc b/source/blender/windowmanager/intern/wm_draw.cc
+--- a/source/blender/windowmanager/intern/wm_draw.cc
++++ b/source/blender/windowmanager/intern/wm_draw.cc
+@@ -1708,6 +1708,9 @@ static bool wm_draw_update_test_window(Main *bmain, bContext *C, wmWindow *win)
+   Depsgraph *depsgraph = BKE_scene_ensure_depsgraph(bmain, scene, view_layer);
+   bScreen *screen = WM_window_get_active_screen(win);
+   bool do_draw = false;
++#ifdef __EMSCRIPTEN__
++  do_draw = win->runtime->web_full_redraw_after_window_update;
++#endif
+ 
+   for (ARegion &region : screen->regionbase) {
+     if (region.runtime->do_draw_paintcursor) {
+@@ -1845,9 +1848,20 @@ void wm_draw_update(bContext *C)
+       /* Sets context window+screen. */
+       wm_window_make_drawable(wm, &win);
+       wm_window_swap_buffer_acquire(&win);
+-
++
+       /* Notifiers for screen redraw. */
+       ED_screen_ensure_updated(C, wm, &win);
+-
++#ifdef __EMSCRIPTEN__
++      if (win.runtime->web_full_redraw_after_window_update) {
++        /* Resize notifiers may rebuild region runtime state. Apply the browser's full-redraw
++         * request after that relayout, immediately before encoding the replacement frame. */
++        win.runtime->web_full_redraw_after_window_update = false;
++        bScreen *updated_screen = WM_window_get_active_screen(&win);
++        ED_screen_areas_iter (&win, updated_screen, area) {
++          ED_area_tag_redraw(area);
++        }
++      }
++#endif
++
+       wm_draw_window(C, &win);
+       wm_draw_update_clear_window(C, &win);
+diff --git a/source/blender/windowmanager/intern/wm_window.cc b/source/blender/windowmanager/intern/wm_window.cc
+--- a/source/blender/windowmanager/intern/wm_window.cc
++++ b/source/blender/windowmanager/intern/wm_window.cc
+@@ -1872,13 +1872,12 @@ static bool ghost_event_proc(GHOST_EventHandle evt, GHOST_TUserDataPtr C_void_pt
+         printf("%s: ghost redraw %d\n", __func__, win->winid);
+       }
+-
++
+       wm_window_make_drawable(wm, win);
+ #ifdef __EMSCRIPTEN__
+-      /* A web surface may publish its cleared frame before regions receive their
+-       * first redraw tag. GHOST_SystemWeb sends bounded WindowUpdate events until
+-       * the second present; invalidate the screen as well as window chrome so the
+-       * next publish contains Blender UI. Native window-system semantics stay
+-       * unchanged. */
++      /* Screen relayout may rebuild region state. Carry this request to wm_draw_update, which
++       * tags the updated areas after ED_screen_ensure_updated and before frame encoding. Native
++       * window-system semantics stay unchanged. */
++      win->runtime->web_full_redraw_after_window_update = true;
+       WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);
+ #endif
+       WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);

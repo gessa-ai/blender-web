@@ -1850,3 +1850,22 @@ wasm32, while retaining repeated hardware semantic pixels as the closure bar. Se
 `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and
 `sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.
+
+## Class 126 — episode-wide draw history cannot authorize a replacement frame
+
+Signature: a coherent resize commits during the tail of an older drawable's frame. The new
+episode correctly prevents that old frame from scheduling a present barrier, but its remaining
+draws still populate an episode-wide trace. If the first adopted replacement frame is empty or
+window-only, its barrier can inherit those plausible counts and present an untouched backbuffer
+without any validation error. Reset semantic trace facts at the exact atomic backbuffer-adoption
+boundary immediately before `begin_frame()`, while retaining cumulative episode counters only for
+diagnostics. Keep the barrier scheduled for incomplete frames so synchronous swap remains
+suppressed; once it reaches ready, admit only a frame with the visible 3D region's offscreen
+background, its later direct-window display composite, and a final window-target draw. Generic
+offscreen/window activity can be chrome-only and is not sufficient. Complete rejected frames as
+invalid to release later-epoch work and re-arm the same bounded retry. Bind reset, snapshot,
+rejection, and retry on native and wasm32, but leave repeated semantic pixel closure to conformant
+hardware. See
+`platform_web/ghost/GHOST_WebDisplayState.hh`,
+`platform_web/ghost/GHOST_ContextWGPUWeb.hh`, and
+`sandbox/m4-resize-recovery/verify_source.py`.

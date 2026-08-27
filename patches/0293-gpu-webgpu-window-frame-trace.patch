@@ -1,0 +1,14 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -1306,5 +1306,8 @@ void WGPUContext::begin_frame()
+ {
+-  /* The web window context captured its resize episode atomically with backbuffer adoption in
+-   * sync_backbuffer(), which activation runs immediately before this frame begins. */
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* Activation already adopted this frame's backbuffer episode. Reset its semantic trace once at
++   * the real WM frame boundary; later context reactivations must not erase earlier region draws. */
++  ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);
++#endif
+   queue_scheduler_.begin_epoch();
+ }

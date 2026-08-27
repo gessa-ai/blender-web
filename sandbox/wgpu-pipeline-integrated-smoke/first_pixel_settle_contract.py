@@ -19,6 +19,7 @@ BIND_GROUP_MARKER = "bool WGPUShader::bind_group_entries_complete("
 EXPLICIT_LAYOUT_MARKER = "bool WGPUShader::ensure_explicit_layout("
 RENDER_PIPELINE_MARKER = "wgpu::RenderPipeline WGPUPipelinePool::get("
 RESIZE_COMMIT_MARKER = "void GHOST_ContextWGPUWeb::ensureBackbuffer()"
+SWAP_RELEASE_MARKER = "GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()"
 
 
 def method(source: str, marker: str) -> str:
@@ -71,7 +72,9 @@ def validate(
         "inline uint64_t redraw_episode_generation()",
         "inline void note_redraw_drop()",
         "inline uint64_t redraw_drop_generation()",
+        "inline void redraw_trace_frame_begin(",
         "inline bool redraw_present_frame_matches_episode(",
+        "inline bool redraw_present_trace_complete(",
         "class RedrawPresentBarrier {",
         "inline RedrawPresentBarrier redraw_present_barrier;",
         "inline bool schedule_redraw_present_barrier(",
@@ -90,6 +93,42 @@ def validate(
         "return frame_episode == current_episode;",
         "resize frame episode binding",
     )
+    frame_begin = method(display_header, "inline void redraw_trace_frame_begin(")
+    for token in (
+        "redraw_trace_state.frame_draw_count = 0;",
+        "redraw_trace_state.frame_offscreen_draw_count = 0;",
+        "redraw_trace_state.frame_window_draw_count = 0;",
+        "redraw_trace_state.frame_first_offscreen_sequence = 0;",
+        "redraw_trace_state.frame_last_window_sequence = 0;",
+        "redraw_trace_state.last = {};",
+        "redraw_trace_state.background = {};",
+        "redraw_trace_state.display = {};",
+    ):
+        require_once(frame_begin, token, "frame-local resize trace reset")
+    frame_complete = method(display_header, "inline bool redraw_present_trace_complete(")
+    for token in (
+        "trace.episode_generation == episode",
+        "trace.frame_draw_count >= 2u",
+        "trace.frame_offscreen_draw_count > 0u",
+        "trace.frame_window_draw_count > 0u",
+        "trace.frame_first_offscreen_sequence > 0u",
+        "trace.frame_last_window_sequence > trace.frame_first_offscreen_sequence",
+        "trace.frame_last_window_sequence == trace.last.sequence",
+        "trace.background.sequence > 0u",
+        "!trace.background.window_target",
+        "trace.display.sequence > trace.background.sequence",
+        "trace.display.window_target",
+    ):
+        require_once(frame_complete, token, "completed resize frame admission")
+    trace_note = method(display_header, "inline void redraw_trace_note(")
+    for token in (
+        "redraw_trace_state.frame_draw_count++;",
+        "redraw_trace_state.frame_window_draw_count++;",
+        "redraw_trace_state.frame_last_window_sequence = plan.sequence;",
+        "redraw_trace_state.frame_offscreen_draw_count++;",
+        "redraw_trace_state.frame_first_offscreen_sequence = plan.sequence;",
+    ):
+        require_once(trace_note, token, "frame-local resize trace capture")
     barrier = method(display_header, "class RedrawPresentBarrier")
     for token in (
         "bool schedule(const uint64_t episode, RedrawTraceSnapshot trace_snapshot = {})",
@@ -272,19 +311,61 @@ def validate(
     ):
         raise ValueError("resize recovery is published before the coherent commit result")
 
+    swap_release = method(context_source, SWAP_RELEASE_MARKER)
+    for token in (
+        "ghost_web::redraw_present_barrier_ready_trace_snapshot()",
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
+        "ghost_web::complete_redraw_present_barrier(episode, false);",
+        "const bool presented = presentBackbuffer();",
+        "const uint64_t active_redraw_episode = ghost_web::redraw_episode_generation();",
+        "if (ghost_web::redraw_trace_active(active_redraw_episode))",
+    ):
+        require_once(swap_release, token, "completed resize frame admission")
+    snapshot_at = swap_release.index(
+        "ghost_web::redraw_present_barrier_ready_trace_snapshot()"
+    )
+    complete_check_at = swap_release.index(
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)"
+    )
+    reject_at = swap_release.index(
+        "ghost_web::complete_redraw_present_barrier(episode, false);"
+    )
+    retry_return_at = swap_release.find("return GHOST_kSuccess;", reject_at)
+    present_at = swap_release.index("const bool presented = presentBackbuffer();")
+    active_episode_at = swap_release.index(
+        "const uint64_t active_redraw_episode = ghost_web::redraw_episode_generation();"
+    )
+    withhold_at = swap_release.index(
+        "if (ghost_web::redraw_trace_active(active_redraw_episode))"
+    )
+    withhold_return_at = swap_release.find("return GHOST_kSuccess;", withhold_at)
+    fallback_present_at = swap_release.rfind(
+        "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;"
+    )
+    if not (
+        snapshot_at < complete_check_at < reject_at < retry_return_at < present_at
+        < active_episode_at < withhold_at < withhold_return_at < fallback_present_at
+    ):
+        raise ValueError("incomplete resize frame can reach synchronous presentation")
+
     update_case = wm_window_source.find("case GHOST_kEventWindowUpdate:")
     case_end = wm_window_source.find("break;", update_case)
     if update_case < 0 or case_end < 0:
         raise ValueError("missing WindowUpdate handler")
     update_handler = wm_window_source[update_case:case_end]
     web_notifier = "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);"
+    redraw_request = "win->runtime->web_full_redraw_after_window_update = true;"
+    require_once(update_handler, redraw_request, "Emscripten WindowUpdate redraw request")
     require_once(update_handler, web_notifier, "Emscripten WindowUpdate handler")
+    redraw_request_at = update_handler.find(redraw_request)
     notifier = update_handler.find(web_notifier)
     if notifier < 0:
         raise ValueError("screen notifier is not inside the WindowUpdate handler")
     emscripten_guard = update_handler.rfind("#ifdef __EMSCRIPTEN__", 0, notifier)
-    if emscripten_guard < 0:
+    if emscripten_guard < 0 or redraw_request_at < emscripten_guard:
         raise ValueError("screen notifier is not Emscripten-only")
+    if redraw_request_at > notifier:
+        raise ValueError("post-layout redraw request is published after the screen notifier")
 
     for source, label in ((shader_source, "shader"), (pipeline_source, "pipeline")):
         require_once(source, '#  include "GHOST_WebDisplayState.hh"',
@@ -356,6 +437,9 @@ def selfcheck(
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "return frame_episode == current_episode;", "return true;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline void redraw_trace_frame_begin(", "redraw_trace_state.frame_draw_count = 0;", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline bool redraw_present_trace_complete(", "trace.frame_offscreen_draw_count > 0u", "true"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline bool redraw_present_trace_complete(", "trace.background.sequence > 0u", "true"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline uint64_t request_redraw_episode()", "return generation;", "return 0;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "bool cancel_superseded(const uint64_t current_episode)", "scheduled_episode_ == current_episode", "scheduled_episode_ != current_episode"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline bool cancel_superseded_redraw_present_barrier(", "redraw_present_barrier.cancel_superseded(current_episode)", "redraw_present_barrier.cancel(current_episode)"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
@@ -385,7 +469,8 @@ def selfcheck(
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);", ""), shader_source, pipeline_source),
-        (display_header, system_header, system_source, mutate_window_update(wm_window_source, "#ifdef __EMSCRIPTEN__\n      /* A web surface", "#if 1\n      /* A web surface"), shader_source, pipeline_source),
+        (display_header, system_header, system_source, mutate_window_update(wm_window_source, "win->runtime->web_full_redraw_after_window_update = true;", ""), shader_source, pipeline_source),
+        (display_header, system_header, system_source, mutate_window_update(wm_window_source, "#ifdef __EMSCRIPTEN__\n      /* Screen relayout may rebuild", "#if 1\n      /* Screen relayout may rebuild"), shader_source, pipeline_source),
         (display_header, system_header, system_source, wm_window_source, mutate_method(shader_source, SHADER_MODULE_MARKER, "request_webgpu_redraw_retry();", ""), pipeline_source),
         (display_header, system_header, system_source, wm_window_source, mutate_method(shader_source, COMPUTE_PIPELINE_MARKER, "request_webgpu_redraw_retry();", ""), pipeline_source),
         (display_header, system_header, system_source, wm_window_source, mutate_method(shader_source, BIND_GROUP_MARKER, "note_webgpu_draw_drop();", ""), pipeline_source),
@@ -445,6 +530,30 @@ def selfcheck(
             "                        committed_redraw_episode);\n"
             "                    owner.backbuffer_redraw_episode_ = committed_redraw_episode;",
         ),
+        mutate_method(
+            context_source,
+            SWAP_RELEASE_MARKER,
+            "ghost_web::redraw_present_barrier_ready_trace_snapshot()",
+            "ghost_web::redraw_trace_snapshot()",
+        ),
+        mutate_method(
+            context_source,
+            SWAP_RELEASE_MARKER,
+            "if (!ghost_web::redraw_present_trace_complete(completed_frame, episode))",
+            "if (false)",
+        ),
+        mutate_method(
+            context_source,
+            SWAP_RELEASE_MARKER,
+            "ghost_web::complete_redraw_present_barrier(episode, false);",
+            "",
+        ),
+        mutate_method(
+            context_source,
+            SWAP_RELEASE_MARKER,
+            "if (ghost_web::redraw_trace_active(active_redraw_episode))",
+            "if (false)",
+        ),
     )
     for index, context_mutation in enumerate(context_mutations, start=len(mutations) + 1):
         try:
@@ -489,7 +598,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=53 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound,commit-superseded")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=61 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound,incomplete-withheld,post-layout-redraw,view3d-frame-complete,commit-superseded")
     return 0
 
 

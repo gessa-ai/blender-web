@@ -45,6 +45,7 @@ FRAME_EPISODE_MEMBER = "uint64_t redraw_present_frame_episode_ = 0;"
 BACKBUFFER_SNAPSHOT_TYPE = "struct BackbufferFrameSnapshot"
 BACKBUFFER_SNAPSHOT_METHOD = "BackbufferFrameSnapshot getBackbufferFrameSnapshot() const"
 BACKBUFFER_EPISODE_MEMBER = "uint64_t backbuffer_redraw_episode_ = 0;"
+DISPLAY_STATE_INCLUDE = '#include "GHOST_WebDisplayState.hh"'
 
 
 def method(source: str, marker: str) -> str:
@@ -137,10 +138,10 @@ def validate(
     if not (update_at >= 0 and update_at < reactivate_at < window_loop_at):
         errors.append("window-context reactivation is not ordered before the draw loop")
 
-    # The barrier's ready transition requests one synthetic WindowUpdate so GHOST can present the
-    # frame which drained ahead of it. That event must invalidate the complete Blender screen on
-    # Emscripten, not only window chrome: otherwise the barrier can truthfully order and present a
-    # new-extent frame whose VIEW_3D regions were never redrawn into the replacement backbuffer.
+    # The barrier's ready transition requests one synthetic WindowUpdate. Carry a one-shot request
+    # across notifier-driven screen relayout, then tag the rebuilt areas immediately before frame
+    # encoding. Tagging the pre-layout regions can be consumed while only retained chrome is
+    # recomposited, producing a validation-clean frame with no VIEW_3D content.
     ghost_event = method(wm_window_source, "static bool ghost_event_proc(")
     update_case_at = ghost_event.find("case GHOST_kEventWindowUpdate:")
     update_decor_case_at = ghost_event.find(
@@ -154,6 +155,7 @@ def validate(
     window_update_tokens = (
         "wm_window_make_drawable(wm, win);",
         "#ifdef __EMSCRIPTEN__",
+        "win->runtime->web_full_redraw_after_window_update = true;",
         "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);",
         "#endif",
         "WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);",
@@ -167,6 +169,28 @@ def validate(
         positions = tuple(window_update.index(token) for token in window_update_tokens)
         if positions != tuple(sorted(positions)):
             errors.append("web full-screen invalidation is outside the drawable WindowUpdate")
+
+    update_test = method(wm_source, "static bool wm_draw_update_test_window(")
+    update_test_trigger = "do_draw = win->runtime->web_full_redraw_after_window_update;"
+    if update_test.count(update_test_trigger) != 1:
+        errors.append("post-layout browser redraw does not force a window draw")
+
+    draw_update = method(wm_source, "void wm_draw_update(bContext *C)")
+    post_layout_tokens = (
+        "ED_screen_ensure_updated(C, wm, &win);",
+        "if (win.runtime->web_full_redraw_after_window_update)",
+        "win.runtime->web_full_redraw_after_window_update = false;",
+        "ED_screen_areas_iter (&win, updated_screen, area)",
+        "ED_area_tag_redraw(area);",
+        "wm_draw_window(C, &win);",
+    )
+    for token in post_layout_tokens:
+        if draw_update.count(token) != 1:
+            errors.append(f"post-layout browser area redraw differs: {token}")
+    if draw_update and all(token in draw_update for token in post_layout_tokens):
+        positions = tuple(draw_update.index(token) for token in post_layout_tokens)
+        if positions != tuple(sorted(positions)):
+            errors.append("browser area redraw is not ordered after relayout and before encoding")
 
     # WGPUContext::end_frame() is the queue-tail hook used by the resize barrier. Blender's
     # similarly named GPU_render_end() is backend-wide and runs later; it does not call the
@@ -215,6 +239,8 @@ def validate(
     if context_header.count(FRAME_EPISODE_MEMBER) != 1:
         errors.append("window frame does not retain its resize episode")
 
+    if ghost_header.count(DISPLAY_STATE_INCLUDE) != 1:
+        errors.append("GHOST backbuffer snapshot lacks its display-state declaration")
     if ghost_header.count(BACKBUFFER_SNAPSHOT_TYPE) != 1:
         errors.append("GHOST does not expose one coherent backbuffer frame snapshot type")
     snapshot = method(ghost_header, BACKBUFFER_SNAPSHOT_METHOD)
@@ -226,17 +252,21 @@ def validate(
         "surface_format_",
         "backbuffer_w_",
         "backbuffer_h_",
-        "backbuffer_redraw_episode_",
     ):
         if snapshot.count(token) != 1:
             errors.append(f"coherent GHOST backbuffer snapshot differs: {token}")
+    if snapshot.count("backbuffer_redraw_episode_") != 1:
+        errors.append("coherent GHOST snapshot does not return its adopted episode")
+    if "redraw_trace_frame_begin" in snapshot:
+        errors.append("GPU context reactivation still erases an in-progress window-frame trace")
     if ghost_header.count(BACKBUFFER_EPISODE_MEMBER) != 1:
         errors.append("GHOST backbuffer does not retain its committed redraw episode")
 
     ensure = method(ghost_source, "void GHOST_ContextWGPUWeb::ensureBackbuffer()")
     commit_tokens = (
-        "ghost_web::request_redraw_episode();",
-        "owner.backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();",
+        "const uint64_t committed_redraw_episode =\n"
+        "                        ghost_web::request_redraw_episode();",
+        "owner.backbuffer_redraw_episode_ = committed_redraw_episode;",
     )
     for token in commit_tokens:
         if ensure.count(token) != 1:
@@ -247,6 +277,7 @@ def validate(
 
     begin_frame = method(context_source, "void WGPUContext::begin_frame()")
     begin_frame_tokens = (
+        "ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);",
         "queue_scheduler_.begin_epoch();",
     )
     for token in begin_frame_tokens:
@@ -254,16 +285,22 @@ def validate(
             errors.append(f"resize frame-start binding differs: {token}")
     if "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();" in begin_frame:
         errors.append("frame start resamples the episode separately from backbuffer adoption")
+    if begin_frame and all(token in begin_frame for token in begin_frame_tokens):
+        if begin_frame.index(begin_frame_tokens[0]) > begin_frame.index(begin_frame_tokens[1]):
+            errors.append("frame trace starts after the backend queue epoch")
 
     end_frame = method(context_source, "void WGPUContext::end_frame()")
     end_frame_tokens = (
         "ghost_web::redraw_episode_generation()",
+        "const ghost_web::RedrawTraceSnapshot completed_frame =\n"
+        "      ghost_web::redraw_trace_snapshot();",
         "ghost_window_ != nullptr",
         "ghost_web::redraw_present_frame_matches_episode(",
         "redraw_present_frame_episode_, episode",
         "ghost_web::redraw_trace_active(episode)",
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
         "ghost_web::schedule_redraw_present_barrier(\n"
-        "          episode, ghost_web::redraw_trace_snapshot())",
+        "          episode, completed_frame)",
         "queue_scheduler_.enqueue(",
         "ghost_web::arrive_redraw_present_barrier(episode, std::move(done));",
         "ghost_web::cancel_redraw_present_barrier(episode);",
@@ -272,9 +309,9 @@ def validate(
         if end_frame.count(token) != 1:
             errors.append(f"resize present queue barrier differs: {token}")
     if end_frame and all(token in end_frame for token in end_frame_tokens):
-        positions = tuple(end_frame.index(token) for token in end_frame_tokens[1:7])
+        positions = tuple(end_frame.index(token) for token in end_frame_tokens[1:9])
         if positions != tuple(sorted(positions)):
-            errors.append("resize present barrier is not bound to the current window frame tail")
+            errors.append("resize present barrier can capture an incomplete window frame tail")
 
     destructor = method(context_source, "WGPUContext::~WGPUContext()")
     for token in (
@@ -303,9 +340,14 @@ def validate(
         "if (ghost_web::redraw_present_barrier_is_scheduled())",
         "if (!ghost_web::redraw_present_barrier_is_ready())",
         "const uint64_t episode = ghost_web::redraw_present_barrier_ready_episode();",
+        "ghost_web::redraw_present_barrier_ready_trace_snapshot()",
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
+        "ghost_web::complete_redraw_present_barrier(episode, false);",
         "const bool presented = presentBackbuffer();",
         "ghost_web::complete_redraw_present_barrier(episode, presented);",
         "return presented ? GHOST_kSuccess : GHOST_kFailure;",
+        "const uint64_t active_redraw_episode = ghost_web::redraw_episode_generation();",
+        "if (ghost_web::redraw_trace_active(active_redraw_episode))",
     ):
         if swap_release.count(token) != 1:
             errors.append(f"resize present barrier differs: {token}")
@@ -319,15 +361,34 @@ def validate(
     barrier_ready = swap_release.find(
         "if (!ghost_web::redraw_present_barrier_is_ready())"
     )
+    barrier_trace = swap_release.find(
+        "ghost_web::redraw_present_barrier_ready_trace_snapshot()"
+    )
+    barrier_trace_complete = swap_release.find(
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)"
+    )
+    barrier_reject = swap_release.find(
+        "ghost_web::complete_redraw_present_barrier(episode, false);"
+    )
+    barrier_retry_return = swap_release.find("return GHOST_kSuccess;", barrier_reject)
     barrier_present = swap_release.find("const bool presented = presentBackbuffer();")
     barrier_complete = swap_release.find(
         "ghost_web::complete_redraw_present_barrier(episode, presented);"
     )
+    active_episode = swap_release.find(
+        "const uint64_t active_redraw_episode = ghost_web::redraw_episode_generation();"
+    )
+    incomplete_withhold = swap_release.find(
+        "if (ghost_web::redraw_trace_active(active_redraw_episode))"
+    )
+    withhold_return = swap_release.find("return GHOST_kSuccess;", incomplete_withhold)
     immediate_at = swap_release.find(immediate)
     if not (
         device_check >= 0
         and device_check < device_only < barrier_scheduled < barrier_ready
-        < barrier_present < barrier_complete < immediate_at
+        < barrier_trace < barrier_trace_complete < barrier_reject < barrier_retry_return
+        < barrier_present < barrier_complete < active_episode < incomplete_withhold
+        < withhold_return < immediate_at
     ):
         errors.append("GHOST synchronous present is outside the validated swap boundary")
     if ghost_source.count("bool GHOST_ContextWGPUWeb::presentBackbuffer()") != 1:
@@ -415,6 +476,11 @@ def main() -> int:
             "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
             1,
         ),
+        "frame_trace_reset": context_source.replace(
+            "  ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);",
+            "",
+            1,
+        ),
         "deferred_present_registration": context_source.replace(
             "  instance_ = wgpu_ghost->getInstance();",
             "  wgpu_ghost->setPresentQueueEnqueue([](WGPUGhostContext::QueuedPresent) {});\n"
@@ -423,7 +489,7 @@ def main() -> int:
         ),
         "barrier_schedule": context_source.replace(
             "ghost_web::schedule_redraw_present_barrier(\n"
-            "          episode, ghost_web::redraw_trace_snapshot())",
+            "          episode, completed_frame)",
             "false",
             1,
         ),
@@ -435,6 +501,11 @@ def main() -> int:
         "barrier_cancel": context_source.replace(
             "ghost_web::cancel_redraw_present_barrier(episode);",
             "",
+            1,
+        ),
+        "barrier_incomplete_schedule": context_source.replace(
+            "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
+            "true",
             1,
         ),
         "frame_episode_match": context_source.replace(
@@ -483,8 +554,28 @@ def main() -> int:
             "      wm_draw_update_clear_window(C, &win);",
             1,
         ),
+        "web_window_redraw_trigger": wm_source.replace(
+            "  do_draw = win->runtime->web_full_redraw_after_window_update;",
+            "",
+            1,
+        ),
+        "web_window_post_layout_area_redraw": wm_source.replace(
+            "          ED_area_tag_redraw(area);",
+            "",
+            1,
+        ),
+        "web_window_post_layout_order": wm_source.replace(
+            "      ED_screen_ensure_updated(C, wm, &win);",
+            "      ED_screen_ensure_updated_disabled(C, wm, &win);",
+            1,
+        ),
     }
     wm_window_mutations = {
+        "web_window_redraw_request": wm_window_source.replace(
+            "      win->runtime->web_full_redraw_after_window_update = true;",
+            "",
+            1,
+        ),
         "web_window_screen_invalidation": wm_window_source.replace(
             "      WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);",
             "",
@@ -492,9 +583,9 @@ def main() -> int:
         ),
         "web_window_screen_scope": wm_window_source.replace(
             "#ifdef __EMSCRIPTEN__\n"
-            "      /* A web surface may publish its cleared frame before regions receive their",
+            "      /* Screen relayout may rebuild region state. Carry this request",
             "#ifdef __linux__\n"
-            "      /* A web surface may publish its cleared frame before regions receive their",
+            "      /* Screen relayout may rebuild region state. Carry this request",
             1,
         ),
         "web_window_screen_order": wm_window_source.replace(
@@ -528,6 +619,26 @@ def main() -> int:
             "if (ghost_web::redraw_present_barrier_is_ready())",
             1,
         ),
+        "barrier_frame_trace": ghost_source.replace(
+            "ghost_web::redraw_present_barrier_ready_trace_snapshot()",
+            "ghost_web::redraw_trace_snapshot()",
+            1,
+        ),
+        "barrier_frame_admission": ghost_source.replace(
+            "if (!ghost_web::redraw_present_trace_complete(completed_frame, episode))",
+            "if (false)",
+            1,
+        ),
+        "barrier_frame_rejection": ghost_source.replace(
+            "ghost_web::complete_redraw_present_barrier(episode, false);",
+            "",
+            1,
+        ),
+        "unbarriered_incomplete_present": ghost_source.replace(
+            "if (ghost_web::redraw_trace_active(active_redraw_episode))",
+            "if (false)",
+            1,
+        ),
         "barrier_completion": ghost_source.replace(
             "ghost_web::complete_redraw_present_barrier(episode, presented);",
             "",
@@ -535,6 +646,7 @@ def main() -> int:
         ),
     }
     ghost_header_mutations = {
+        "display_state_include": ghost_header.replace(DISPLAY_STATE_INCLUDE, "", 1),
         "backbuffer_snapshot_type": ghost_header.replace(
             BACKBUFFER_SNAPSHOT_TYPE, "struct DisabledBackbufferFrameSnapshot", 1
         ),
@@ -544,7 +656,9 @@ def main() -> int:
             1,
         ),
         "backbuffer_snapshot_episode": ghost_header.replace(
-            "backbuffer_redraw_episode_", "uint64_t(0)", 1
+            "backbuffer_h_,\n            backbuffer_redraw_episode_};",
+            "backbuffer_h_,\n            uint64_t(0)};",
+            1,
         ),
         "backbuffer_episode_member": ghost_header.replace(BACKBUFFER_EPISODE_MEMBER, "", 1),
         "deferred_present_alias": ghost_header.replace(
@@ -556,7 +670,7 @@ def main() -> int:
         "present_signature": ghost_header.replace("bool presentBackbuffer();", "", 1),
     }
     ghost_source_mutations["backbuffer_commit_episode"] = ghost_source.replace(
-        "owner.backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();",
+        "owner.backbuffer_redraw_episode_ = committed_redraw_episode;",
         "",
         1,
     )
@@ -606,7 +720,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=6 checks=65 mutations=36")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=6 checks=80 mutations=47")
     return 0
 
 

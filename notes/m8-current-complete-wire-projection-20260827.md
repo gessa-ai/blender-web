@@ -3,6 +3,11 @@
 
 # M8 current complete-wire projection — 2026-08-27
 
+> Superseded for current planning by
+> `notes/m8-pthread-shared-main-cache-20260827.md`. Commit `653ebe0` removes the duplicate worker
+> source and measures 14,628,429 bytes of hybrid complete critical wire, 371,571 bytes under the
+> decimal ceiling. The evidence below remains the exact pre-change baseline.
+
 ## Outcome
 
 The canonical public assembler and its independent full-stage provenance replay now close the

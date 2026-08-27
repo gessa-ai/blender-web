@@ -3030,6 +3030,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   explicitly rejected. **Boundary:** this is not APPLY, a current primary, a size receipt, or a
   hardware timing result; fresh exact-generation Apple profiles remain mandatory. See
   `notes/m8-current-complete-wire-projection-20260827.md`.
+- [x] **P1-M8-PTHREAD-SHARED-MAIN-CACHE [root] (`653ebe0`):** the public page and pthread
+  bootstrap now consume one immutable, content-addressed Stage-0 page-glue URL. Pinned Chromium
+  reaches `WM_main` with one origin body, exact `script` + cached `fetch` Resource Timing entries,
+  all 8/8 configured same-origin Blob pthreads, strict CSP, and zero page errors. The producer and
+  independent composer bind the cache hit, decoded identity, per-run origin delta, unique workers,
+  service-worker inventory, and one-artifact critical-wire accounting. Canonical assembly plus an
+  independent full-tree q11 replay remove the 61,066-byte duplicate at a measured 214-byte control
+  cost: current non-Wasm/control bytes fall from 2,397,124 to 2,336,272 and the cross-generation
+  planning total falls from 14,689,281 to 14,628,429, leaving 371,571 bytes of provisional margin.
+  **Boundary:** no build artifact, profile, APPLY/public bundle, hardware receipt, milestone result,
+  or launch claim changed; a current primary must be <=12,663,728 bytes and fresh exact-generation
+  Apple profiles remain mandatory. See `notes/m8-pthread-shared-main-cache-20260827.md`.
 - [x] **P1-M8-STAGED-PACKER-RECONCILIATION [driver] (`cb459b9`):** the fail-closed manifest
   parser and post-first-pixel partition behind the provisional measurement are now committed and
   covered by the staged provenance and release-freeze consumers. Product probing found and fixed

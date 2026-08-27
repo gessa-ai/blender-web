@@ -85,10 +85,10 @@ def main() -> None:
             raise RuntimeError(f"public dashboard missing required marker: {marker}")
 
     staging_markers = (
-        "14,689,281 bytes of complete critical wire",
-        "310,719 bytes under the size ceiling",
-        "exact current non-Wasm/control subtotal is 2,397,124 bytes",
-        "12,602,876-byte maximum current primary",
+        "14,628,429 bytes of complete critical wire",
+        "371,571 bytes under the size ceiling",
+        "exact current non-Wasm/control subtotal is 2,336,272 bytes",
+        "12,663,728-byte maximum current primary",
         "136,751 counters while the current b8b2a682ff09 CAPTURE original has 136,754",
         "structurally incompatible with the current relink",
     )
@@ -97,7 +97,8 @@ def main() -> None:
             raise RuntimeError(f"public dashboard has stale staged-product accounting: {marker}")
     for stale in ("14,979,754 bytes", "20,246 bytes under", "14,616,981 bytes",
                   "383,019 bytes under", "at least approximately 14,678,797 bytes",
-                  "at most 321,203 bytes under", "failed-receipt profiles"):
+                  "at most 321,203 bytes under", "14,689,281 bytes of complete critical wire",
+                  "310,719 bytes under the size ceiling", "failed-receipt profiles"):
         if stale in text:
             raise RuntimeError(f"public dashboard retained superseded staged-product text: {stale}")
 

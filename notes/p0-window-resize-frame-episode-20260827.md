@@ -112,6 +112,17 @@ exact-product fallback waits on real episode and uncapped-presentation progress 
   evidence only. Direct M4 remains hardware-pixel red (`20260827T153349-2172765`); pinned-container
   regression restores M0 6/6 while keeping M1-M8 at their named boundaries
   (`20260827T153504-2174213`).
+- Commit `58018fa` binds failure diagnostics to the actual resize acceptance window. The
+  predecessor fails when asked to retain a real bind-group completeness warning
+  (`20260827T154837-2183700`); the final producer passes 40 positive/17 negative cases and the
+  independent consumer passes 2/13 (`20260827T154923-2183987`,
+  `20260827T154936-2184086`). Syntax, REUSE 6.2.0, and CAPTURE preflight are green
+  (`20260827T154936-2184087`, `20260827T154936-2184091`,
+  `20260827T155010-2184969`). Locked Ninja remains exact no-work
+  (`20260827T155215-2186446`). The direct M4 gate remains hardware-pixel red and pinned-container
+  regression restores M0 6/6 while preserving every named later boundary
+  (`20260827T155053-2185258`, `20260827T155103-2185357`). The producer-only change leaves all five
+  CAPTURE bytes unchanged and promotes no receipt.
 
 ## Relinked CAPTURE generation
 

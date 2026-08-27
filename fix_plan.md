@@ -3132,6 +3132,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `0/1/2`, one barrier present and one immutable trace per extent, and zero rejection/loss
   (`20260827T153238-2171940`). This corrects evidence attribution without claiming hardware
   pixels; no newer Apple result is present.
+  **Failure-window diagnostic hardening 2026-08-27 (`58018fa`):** queue-tail completion alone
+  cannot prove that no draw was abandoned before it created a queue entry. The hardware producer
+  now opens its bounded diagnostic capture at the exact zero-input resize boundary instead of page
+  load and retains post-resize bind-group completeness failures alongside the resize, immutable
+  frame-tail, and barrier lines. Boot warmup cannot consume the 128-line failure budget, and a
+  failing Apple sidecar can now show whether the admitted frame carried a known dropped draw
+  without changing or relinking the candidate. Fail-first/final producer 40/17, independent
+  consumer 2/13, syntax, CAPTURE preflight, locked no-work, and REUSE are green. All five product
+  identities remain exact, including `.wasm.orig` `4b279e0e152f...`; this is diagnostic-only and
+  supplies no pixels.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

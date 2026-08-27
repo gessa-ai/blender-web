@@ -2950,6 +2950,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   self-check, and fallback shrink/restore are green. **RELINKED windowed-opt candidate:**
   `.wasm.orig` is 119,155,301 bytes at SHA-256
   `e3d284c7da0e11f09beada6c9a4b788044b0c8f9715dcee42bc80839d70c8238`.
+  **Hardware acceptance producer 2026-08-27 (`4b6710a`):** the driver's calibrated ten-attempt
+  semantic shrink check is now repository-owned and portable. It requires the current-spec
+  hardware-adapter contract, exact pinned browser stack, the expected local and served CAPTURE
+  generation, ten fresh 1280x720 -> 1100x640 contexts with zero post-resize input, 24-second
+  bounded non-flat VIEW_3D pixels, zero page/WebGPU errors, and immutable receipt plus PNGs.
+  Browser-free self-check is 26 positive/17 negative; a live Linux adapter-absent probe and a stale
+  generation both reject before evidence allocation. This adds no pixel evidence and does not
+  change the relinked candidate. See `notes/p0-window-resize-hardware-acceptance-20260827.md`.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -3024,7 +3032,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   fallback, and REUSE contracts are green. This shell-only commit does not relink or invalidate
   P0-E's pending Apple candidate. See `notes/m4-loader-two-phase-20260827.md`.
 - [ ] **P1-RELEASE-VIEWPORT-CONTENT-LOADER-DISMISSAL [driver, claimed_by: none,
-  blocked-by: P0-E Apple 10/10 against wasm.orig `390062afea7c`]:** replace the generic
+  blocked-by: P0-E Apple 10/10 against wasm.orig `e3d284c7da0e`]:** replace the generic
   first-presentation hide signal with a distinct marker proving successful visible
   `SPACE_VIEW3D` content (grid/gizmo/scene), then require the loader to remain visible through
   every chrome-only/clear viewport frame. Do not infer readiness from elapsed time or present

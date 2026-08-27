@@ -25,6 +25,10 @@ WM frame or browser turn. The native/Wasm integration also drives both rejection
 failed prior-frame submission must cancel the waiting barrier and drain the next epoch, while a
 failed synchronous surface present must release later-epoch work and leave the same resize episode
 retryable. Neither transient failure may strand GHOST in permanent present suppression.
+It also covers the two resize-drag supersession windows: a replacement extent arriving before the
+old barrier reaches the queue head, and one arriving after that barrier is ready but before GHOST
+presents it. In both cases the obsolete completion fails exactly once, the replacement epoch
+drains, and a stale GHOST completion cannot retire the replacement barrier.
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped

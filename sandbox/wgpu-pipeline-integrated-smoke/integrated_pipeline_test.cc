@@ -1279,9 +1279,180 @@ bool resize_present_barrier_queue_contract()
     }
   }
 
-  std::puts("CONTRACT resize_present_barrier_queue PASS cases=15 "
+  /* A browser window drag can publish another coherent extent before the previous resize's
+   * barrier reaches the queue head. The obsolete arrival must fail only its old epoch, while the
+   * replacement frame and barrier continue to the synchronous-present boundary. */
+  {
+    constexpr uint64_t first_episode = episode + 3;
+    constexpr uint64_t replacement_episode = episode + 4;
+    bw::OrderedQueueScheduler superseded_scheduled_scheduler;
+    gw::RedrawPresentBarrier superseded_scheduled_barrier;
+    std::function<void(bool)> settle_first_frame;
+    std::array<int, 7> order = {};
+    size_t order_size = 0;
+    bool first_barrier_valid = true;
+
+    superseded_scheduled_scheduler.enqueue([&](auto done) {
+      order[order_size++] = 1;
+      settle_first_frame = std::move(done);
+    });
+    if (!require(superseded_scheduled_barrier.schedule(first_episode),
+                 "queued supersession schedules the first resize barrier"))
+    {
+      return false;
+    }
+    superseded_scheduled_scheduler.enqueue(
+        [&](auto done) {
+          order[order_size++] = 2;
+          superseded_scheduled_barrier.arrive(
+              first_episode,
+              [&, done = std::move(done)](const bool valid) mutable {
+                order[order_size++] = 3;
+                first_barrier_valid = valid;
+                done(valid);
+              });
+        },
+        [&]() { superseded_scheduled_barrier.cancel(first_episode); });
+    superseded_scheduled_scheduler.begin_epoch();
+    superseded_scheduled_scheduler.enqueue([&](auto done) {
+      order[order_size++] = 4;
+      done(true);
+    });
+    if (!require(superseded_scheduled_barrier.schedule(replacement_episode),
+                 "queued supersession schedules the replacement resize barrier"))
+    {
+      return false;
+    }
+    superseded_scheduled_scheduler.enqueue(
+        [&](auto done) {
+          order[order_size++] = 5;
+          superseded_scheduled_barrier.arrive(
+              replacement_episode,
+              [&, done = std::move(done)](const bool valid) mutable {
+                order[order_size++] = 7;
+                done(valid);
+              });
+        },
+        [&]() { superseded_scheduled_barrier.cancel(replacement_episode); });
+
+    if (!require(order_size == 1 &&
+                     superseded_scheduled_barrier.scheduled_episode() == replacement_episode,
+                 "replacement barrier supersedes an older queued arrival"))
+    {
+      return false;
+    }
+    settle_first_frame(true);
+    if (!require(!first_barrier_valid && order_size == 5 &&
+                     superseded_scheduled_barrier.is_ready() &&
+                     superseded_scheduled_barrier.ready_episode() == replacement_episode &&
+                     superseded_scheduled_scheduler.pending_count() == 1,
+                 "obsolete arrival releases its epoch and replacement reaches ready"))
+    {
+      return false;
+    }
+    if (!require(superseded_scheduled_barrier.filter_update(replacement_episode, true),
+                 "queued replacement admits one synchronous presentation update"))
+    {
+      return false;
+    }
+    order[order_size++] = 6;
+    if (!require(superseded_scheduled_barrier.complete(replacement_episode, true) &&
+                     superseded_scheduled_scheduler.pending_count() == 0 &&
+                     superseded_scheduled_barrier.completed_episode() == replacement_episode,
+                 "queued replacement present releases its barrier"))
+    {
+      return false;
+    }
+    if (!require(order_size == order.size() &&
+                     order == std::array<int, 7>{1, 2, 3, 4, 5, 6, 7},
+                 "queued supersession preserves old-fail, replacement-frame, present order"))
+    {
+      return false;
+    }
+  }
+
+  /* A second resize can also arrive after the old barrier is ready but before GHOST consumes its
+   * synthetic update. Superseding that live completion must release the queue exactly once and a
+   * stale GHOST completion must not retire the replacement barrier. */
+  {
+    constexpr uint64_t first_episode = episode + 5;
+    constexpr uint64_t replacement_episode = episode + 6;
+    bw::OrderedQueueScheduler superseded_ready_scheduler;
+    gw::RedrawPresentBarrier superseded_ready_barrier;
+    size_t first_completion_calls = 0;
+    bool first_completion_valid = true;
+    bool replacement_frame_ran = false;
+
+    if (!require(superseded_ready_barrier.schedule(first_episode),
+                 "ready supersession schedules the first resize barrier"))
+    {
+      return false;
+    }
+    superseded_ready_scheduler.enqueue([&](auto done) {
+      superseded_ready_barrier.arrive(
+          first_episode,
+          [&, done = std::move(done)](const bool valid) mutable {
+            first_completion_calls++;
+            first_completion_valid = valid;
+            done(valid);
+          });
+    });
+    if (!require(superseded_ready_barrier.is_ready() &&
+                     superseded_ready_scheduler.pending_count() == 1,
+                 "first resize barrier reaches ready before supersession"))
+    {
+      return false;
+    }
+    superseded_ready_scheduler.begin_epoch();
+    superseded_ready_scheduler.enqueue([&](auto done) {
+      replacement_frame_ran = true;
+      done(true);
+    });
+    if (!require(superseded_ready_barrier.schedule(replacement_episode) &&
+                     first_completion_calls == 1 && !first_completion_valid &&
+                     replacement_frame_ran &&
+                     superseded_ready_barrier.scheduled_episode() == replacement_episode &&
+                     superseded_ready_scheduler.pending_count() == 0,
+                 "ready supersession cancels the old completion and drains the replacement frame"))
+    {
+      return false;
+    }
+    superseded_ready_scheduler.enqueue([&](auto done) {
+      superseded_ready_barrier.arrive(
+          replacement_episode,
+          [done = std::move(done)](const bool valid) mutable { done(valid); });
+    });
+    if (!require(superseded_ready_barrier.is_ready() &&
+                     superseded_ready_scheduler.pending_count() == 1,
+                 "ready supersession replacement reaches the presentation boundary"))
+    {
+      return false;
+    }
+    if (!require(!superseded_ready_barrier.complete(first_episode, true) &&
+                     superseded_ready_barrier.ready_episode() == replacement_episode,
+                 "stale GHOST completion cannot retire the replacement barrier"))
+    {
+      return false;
+    }
+    if (!require(superseded_ready_barrier.filter_update(replacement_episode, true),
+                 "ready replacement admits one synchronous presentation update"))
+    {
+      return false;
+    }
+    if (!require(superseded_ready_barrier.complete(replacement_episode, true) &&
+                     superseded_ready_scheduler.pending_count() == 0 &&
+                     superseded_ready_barrier.completed_episode() == replacement_episode &&
+                     first_completion_calls == 1,
+                 "ready replacement completes once without reviving the superseded callback"))
+    {
+      return false;
+    }
+  }
+
+  std::puts("CONTRACT resize_present_barrier_queue PASS cases=28 "
             "order=prior,barrier,present,release,later "
-            "recovery=failed-frame,failed-present,retry");
+            "recovery=failed-frame,failed-present,retry "
+            "supersession=queued,ready,stale-completion");
   return true;
 }
 
@@ -4280,7 +4451,7 @@ int main()
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
-      "resize_present_barrier_cases=15 "
+      "resize_present_barrier_cases=28 "
       "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

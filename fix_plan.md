@@ -2914,11 +2914,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Ten fresh local fallback-browser shrink/restore cycles are green against that exact generation:
   every run publishes commit episodes `0/1/2`, produces 18–19 redraw presentations per resized
   extent, and reports zero rejection/loss (`20260827T044246-1631630`). This is diagnostic only.
-  **Still open:** require 10/10 consecutive Apple hardware shrinks to full idle grid+Cube+gizmo
-  pixels with zero input before closing P0-E, cutting APPLY/public bytes, or tagging. See
+  **Hardware rejection 2026-08-27:** both `8f604ab` and its follow-up `d137387` score 0/10 on the
+  Apple shrink bar with the same stable grey-overdraw signature. Direct counters prove each resize
+  episode produces about 19 real presents, so missing presentation is falsified. Patch 0286 and
+  `140f50b` now correlate every successful episode present with cumulative all/window draw counts
+  plus exact target/viewport/scissor records for `overlay_background` and `OCIO_Display`, capped at
+  24 lines per episode and 64 per process. The exact fallback product parses 37 coherent trace rows
+  across shrink/restore (`20260827T062044-1706137`). **RELINKED windowed-opt @ `140f50b`:**
+  `.wasm.orig` is 119,148,234 bytes at SHA-256
+  `6730a8ad7b2050ca8873f6a73187556a74f4034e33e75e797248fe1d5ddb2f09`.
+  **Still open:** the driver must capture those lines on the failing Apple frame, then require 10/10
+  consecutive hardware shrinks to full idle grid+Cube+gizmo pixels with zero input before closing
+  P0-E, cutting APPLY/public bytes, or tagging. See
   `notes/p0-window-resize-recovery-20260826.md` and
   `notes/p0-window-resize-idle-redraw-20260826.md` and
-  `notes/p0-window-resize-commit-redraw-20260827.md`.
+  `notes/p0-window-resize-commit-redraw-20260827.md` and
+  `notes/p0-window-resize-draw-trace-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

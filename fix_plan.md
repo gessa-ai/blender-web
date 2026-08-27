@@ -3164,6 +3164,28 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   barrier/immutable trace per extent, and zero rejection/loss (`20260827T162824-2217652`),
   diagnostic only. Direct M4 remains hardware-pixel red; pinned-container regression restores M0
   6/6 and leaves the later named boundaries intact (`20260827T163137-2220736`).
+  **Complete-frame admission candidate 2026-08-27 (`a8f6c43`, patches 0291–0293):** bounded
+  diagnostics on the prior candidate showed every retry encoded roughly 331 advancing draws but
+  the frame-tail snapshot retained only the final 23–25, always with `background=0`. The reset was
+  incorrectly attached to `getBackbufferFrameSnapshot()`/context activation, which runs multiple
+  times inside one WM window frame and erased the earlier `overlay_background` region draw before
+  `end_frame()`. Episode adoption remains atomic in activation, but semantic frame facts now reset
+  exactly once in the real `WGPUContext::begin_frame()`; later activations cannot erase them.
+  `end_frame()` schedules only a same-episode snapshot containing the visible VIEW_3D offscreen
+  background followed by its direct-window `OCIO_Display` composite, and GHOST withholds any
+  unbarriered surface copy while that bounded resize episode is active. The synthetic WindowUpdate
+  also carries a one-shot full-area redraw through `ED_screen_ensure_updated()` so relayout cannot
+  consume its tags. Fail-first/final source, 61-mutation redraw, native/wasm32 integrated GPU,
+  canonical 270-patch replay, REUSE, CAPTURE preflight, producer/consumer/profile self-checks, and
+  locked committed-state no-work are green. **RELINKED windowed-opt @ `a8f6c43`:** JS
+  `52a9a0257830`, Wasm `69b2f10ebac7`, wasm.orig `505702dbf41c` (119,157,853 bytes), data
+  `095d0ba748c3`, manifest `10b181385e60`. The exact fallback product shrinks and restores at ticks
+  `246/525/618`, presents `16/17/18`, episodes `0/1/2`, with two accepted complete-frame barriers,
+  zero incomplete admissions, two exact VIEW_3D-bound traces, and zero WebGPU rejection/loss
+  (`20260827T174508-2288582`). This proves the runtime mechanism only; direct M4 remains red for
+  the absent exact-generation Apple binding (`20260827T175006-2293663`), and pinned-container
+  regression restores M0 6/6 while retaining every named later boundary
+  (`20260827T175010-2293716`).
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -3175,7 +3197,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/p0-window-resize-trace-consumer-20260827.md` and
   `notes/p0-window-resize-ordered-present-20260827.md` and
   `notes/p0-window-resize-present-barrier-20260827.md` and
-  `notes/p0-window-resize-commit-supersession-20260827.md`.
+  `notes/p0-window-resize-commit-supersession-20260827.md` and
+  `notes/p0-window-resize-complete-frame-admission-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

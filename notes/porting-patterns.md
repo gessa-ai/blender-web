@@ -1857,9 +1857,10 @@ Signature: a coherent resize commits during the tail of an older drawable's fram
 episode correctly prevents that old frame from scheduling a present barrier, but its remaining
 draws still populate an episode-wide trace. If the first adopted replacement frame is empty or
 window-only, its barrier can inherit those plausible counts and present an untouched backbuffer
-without any validation error. Reset semantic trace facts at the exact atomic backbuffer-adoption
-boundary immediately before `begin_frame()`, while retaining cumulative episode counters only for
-diagnostics. Keep the barrier scheduled for incomplete frames so synchronous swap remains
+without any validation error. Bind the episode at the exact atomic backbuffer-adoption boundary,
+then reset semantic trace facts once at the real window-frame begin while retaining cumulative
+episode counters only for diagnostics. Keep the barrier scheduled for incomplete frames so
+synchronous swap remains
 suppressed; once it reaches ready, admit only a frame with the visible 3D region's offscreen
 background, its later direct-window display composite, and a final window-target draw. Generic
 offscreen/window activity can be chrome-only and is not sufficient. Complete rejected frames as
@@ -1868,4 +1869,21 @@ rejection, and retry on native and wasm32, but leave repeated semantic pixel clo
 hardware. See
 `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `platform_web/ghost/GHOST_ContextWGPUWeb.hh`, and
+`sandbox/m4-resize-recovery/verify_source.py`.
+
+## Class 127 — context activation is not a window-frame boundary
+
+Signature: a frame-local completeness trace sees hundreds of advancing draw sequences, but every
+tail snapshot retains only the same final 23–25 commands and permanently lacks an early region
+pass. A GPU context can reactivate several times while Blender encodes one WM window frame; using
+activation or backbuffer synchronization as the trace reset boundary erases earlier region draws
+each time. Keep activation responsible for atomically adopting the drawable and its episode, but
+reset semantic frame facts exactly once in the backend's real `begin_frame()`. Later activations
+may synchronize resources without changing frame ownership. Require `end_frame()` to admit only a
+complete same-episode snapshot, and withhold unbarriered surface copies while the bounded resize
+episode is still seeking that frame. A mutation contract must reject both an activation-time reset
+and a missing begin-frame reset; a real fallback run can prove scheduling and error freedom, but
+only repeated conformant-hardware pixels close visual recovery. See
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and
 `sandbox/m4-resize-recovery/verify_source.py`.

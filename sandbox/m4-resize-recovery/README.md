@@ -49,8 +49,10 @@ episode on the new backbuffer before atomically canceling any older scheduled or
 This ordering prevents GHOST from copying a newly committed, untouched texture under the prior
 episode while cancellation releases the backend queue.
 The barrier's admission evidence is frame-local as well as episode-bound. Atomic backbuffer
-adoption resets the frame facts immediately before `begin_frame()`, while the episode-wide counts
-remain available for diagnostics. A drained barrier may present only when that one adopted frame
+adoption selects the frame's episode, while the real `WGPUContext::begin_frame()` boundary resets
+the semantic facts exactly once and retains episode-wide counts for diagnostics. Later context
+reactivations inside the same WM frame may synchronize the backbuffer but must not erase earlier
+region draws. A drained barrier may present only when that one adopted frame
 contains the offscreen `overlay_background` draw for the visible 3D region, a later direct-window
 `OCIO_Display` composite, and ends on a window-target draw. An empty, chrome-only, window-only, or
 unfinished frame stays suppressed; GHOST completes the barrier as invalid so the ordered queue

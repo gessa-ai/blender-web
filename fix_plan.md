@@ -2979,9 +2979,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   profiles remain mandatory before APPLY, tagging, or publication. See
   `notes/release-tagged-build-correspondence-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  freshly relinked at implementation commit `824686b` as a strict CAPTURE generation with
-  120,496,022-byte instrumented Wasm, 119,142,918-byte `.wasm.orig` at SHA-256
-  `5a9d0944007313bed75ac3deaf24d3c48e443a423c93918dbb561abb76d0d65b`, and a schema-1 PASS
+  freshly relinked at implementation commit `0155397` as a strict CAPTURE generation with
+  120,497,886-byte instrumented Wasm, 119,144,751-byte `.wasm.orig` at SHA-256
+  `b8b2a682ff09e5eb80ba125b3fb85cd4fe65193c3eabd577e8a794c9e6a9fda6`, and a schema-1 PASS
   clean-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, locked no-work replay, deterministic regeneration, and exact-artifact fallback boot
   are green. **Not resolved:**
@@ -3007,6 +3007,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   revising the provisional complete-wire shape to 14,616,981 bytes. **Boundary:** no Wasm was
   relinked and no APPLY, hardware-pixel, <=8-second, <=15-MB, or launch receipt was promoted. See
   `notes/m8-stage0-mono-font-bootstrap-20260826.md`.
+- [x] **P1-M8-PTHREAD-SINGLE-TRANSFER [driver] (`0155397`):** the public product now fetches one
+  exact, separately inventoried Stage-0 worker source and supplies its hashed Blob through pinned
+  Emscripten's supported `mainScriptUrlOrBlob` seam. The relinked CAPTURE browser reaches `WM_main`
+  with one page-glue response, one worker-source response, 32 unique same-origin Blob dedicated
+  workers, and zero page errors, replacing the measured 34 repeated main-glue requests. Public
+  assembly, exact tree/Brotli/cache/provenance, M7/M8 receipt consumers, and both release freezes
+  fail closed on the source identity, singleton factory, origin, worker kind, uniqueness, and
+  pre-semantic timing. Exact q11 cost is 61,066 bytes for the staged worker source plus 750 bytes
+  for the minified bootstrap, moving the provisional lower-bound wire shape to ~14,678,797 bytes
+  before generated-control and small-Wasm deltas. **Boundary:** CAPTURE remains nonshipping; fresh
+  current-generation Apple profiles, APPLY, exact <=15 MB/<=8 s receipts, and hardware pixels are
+  still mandatory. See `notes/m8-pthread-single-transfer-20260827.md`.
 - [x] **P1-M8-STAGED-PACKER-RECONCILIATION [driver] (`cb459b9`):** the fail-closed manifest
   parser and post-first-pixel partition behind the provisional measurement are now committed and
   covered by the staged provenance and release-freeze consumers. Product probing found and fixed

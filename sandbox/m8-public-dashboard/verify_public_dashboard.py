@@ -85,15 +85,17 @@ def main() -> None:
             raise RuntimeError(f"public dashboard missing required marker: {marker}")
 
     staging_markers = (
-        "approximately 14,742,104 bytes",
-        "257,896 bytes under the size ceiling",
-        "before the already-named small compressed-Wasm delta is remeasured",
+        "at least approximately 14,678,797 bytes",
+        "at most 321,203 bytes under the size ceiling",
+        "generated index/service-worker and small compressed-Wasm deltas are remeasured",
+        "exact 61,066-byte q11 staged worker source plus 750-byte bootstrap",
         "Previously accepted Apple profiles are bound to an older CAPTURE generation",
     )
     for marker in staging_markers:
         if marker not in text:
             raise RuntimeError(f"public dashboard has stale staged-product accounting: {marker}")
-    for stale in ("14,979,754 bytes", "20,246 bytes under", "failed-receipt profiles"):
+    for stale in ("14,979,754 bytes", "20,246 bytes under", "14,616,981 bytes",
+                  "383,019 bytes under", "failed-receipt profiles"):
         if stale in text:
             raise RuntimeError(f"public dashboard retained superseded staged-product text: {stale}")
 

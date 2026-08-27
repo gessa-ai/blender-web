@@ -3061,6 +3061,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   consumer self-check is 2/13 and rejects stale product/source/image identities, mutated or flat
   frames, and inventory drift. This changes no runtime byte and supplies no Apple pixels; the exact
   candidate remains `.wasm.orig` `2f45a8ed62eb...`.
+  **Resize-drag supersession integration 2026-08-27 (`fcbf8d9`):** the shipping native/Wasm
+  scheduler/barrier contract now covers a replacement extent arriving both before the old barrier
+  reaches the queue head and after it is ready but before GHOST presents it. The obsolete
+  completion fails exactly once, the replacement epoch drains, and a stale GHOST completion cannot
+  retire the replacement barrier. A callback-transfer mutant fails at the new ready-supersession
+  boundary; final 28-case output is byte-identical across runtimes. Runtime artifacts remain exact,
+  so this strengthens the pending candidate without starting another Apple generation.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

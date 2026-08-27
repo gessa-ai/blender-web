@@ -84,8 +84,13 @@ def main() -> None:
     require(parser.class_counts.get("bw-spinner") == 1, "loader must have one ring spinner")
     require(parser.ids.get("bw-progress") == 1 and parser.ids.get("bw-fill") == 1,
             "loader must have one determinate progress bar")
+    require(parser.ids.get("bw-phase") == 1 and
+            normalize("".join(parser.text.get("bw-phase", []))) == "Downloading",
+            "loader must expose the initial Downloading phase")
     require(parser.attrs["bw-progress"].get("role") == "progressbar",
             "progress bar accessibility role missing")
+    require(parser.attrs["bw-progress"].get("aria-labelledby") == "bw-phase bw-pct",
+            "progress bar is not labelled by its phase and value")
     require(normalize("".join(parser.text.get("bw-pct", []))) == "0%",
             "initial percentage is not explicit")
     require(parser.ids.get("bw-legal-footer") == 1 and
@@ -109,15 +114,25 @@ def main() -> None:
                          "Desktop only for this preview", "repository link pending"):
         require(retired_copy not in shell, f"marketing copy remains in loader: {retired_copy}")
 
-    require("bw-indeterminate" not in shell and "bw-indeterminate" not in boot and
-            "setIndeterminate" not in boot,
-            "progress bar still has an indeterminate sweep")
-    require('setState("loading", "loading module");\n  setProgress(0);' in boot,
-            "boot does not initialize the determinate loader before module startup")
+    require("#bw-progress.bw-indeterminate #bw-fill" in shell and
+            "@keyframes bw-progress-sweep" in shell,
+            "Launching phase lacks an honest indeterminate sweep")
+    require("setIndeterminate" not in boot,
+            "retired free-form indeterminate helper returned")
+    require('setState("loading", "loading module");\n'
+            '  setLoaderPhase("downloading");\n  setProgress(0);' in boot,
+            "boot does not initialize the Downloading phase before module startup")
     require('fillEl.style.width = pct + "%";' in boot and
             'pctEl.textContent = pct + "%";' in boot and
             'progressEl.setAttribute("aria-valuenow", String(pct));' in boot,
             "determinate percentage publication is incomplete")
+    require('if (s === "Running...") setLoaderPhase("launching");' in boot and
+            'setLoaderPhase("launching");\n      if (dlEl)' in boot,
+            "download-to-launch phase boundary is not wired to runtime readiness")
+    require('progressEl.classList.toggle("bw-indeterminate", launching);' in boot and
+            'progressEl.removeAttribute("aria-valuenow");' in boot and
+            'pctEl.textContent = "—";' in boot,
+            "Launching phase does not retire the determinate percentage honestly")
     require('loaderEl.classList.add("bw-hidden")' in boot and
             'loaderEl.classList.add("bw-gone")' in boot,
             "first-pixels loader dismissal contract changed")

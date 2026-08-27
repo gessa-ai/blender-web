@@ -15,7 +15,8 @@ Shell contract (native feel):
     store (sharp, not CSS-stretched). GHOST-web reads the backing extent via
     emscripten_get_canvas_element_size; the WebGPU surface reconfigures on resize
     (GHOST_ContextWGPUWeb::configureSurface / on_resize in GHOST_EventBridgeWeb).
-  - A minimal centred loading indicator vanishes when first pixels composite.
+  - A minimal centred loading indicator currently vanishes after the first successful
+    canvas presentation. Viewport-content readiness is tracked as a stricter successor.
   - No HTML context menu / scroll / selection / pinch-zoom - input reaches Blender.
 
 Verification/gate contract (PRESERVED - the M4 rig depends on it):
@@ -99,7 +100,8 @@ Fully local / CSP-clean: no external assets.
       /* exact px width/height set inline by boot-windowed.js */
     }
 
-    /* Minimal centred loading UI. Fades out on first pixels. */
+    /* Minimal centred loading UI. Downloading is byte-determinate; Launching uses
+       the same slim bar as an honest indeterminate activity signal. */
     #loader {
       position: fixed;
       inset: 0;
@@ -148,10 +150,25 @@ Fully local / CSP-clean: no external assets.
       border-radius: 2px;
       transition: width .18s ease;
     }
-    #bw-pct {
+    #bw-progress.bw-indeterminate #bw-fill {
+      width: 34%;
+      animation: bw-progress-sweep 1.2s ease-in-out infinite;
+    }
+    @keyframes bw-progress-sweep {
+      from { transform: translateX(-110%); }
+      to { transform: translateX(300%); }
+    }
+    .bw-progress-copy {
+      width: min(240px, calc(100vw - 64px));
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
       color: #969ba5;
       font-size: 11px;
       line-height: 1;
+    }
+    #bw-phase { color: #a9adb5; }
+    #bw-pct {
       font-variant-numeric: tabular-nums;
     }
     #bw-legal-footer {
@@ -169,6 +186,7 @@ Fully local / CSP-clean: no external assets.
 
     @media (prefers-reduced-motion: reduce) {
       .bw-spinner { animation-duration: 1.6s; }
+      #bw-progress.bw-indeterminate #bw-fill { animation-duration: 2.4s; }
       #loader, #bw-fill { transition: none; }
     }
 
@@ -191,14 +209,19 @@ Fully local / CSP-clean: no external assets.
 <body>
   <canvas id="canvas" width="1280" height="720" tabindex="0" autofocus></canvas>
 
-  <div id="loader" aria-live="polite" aria-busy="true" aria-label="Loading editor">
+  <div id="loader" data-phase="downloading" aria-live="polite" aria-busy="true"
+       aria-label="Loading editor">
     <div class="bw-loader-core">
       <div id="bw-spinner" class="bw-spinner" aria-hidden="true"></div>
-      <div id="bw-progress" class="bw-track" role="progressbar" aria-labelledby="bw-pct"
+      <div id="bw-progress" class="bw-track" role="progressbar"
+           aria-labelledby="bw-phase bw-pct"
            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="bw-fill"></div>
       </div>
-      <div id="bw-pct">0%</div>
+      <div class="bw-progress-copy">
+        <span id="bw-phase">Downloading</span>
+        <span id="bw-pct">0%</span>
+      </div>
     </div>
     <footer id="bw-legal-footer">
       <a id="bw-source-link" href="https://github.com/gessa-ai/blender-web"

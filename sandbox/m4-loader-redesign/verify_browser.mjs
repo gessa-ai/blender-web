@@ -34,9 +34,32 @@ try {
   });
   await page.route(`${base}/**`, async route => {
     const pathname = new URL(route.request().url()).pathname;
-    if (["/diagnostics-bootstrap.js", "/bin/blender_browser.js",
-         "/file-bridge.js", "/boot-windowed.js"].includes(pathname)) {
+    if (["/diagnostics-bootstrap.js", "/file-bridge.js"].includes(pathname)) {
       await route.fulfill({status: 200, contentType: "text/javascript", body: ""});
+      return;
+    }
+    if (pathname === "/bin/blender_browser.js") {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/javascript",
+        body: `
+          "use strict";
+          window.__bwLoaderProbe = {};
+          async function createBlenderModule(config) {
+            const mod = {ENV: {}, _bw_present_count: () => 0};
+            for (const hook of config.preRun || []) hook(mod);
+            config.setStatus("Downloading data... (25/100)");
+            await new Promise(resolve => { window.__bwLoaderProbe.finishDownload = resolve; });
+            config.setStatus("Downloading data... (100/100)");
+            config.setStatus("Running...");
+            if (typeof config.onRuntimeInitialized === "function") {
+              config.onRuntimeInitialized();
+            }
+            await new Promise(resolve => { window.__bwLoaderProbe.finishLaunch = resolve; });
+            return mod;
+          }
+        `,
+      });
       return;
     }
     if (pathname === "/fonts/full-inter-control.woff2") {
@@ -47,7 +70,8 @@ try {
   });
   await page.goto(`${base}/windowed.html`, {waitUntil: "domcontentloaded"});
   await page.evaluate(() => document.fonts.ready);
-  const state = await page.evaluate(() => {
+  await page.waitForFunction(() => typeof window.__bwLoaderProbe?.finishDownload === "function");
+  const sampleLoader = () => page.evaluate(() => {
     const style = id => getComputedStyle(document.getElementById(id));
     const rect = id => {
       const value = document.getElementById(id).getBoundingClientRect();
@@ -61,7 +85,13 @@ try {
       spinnerTop: style("bw-spinner").borderTopColor,
       progress: rect("bw-progress"),
       fill: rect("bw-fill"),
+      fillStyle: document.getElementById("bw-fill").style.width,
+      phase: document.getElementById("bw-phase").textContent.trim(),
+      phaseState: document.getElementById("loader").dataset.phase,
       pct: document.getElementById("bw-pct").textContent.trim(),
+      indeterminate: document.getElementById("bw-progress").classList.contains("bw-indeterminate"),
+      valueNow: document.getElementById("bw-progress").getAttribute("aria-valuenow"),
+      valueText: document.getElementById("bw-progress").getAttribute("aria-valuetext"),
       footerWhiteSpace: getComputedStyle(footer).whiteSpace,
       footerLines: Math.round(footer.scrollHeight / parseFloat(getComputedStyle(footer).lineHeight)),
       sourceText: document.getElementById("bw-source-link").textContent.trim(),
@@ -74,6 +104,12 @@ try {
       diagLeft: style("bw-diag").left,
     };
   });
+  const downloading = await sampleLoader();
+  await page.evaluate(() => window.__bwLoaderProbe.finishDownload());
+  await page.waitForFunction(() =>
+    document.getElementById("bw-phase")?.textContent.trim() === "Launching");
+  const launching = await sampleLoader();
+  await page.evaluate(() => window.__bwLoaderProbe.finishLaunch());
   const raster = await page.evaluate(async () => {
     const full = new FontFace("BW Full Control",
       "url('/fonts/full-inter-control.woff2')", {style: "normal", weight: "400"});
@@ -106,25 +142,33 @@ try {
     return {codepoints: [...text].length, fullWidth: left.width,
       subsetWidth: right.width, changedChannels};
   });
-  check(state.background === "rgb(23, 24, 27)", "loader background is not #17181b");
-  check(state.spinner.width === 24 && state.spinner.height === 24,
+  check(downloading.background === "rgb(23, 24, 27)", "loader background is not #17181b");
+  check(downloading.spinner.width === 24 && downloading.spinner.height === 24,
     "spinner is not the 24px thin ring");
-  check(state.spinnerTop === "rgb(211, 214, 220)", "spinner accent drifted");
-  check(state.progress.width === 240 && state.progress.height === 2,
+  check(downloading.spinnerTop === "rgb(211, 214, 220)", "spinner accent drifted");
+  check(downloading.progress.width === 240 && downloading.progress.height === 2,
     "progress bar is not slim/determinate");
-  check(state.fill.width === 0 && state.pct === "0%", "initial progress is not truthful 0%");
-  check(state.footerWhiteSpace === "nowrap" && state.footerLines === 1,
+  check(downloading.fillStyle === "25%" && downloading.phase === "Downloading" &&
+    downloading.phaseState === "downloading" && downloading.pct === "25%" &&
+    !downloading.indeterminate && downloading.valueNow === "25" &&
+    downloading.valueText === null,
+  `Downloading phase is not byte-determinate: ${JSON.stringify(downloading)}`);
+  check(launching.phase === "Launching" && launching.phaseState === "launching" &&
+    launching.pct === "—" && launching.indeterminate && launching.valueNow === null &&
+    launching.valueText === "Launching",
+  `Launching phase is not honestly indeterminate: ${JSON.stringify(launching)}`);
+  check(downloading.footerWhiteSpace === "nowrap" && downloading.footerLines === 1,
     "legal footer is not a single line");
-  check(state.sourceText === "Source code (GPL)" &&
-    state.sourceHref === "https://github.com/gessa-ai/blender-web",
+  check(downloading.sourceText === "Source code (GPL)" &&
+    downloading.sourceHref === "https://github.com/gessa-ai/blender-web",
   "preferred-form source offer drifted");
-  check(state.fontLoaded, "local loader font did not load");
+  check(downloading.fontLoaded, "local loader font did not load");
   check(raster.codepoints === 95 && raster.fullWidth === raster.subsetWidth &&
     raster.changedChannels === 0,
   `layout-preserving Basic Latin font raster drifted: ${JSON.stringify(raster)}`);
-  check(state.retired.length === 0 && state.spinners === 1 && state.bars === 1,
+  check(downloading.retired.length === 0 && downloading.spinners === 1 && downloading.bars === 1,
     "loader contains retired or duplicate visible elements");
-  check(state.diagLeft === "-99999px", "hidden diagnostics contract became visible");
+  check(downloading.diagLeft === "-99999px", "hidden diagnostics contract became visible");
   check(external.length === 0, `loader made external requests: ${external.join(",")}`);
   await page.screenshot({path: screenshot});
 } finally {
@@ -136,4 +180,4 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`M4_LOADER_BROWSER_PASS viewport=1280x720 spinner=1 progress=1 ` +
-  `font=local basic_latin_raster=exact screenshot=${screenshot}`);
+  `phases=Downloading,Launching font=local basic_latin_raster=exact screenshot=${screenshot}`);

@@ -12,7 +12,8 @@
 //   1. Auto-boot on load - no Boot button, no visible status pills / log panel.
 //   2. Full-window canvas at a devicePixelRatio-correct backing store; window
 //      resize keeps it sharp (GHOST reconfigures the WebGPU surface on resize).
-//   3. A centred loading indicator that vanishes when first pixels composite.
+//   3. A centred loading indicator that currently vanishes after the first
+//      successful canvas presentation; viewport-content readiness is a successor.
 //   4. Native input hardening: no HTML context menu (right-clicks reach Blender),
 //      no page scroll / selection / pinch-zoom, focus-gated key capture.
 //
@@ -180,6 +181,7 @@ const canvasEl = document.querySelector(CANVAS_SELECTOR);
 const loaderEl = document.getElementById("loader");
 const progressEl = document.getElementById("bw-progress");
 const fillEl = document.getElementById("bw-fill");
+const phaseEl = document.getElementById("bw-phase");
 const pctEl = document.getElementById("bw-pct");
 
 // Hidden diagnostics - may be absent in stripped rigs, so every access is guarded.
@@ -241,11 +243,33 @@ function finish(name, label, code) {
 }
 
 // ---------------------------------------------------------------------------
-// Loading UI - progress via Emscripten setStatus, dismissed on first pixels.
+// Loading UI - byte progress via Emscripten setStatus, dismissed on first pixels.
 // ---------------------------------------------------------------------------
 
+let loaderPhase = "downloading";
+
+function setLoaderPhase(phase) {
+  const launching = phase === "launching";
+  loaderPhase = launching ? "launching" : "downloading";
+  if (loaderEl) loaderEl.dataset.phase = loaderPhase;
+  if (phaseEl) phaseEl.textContent = launching ? "Launching" : "Downloading";
+  if (progressEl) {
+    progressEl.classList.toggle("bw-indeterminate", launching);
+    if (launching) {
+      progressEl.removeAttribute("aria-valuenow");
+      progressEl.setAttribute("aria-valuetext", "Launching");
+    } else {
+      progressEl.removeAttribute("aria-valuetext");
+    }
+  }
+  if (launching) {
+    if (fillEl) fillEl.style.width = "";
+    if (pctEl) pctEl.textContent = "—";
+  }
+}
+
 function setProgress(fraction) {
-  if (!fillEl) return;
+  if (loaderPhase !== "downloading" || !fillEl) return;
   const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
   fillEl.style.width = pct + "%";
   if (progressEl) progressEl.setAttribute("aria-valuenow", String(pct));
@@ -255,8 +279,9 @@ function setProgress(fraction) {
 // Emscripten's default setStatus emits strings like "Downloading data... (x/y)".
 function onStatus(s) {
   if (dlEl && s) dlEl.textContent = s;
+  if (s === "Running...") setLoaderPhase("launching");
   if (!s) return;
-  const m = /\((\d+)\/(\d+)\)/.exec(s);
+  const m = /^Downloading data\.\.\. \((\d+)\/(\d+)\)$/.exec(s);
   if (m) {
     const cur = parseInt(m[1], 10);
     const tot = parseInt(m[2], 10);
@@ -278,10 +303,11 @@ function hideLoader() {
   loaderGoneTimer = setTimeout(() => loaderEl.classList.add("bw-gone"), 600);
 }
 
-// First pixels = the canvas has composited. GHOST prints "presentBackbuffer
-// frame 0" (C printf) at the first present; that is the single reliable draw
-// signal (notes/gpu-r24-present-seam.md). We also arm a settle fallback off the
-// WM_main marker in case the print format shifts.
+// Legacy first-pixels boundary = the canvas has presented something. GHOST prints
+// "presentBackbuffer frame 0" at the first present, but that frame can contain only
+// UI chrome while a 3D viewport is still clear. Keep this generic signal stable for
+// the existing shell contract; the stricter viewport-content marker is tracked as a
+// separate successor. The counter fallback below handles a shifted print format.
 function noteFirstPixels(reason) {
   if (firstPixels) return;
   firstPixels = true;
@@ -543,6 +569,7 @@ async function boot() {
   finished = false;
   if (logEl) logEl.textContent = "";
   setState("loading", "loading module");
+  setLoaderPhase("downloading");
   setProgress(0);
   append("[shell] instantiating blender_browser (WINDOWED: no --background)…", "sys");
   append("[shell] argv: blender " + ARGV.join(" "), "sys");
@@ -618,6 +645,7 @@ async function boot() {
     ],
     setStatus: onStatus,
     onRuntimeInitialized: () => {
+      setLoaderPhase("launching");
       if (dlEl) dlEl.textContent = "loaded";
       setState("running", "running main() - windowed");
       append("[shell] runtime initialized; entering main() (WM_init → WM_main)…", "sys");

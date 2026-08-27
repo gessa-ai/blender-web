@@ -34,6 +34,15 @@ GHOST swap call.
   SHA-256 `ac4ccc43a0ef7b71858be62a3c5185b92d6e486380f978cece534ef1efc86e6f`.
 - The integrated native/Wasm GPU suite is green at
   `ledger/buildlogs/20260827T112348-1954686.log`.
+- Commit `0161808` extends that integration through both transient rejection boundaries. A failed
+  prior-frame submission cancels the waiting resize barrier and drains work from the next epoch; a
+  failed synchronous surface present releases the barrier entry and leaves the same resize episode
+  retryable. All 15 success/rejection/retry cases pass byte-identically on native and wasm32 at
+  `ledger/buildlogs/20260827T130130-2040448.log`. The focused source contract and pinned Apple
+  producer self-check remain green at `ledger/buildlogs/20260827T130230-2042403.log` and
+  `ledger/buildlogs/20260827T130230-2042407.log`; REUSE 6.2.0 is green at
+  `ledger/buildlogs/20260827T130524-2045728.log`. This test-only change does not alter or relink the
+  pending CAPTURE generation.
 - The exact fallback-browser product boots, shrinks 1280x720 to 1100x640, and restores with ticks
   `246/353/460`, presents `16/17/18`, coherent episodes `0/1/2`, exactly one barrier present per
   resized extent, two complete/current/contained/VIEW_3D-bound trace rows, and zero scissor,

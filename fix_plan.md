@@ -3048,6 +3048,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   frame work drains before barrier arrival, later-frame work stays held through the synchronous
   GHOST present, and queue release occurs only afterward. The exact CAPTURE candidate remains
   byte-identical; this closes a device-free contract gap and supplies no hardware pixel verdict.
+  **Rejection-recovery integration 2026-08-27 (`0161808`):** the same shipping-type native/Wasm
+  contract now covers a failed submission ahead of the barrier and a failed synchronous GHOST
+  present. Both paths drain later-epoch work, clear present suppression, and leave the current
+  resize episode retryable instead of bricking the renderer. The exact CAPTURE candidate remains
+  byte-identical and still requires Apple 10/10 pixels.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

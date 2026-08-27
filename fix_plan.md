@@ -2901,9 +2901,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   missing publication; final native/Wasm behavior, 30 mutations, locked CAPTURE relink/no-work,
   inventory/self-check, and an exact-product fallback shrink/restore with 15/19 bounded redraw
   presentations and zero rejection/loss are green. **Not resolved:** the Apple rig must show idle
-  semantic pixels after shrink and restore with no intervening input. See
+  semantic pixels after shrink and restore with no intervening input.
+  **Hardware refinement 2026-08-27:** the predecessor passed only 5/8 identical clean shrinks; an
+  applied resize could consume the tail of an older bounded episode while the replacement
+  surface/backbuffer was still validating, and the later coherent commit published no redraw.
+  `8f604ab` gives committed drawables a distinct monotonic generation that starts one fresh bounded
+  episode without weakening ordinary shader/drop ceilings. Native/Wasm 19-case behavior,
+  seven-source/39-mutation binding, exact CAPTURE preflight, and a live fallback shrink/restore are
+  green with commit generations `0/1/2`, redraw presentations `18/18`, and zero rejection/loss.
+  **RELINKED windowed-opt @ `8f604ab`:** `.wasm.orig` is 119,144,886 bytes at SHA-256
+  `390062afea7c7117c40640b3259ae7328507c840ada80b62551f33ad992507f2`.
+  **Still open:** require 10/10 consecutive Apple hardware shrinks to full idle grid+Cube+gizmo
+  pixels with zero input before closing P0-E, cutting APPLY/public bytes, or tagging. See
   `notes/p0-window-resize-recovery-20260826.md` and
-  `notes/p0-window-resize-idle-redraw-20260826.md`.
+  `notes/p0-window-resize-idle-redraw-20260826.md` and
+  `notes/p0-window-resize-commit-redraw-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

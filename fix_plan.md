@@ -3255,14 +3255,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   draws and 73 window-region composites drain before the captured settle surface copy. The
   composites precede that copy in actual submit order, so a blanket "present overtakes all draws"
   claim is also rejected. Later constrained move/rotate/scale reach 10/10/13 surface copies after
-  the backlog drains. **Current boundary:** first-use ordinary modal updates lack resize's
-  completed-frame admission protocol, allowing temporal versions of transient regions to
-  accumulate in persistent targets while per-draw browser scopes drain. Build the next candidate
-  around a synchronous-GHOST, frame-tail admission boundary; never revive `2c887da`/patch 0288's
-  async `presentBackbuffer()` callback,
-  which hard-aborted 10/10 Apple boots. **Not resolved:** Apple must show thin constraint guides
-  and clean six-second settles for extrude/move/rotate/scale, then retain boot/orbit and P0-E 10x
-  resize/stress. The fallback trace binds no pixels. See
+  the backlog drains. **Candidate implemented (`8ce1a23`, patch 0295):** an ordinary-frame version
+  of resize's barrier was tested and rejected locally because it suppressed almost every surface
+  copy while preserving the artifact; it is fully removed. The lower-level gap was that browser
+  command-buffer submits and buffer/texture writes entered the queue only after asynchronous
+  `PopErrorScope` settlement, while synchronous GHOST presentation could already copy the shared
+  backbuffer. Emscripten now issues those mutations in JavaScript call order and retains scopes only
+  for later diagnostics; native Dawn remains validation-ordered and no async GHOST present callback
+  was introduced. The exact fallback rerun has surface copies in all four modal phases, zero page
+  errors/rejections, a thin guide, intact icons, and byte-identical clean 0.5/3/6-second settles.
+  **Not resolved:** Apple must show thin constraint guides and clean six-second settles for
+  extrude/move/rotate/scale, then retain boot/orbit and P0-E 10x resize/stress. The fallback trace
+  binds no pixels. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

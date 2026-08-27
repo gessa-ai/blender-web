@@ -5,9 +5,12 @@
 
 ## Outcome
 
-P0-I remains open, but the first instrumentation pass rejects the filed binding/shadow hypothesis
-and narrows both hardware symptoms to temporal accumulation of transient region draws. No runtime
-fix, product relink, pixel claim, receipt, profile, APPLY bundle, or release tag is made here.
+P0-I remains open pending Apple pixels. The first instrumentation pass rejected the filed
+binding/shadow hypothesis and narrowed both hardware symptoms to temporal accumulation of
+transient region draws. Patch 0295 now provides a testable runtime candidate: browser queue writes
+and command-buffer submissions happen in their JavaScript calling turn, while error-scope results
+remain asynchronous diagnostics. The fallback product is locally clean, but it binds no hardware
+pixel claim, receipt, profile, APPLY bundle, or release tag.
 
 The driver-operated Apple M4 Pro remains the pixel authority. Its accepted v0.1.1 candidate
 (`.wasm.orig` SHA-256 prefix `505702dbf41c`) shows multiple constraint-guide trails during modal
@@ -39,23 +42,37 @@ surface submit simply overtakes all window composites in this run. Once this fir
 drained, constrained move, rotate, and scale reach later surface copies (10, 10, and 13 captured
 respectively), narrowing the defect from all modal frames to the first-use/pending window.
 
-## Remaining root boundary
+## Rejected frame-barrier attempt
 
-Ordinary modal frames have no equivalent of the resize path's completed-frame admission barrier.
-Each WebGPU draw is encoded immediately but its actual queue mutation is serialized through browser
-error-scope completion. Meanwhile Blender continues producing logical WM redraws into persistent
-offscreen region/window attachments. Several temporal versions of the first-use constraint guide or
-HUD can therefore drain into the same persistent target before one coherent frame is admitted to
-the surface. The Apple screenshots are the visual form of that accumulation: moving line trails
-during the modal operator and overlapping HUD backgrounds after it. Later modal operations
-presenting normally after the drain argue against a permanently broken shader or transform path.
+The first candidate extended resize's completed-frame admission barrier to every ordinary frame.
+The exact fallback modal capture disproved that shape: only two surface traces appeared across the
+run, intermediate frames were white/black, and the retained spindle remained. A follow-up recovery
+variant deterministically closed the browser twice. Both variants were removed before patch 0295;
+no ordinary-frame queue or asynchronous GHOST present seam remains in the product.
 
-This is a guarded diagnosis, not hardware closure. The next runtime candidate should preserve one
-completed ordinary dirty frame until its synchronous GHOST surface copy has been submitted, using
-the already hardware-proven resize barrier pattern or an equivalent frame-scoped transaction. It
-must not restore patch 0288 / commit `2c887da`: that design invoked `presentBackbuffer()` from an
-asynchronous backend callback and its relink hard-aborted 10/10 Apple boots in `BLI_strdupn`.
-Surface acquire, encode, and submit must stay inside GHOST's synchronous swap boundary.
+## Same-turn queue candidate
+
+The actual temporal gap is below GHOST. `command_encode_submit_scoped()` encoded immediately but
+deferred `Queue::Submit` until browser `PopErrorScope` completion and the ordered scheduler; direct
+buffer and texture writes used the same asynchronous admission. WM could therefore synchronously
+copy the persistent backbuffer before ordinary draw submissions and their uniform uploads had even
+entered the WebGPU queue. Patch 0295 keeps native Dawn's validation-ordered scheduler unchanged, but
+on Emscripten it issues `Submit`, `WriteBuffer`, and `WriteTexture` synchronously in program order.
+Nested error scopes still settle later and report the exact combined validity result. GHOST retains
+its synchronous surface acquire/encode/submit boundary, and patch 0288 / `2c887da` remains absent.
+
+The fail-first Wasm behavior fixture observed zero submits before scope settlement. The candidate
+observes each handle-valid submit immediately, keeps later browser queue calls unstalled, and still
+reports the delayed encode/submit validation result. The six-source contract rejects 12 mutations;
+native/Wasm integration is green and canonical replay matches the 20,258-entry frozen source.
+
+The exact fallback modal run now reports 152 constraint submissions, ten extrusion redraw clusters,
+and surface copies during every modal phase: extrusion 2, move 2, rotate 3, scale 2 (26 total in the
+bounded trace). The mid-extrude guide is visually thin, toolbar icons are intact, and the 0.5, 3,
+and 6-second settled screenshots are byte-identical SHA-256
+`dc325d92a328b18e36c0de5e1227a95e9849deef25faf37eef68d63f3b492a29` with no retained grey bar.
+There are zero page errors, queue rejections, or completeness warnings. This is strong diagnostic
+evidence for the candidate, not hardware closure.
 
 ## Evidence and acceptance
 
@@ -68,6 +85,19 @@ Surface acquire, encode, and submit must stay inside GHOST's synchronous swap bo
   `ledger/buildlogs/20260827T202832-2421495.log`.
 - One diagnostic-browser close during capture, followed by the successful unchanged retry:
   `ledger/buildlogs/20260827T202523-2419125.log`.
+- Patch 0295 Wasm fail-first and final behavior:
+  `ledger/buildlogs/20260827T215503-2489496.log` and
+  `ledger/buildlogs/20260827T222509-2508205.log`.
+- Final native/Wasm integration and canonical freeze:
+  `ledger/buildlogs/20260827T222555-2511296.log` and
+  `ledger/buildlogs/20260827T222431-2507573.log`.
+- Relinked fallback modal capture and analysis:
+  `ledger/buildlogs/20260827T222614-2512605.log`,
+  `ledger/buildlogs/20260827T222751-2514148.log`, and
+  `ledger/buildlogs/20260827T222825-2514577.log`.
+- Committed-state relink reproduced all five tested artifact hashes byte-for-byte, followed by
+  locked no-work: `ledger/buildlogs/20260827T224438-2524458.log` and
+  `ledger/buildlogs/20260827T224636-2525105.log`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

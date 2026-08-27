@@ -352,6 +352,39 @@ int main()
     return 1;
   }
 
+  /* A replacement drawable may commit after the previous episode's barrier is already ready but
+   * before GHOST enters swapBufferRelease(). The commit must retire that obsolete barrier only
+   * after publishing the replacement episode; otherwise GHOST can copy the new, untouched
+   * backbuffer under the old episode. */
+  bool commit_superseded_completion_called = false;
+  bool commit_superseded_completion_valid = true;
+  const uint64_t ready_commit_episode = ghost_web::redraw_episode_generation();
+  const uint64_t commit_superseded_episode = ready_commit_episode + 1u;
+  if (!require(ghost_web::schedule_redraw_present_barrier(
+                   ready_commit_episode, ghost_web::RedrawTraceSnapshot{}) &&
+                   ghost_web::arrive_redraw_present_barrier(
+                       ready_commit_episode, [&](const bool valid) {
+                         commit_superseded_completion_called = true;
+                         commit_superseded_completion_valid = valid;
+                       }),
+               "an older ready barrier can overlap a replacement drawable commit"))
+  {
+    return 1;
+  }
+  const uint64_t published_commit_episode = ghost_web::request_redraw_episode();
+  if (!require(published_commit_episode == commit_superseded_episode,
+               "a replacement commit returns its published episode") ||
+      !require(ghost_web::cancel_superseded_redraw_present_barrier(
+                   published_commit_episode) &&
+                   commit_superseded_completion_called &&
+                   !commit_superseded_completion_valid,
+               "a replacement commit cancels the older ready barrier") ||
+      !require(!ghost_web::redraw_present_barrier_is_scheduled(),
+               "commit-time supersession cannot leave stale present suppression active"))
+  {
+    return 1;
+  }
+
   constexpr uint64_t wrapped_generation = std::numeric_limits<uint64_t>::max();
   retry_generation_seen = wrapped_generation;
   episode_generation_seen = ghost_web::redraw_episode_generation();
@@ -388,7 +421,7 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
-      "present_barrier=ordered-sync trace=bounded-exact wrap=rearmed\n",
+      "present_barrier=ordered-sync-commit-superseded trace=bounded-exact wrap=rearmed\n",
       checks);
-  return checks == 44 ? 0 : 1;
+  return checks == 48 ? 0 : 1;
 }

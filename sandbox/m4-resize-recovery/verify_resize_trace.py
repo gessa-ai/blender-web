@@ -76,7 +76,7 @@ def validate(
     ):
         if field not in display:
             raise ValueError(f"shared resize trace omits {field}")
-    request = method(display, "inline void request_redraw_episode()")
+    request = method(display, "inline uint64_t request_redraw_episode()")
     require_once(request, "redraw_trace_begin(generation);", "episode trace start")
     helper = method(display, "inline bool redraw_recovery_tick(")
     require_once(helper, "redraw_trace_finish(episode_generation);", "bounded trace stop")

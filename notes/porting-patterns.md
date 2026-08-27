@@ -1836,3 +1836,17 @@ snapshot lifetime on native and wasm32, while leaving semantic closure to hardwa
 `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
 `sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.
+
+## Class 125 — replacement commit must retire an older ready present barrier
+
+Signature: a resize barrier reaches ready after its frame submissions settle, then a newer
+drawable commits before GHOST enters the synchronous present. If the commit leaves that older
+barrier ready, GHOST samples the current backbuffer rather than the barrier's former texture and
+can copy the newly committed, untouched backbuffer under the obsolete episode. Publish and store
+the replacement episode on the new backbuffer first, then atomically cancel any scheduled or
+ready barrier for another episode; only after that binding is visible may cancellation release the
+ordered queue. Exercise both the state transition and the exact commit ordering on native and
+wasm32, while retaining repeated hardware semantic pixels as the closure bar. See
+`platform_web/ghost/GHOST_WebDisplayState.hh`,
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and
+`sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.

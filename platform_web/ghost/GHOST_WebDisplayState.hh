@@ -207,11 +207,12 @@ inline uint64_t redraw_retry_generation()
  * shader-readiness retry, this signal resets an already-active episode: a resize can spend the
  * tail of an older episode while its asynchronously validated surface/backbuffer is still pending.
  */
-inline void request_redraw_episode()
+inline uint64_t request_redraw_episode()
 {
   const uint64_t generation =
       redraw_episode_counter.fetch_add(1u, std::memory_order_release) + 1u;
   redraw_trace_begin(generation);
+  return generation;
 }
 
 inline uint64_t redraw_episode_generation()
@@ -361,6 +362,27 @@ class RedrawPresentBarrier {
     return true;
   }
 
+  /** Retire an older scheduled or ready barrier when a replacement drawable commits. */
+  bool cancel_superseded(const uint64_t current_episode)
+  {
+    Completion completion;
+    {
+      std::lock_guard lock(mutex_);
+      if (phase_ == Phase::Idle || scheduled_episode_ == current_episode) {
+        return false;
+      }
+      completion = std::move(completion_);
+      phase_ = Phase::Idle;
+      scheduled_episode_ = 0;
+      scheduled_trace_snapshot_ = {};
+      update_requested_ = false;
+    }
+    if (completion) {
+      completion(false);
+    }
+    return true;
+  }
+
   bool is_scheduled() const
   {
     std::lock_guard lock(mutex_);
@@ -482,6 +504,15 @@ inline bool complete_redraw_present_barrier(const uint64_t episode, const bool v
 inline bool cancel_redraw_present_barrier(const uint64_t episode)
 {
   const bool canceled = redraw_present_barrier.cancel(episode);
+  if (canceled) {
+    request_redraw_retry();
+  }
+  return canceled;
+}
+
+inline bool cancel_superseded_redraw_present_barrier(const uint64_t current_episode)
+{
+  const bool canceled = redraw_present_barrier.cancel_superseded(current_episode);
   if (canceled) {
     request_redraw_retry();
   }

@@ -44,6 +44,10 @@ It also covers the two resize-drag supersession windows: a replacement extent ar
 old barrier reaches the queue head, and one arriving after that barrier is ready but before GHOST
 presents it. In both cases the obsolete completion fails exactly once, the replacement epoch
 drains, and a stale GHOST completion cannot retire the replacement barrier.
+The shipping commit path now binds that second case directly: it publishes the replacement
+episode on the new backbuffer before atomically canceling any older scheduled or ready barrier.
+This ordering prevents GHOST from copying a newly committed, untouched texture under the prior
+episode while cancellation releases the backend queue.
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped

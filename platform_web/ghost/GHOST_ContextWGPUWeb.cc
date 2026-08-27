@@ -800,8 +800,14 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
                     /* The resize request's earlier WindowUpdate may have run against the old
                      * backbuffer and exhausted the tail of a prior recovery episode. Start a
                      * fresh bounded episode only now that the replacement extent is coherent. */
-                    ghost_web::request_redraw_episode();
-                    owner.backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();
+                    const uint64_t committed_redraw_episode =
+                        ghost_web::request_redraw_episode();
+                    owner.backbuffer_redraw_episode_ = committed_redraw_episode;
+                    /* A prior episode's barrier may already be ready when this replacement
+                     * commits. Retire it only after the new backbuffer carries its episode;
+                     * otherwise GHOST can copy this untouched texture under the old barrier. */
+                    ghost_web::cancel_superseded_redraw_present_barrier(
+                        committed_redraw_episode);
                     if (!owner.initialization_settled_) {
                       owner.completeInitialization(true);
                     }

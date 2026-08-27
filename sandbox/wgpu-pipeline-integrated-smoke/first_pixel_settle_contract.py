@@ -67,7 +67,7 @@ def validate(
         "inline std::atomic<uint64_t> redraw_drop_counter{0};",
         "inline void request_redraw_retry()",
         "inline uint64_t redraw_retry_generation()",
-        "inline void request_redraw_episode()",
+        "inline uint64_t request_redraw_episode()",
         "inline uint64_t redraw_episode_generation()",
         "inline void note_redraw_drop()",
         "inline uint64_t redraw_drop_generation()",
@@ -79,6 +79,7 @@ def validate(
         "inline bool filter_redraw_present_barrier_update(",
         "inline bool complete_redraw_present_barrier(",
         "inline bool cancel_redraw_present_barrier(",
+        "inline bool cancel_superseded_redraw_present_barrier(",
         "inline RedrawTraceSnapshot redraw_present_barrier_ready_trace_snapshot()",
         "inline uint64_t redraw_present_barrier_completion_generation()",
     ):
@@ -96,6 +97,7 @@ def validate(
         "bool filter_update(const uint64_t episode, const bool requested)",
         "bool complete(const uint64_t episode, const bool valid)",
         "bool cancel(const uint64_t episode)",
+        "bool cancel_superseded(const uint64_t current_episode)",
         "RedrawTraceSnapshot ready_trace_snapshot() const",
         "trace_snapshot.episode_generation == episode ? std::move(trace_snapshot) :",
         "superseded(false);",
@@ -104,10 +106,36 @@ def validate(
         "completion_generation_++;",
     ):
         require_once(barrier, token, "resize present barrier")
+    episode_request = method(display_header, "inline uint64_t request_redraw_episode()")
+    require_once(episode_request, "return generation;", "resize episode publication")
+    supersession = method(
+        display_header, "bool cancel_superseded(const uint64_t current_episode)"
+    )
+    for token in (
+        "phase_ == Phase::Idle || scheduled_episode_ == current_episode",
+        "completion = std::move(completion_);",
+        "phase_ = Phase::Idle;",
+        "scheduled_episode_ = 0;",
+        "scheduled_trace_snapshot_ = {};",
+        "update_requested_ = false;",
+        "completion(false);",
+    ):
+        require_once(token=token, source=supersession, label="commit-time barrier supersession")
+    supersession_adapter = method(
+        display_header, "inline bool cancel_superseded_redraw_present_barrier("
+    )
+    for token in (
+        "redraw_present_barrier.cancel_superseded(current_episode)",
+        "request_redraw_retry();",
+        "return canceled;",
+    ):
+        require_once(
+            supersession_adapter, token, "commit-time barrier supersession adapter"
+        )
     require_count(
         barrier,
         "scheduled_trace_snapshot_",
-        5,
+        6,
         "resize present barrier trace lifetime",
     )
     for token in (
@@ -217,9 +245,28 @@ def validate(
     )
     require_once(
         committed,
-        "ghost_web::request_redraw_episode();",
+        "const uint64_t committed_redraw_episode =\n"
+        "                        ghost_web::request_redraw_episode();",
         "coherent resize commit recovery",
     )
+    require_once(
+        committed,
+        "owner.backbuffer_redraw_episode_ = committed_redraw_episode;",
+        "coherent resize episode binding",
+    )
+    require_once(
+        committed,
+        "ghost_web::cancel_superseded_redraw_present_barrier(\n"
+        "                        committed_redraw_episode);",
+        "coherent resize barrier supersession",
+    )
+    resize_commit_order = (
+        committed.index("ghost_web::request_redraw_episode();"),
+        committed.index("owner.backbuffer_redraw_episode_ = committed_redraw_episode;"),
+        committed.index("ghost_web::cancel_superseded_redraw_present_barrier("),
+    )
+    if resize_commit_order != tuple(sorted(resize_commit_order)):
+        raise ValueError("resize commit releases an old barrier before binding the new episode")
     if resize_commit.index("surface_resize_commit_if_current(") > resize_commit.index(
         "if (result == ghost_web::SurfaceResizeResult::Committed)"
     ):
@@ -309,6 +356,9 @@ def selfcheck(
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "return frame_episode == current_episode;", "return true;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline uint64_t request_redraw_episode()", "return generation;", "return 0;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "bool cancel_superseded(const uint64_t current_episode)", "scheduled_episode_ == current_episode", "scheduled_episode_ != current_episode"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline bool cancel_superseded_redraw_present_barrier(", "redraw_present_barrier.cancel_superseded(current_episode)", "redraw_present_barrier.cancel(current_episode)"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "trace_snapshot.episode_generation == episode ? std::move(trace_snapshot) :", "false ? std::move(trace_snapshot) :"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "return phase_ == Phase::Ready ? scheduled_trace_snapshot_ : RedrawTraceSnapshot{};", "return {};"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "phase_ = Phase::Ready;", "phase_ = Phase::Scheduled;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
@@ -369,6 +419,32 @@ def selfcheck(
             "if (result == ghost_web::SurfaceResizeResult::Committed)",
             "if (result == ghost_web::SurfaceResizeResult::Superseded)",
         ),
+        mutate_method(
+            context_source,
+            RESIZE_COMMIT_MARKER,
+            "owner.backbuffer_redraw_episode_ = committed_redraw_episode;",
+            "",
+        ),
+        mutate_method(
+            context_source,
+            RESIZE_COMMIT_MARKER,
+            "ghost_web::cancel_superseded_redraw_present_barrier(\n"
+            "                        committed_redraw_episode);",
+            "",
+        ),
+        mutate_method(
+            context_source,
+            RESIZE_COMMIT_MARKER,
+            "owner.backbuffer_redraw_episode_ = committed_redraw_episode;\n"
+            "                    /* A prior episode's barrier may already be ready when this replacement\n"
+            "                     * commits. Retire it only after the new backbuffer carries its episode;\n"
+            "                     * otherwise GHOST can copy this untouched texture under the old barrier. */\n"
+            "                    ghost_web::cancel_superseded_redraw_present_barrier(\n"
+            "                        committed_redraw_episode);",
+            "ghost_web::cancel_superseded_redraw_present_barrier(\n"
+            "                        committed_redraw_episode);\n"
+            "                    owner.backbuffer_redraw_episode_ = committed_redraw_episode;",
+        ),
     )
     for index, context_mutation in enumerate(context_mutations, start=len(mutations) + 1):
         try:
@@ -413,7 +489,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=47 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=53 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound,commit-superseded")
     return 0
 
 

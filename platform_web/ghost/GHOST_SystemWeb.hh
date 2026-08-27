@@ -150,6 +150,7 @@ class GHOST_SystemWeb : public GHOST_System {
 
   /* Per-window readiness generation and bounded tick counter for asynchronous draw recovery. */
   uint64_t redraw_retry_generation_seen_ = 0;
+  uint64_t redraw_episode_generation_seen_ = 0;
   uint64_t redraw_drop_generation_seen_ = 0;
   uint32_t redraw_heartbeat_ = 0;
 

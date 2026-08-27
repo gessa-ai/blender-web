@@ -34,11 +34,14 @@ bool require(const bool condition, const char *message)
 int main()
 {
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
+  uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
   uint64_t drop_generation_seen = ghost_web::redraw_drop_generation();
   uint32_t heartbeat = 0;
   const auto recovery_tick = [&]() {
     return ghost_web::redraw_recovery_tick(ghost_web::redraw_retry_generation(),
                                            retry_generation_seen,
+                                           ghost_web::redraw_episode_generation(),
+                                           episode_generation_seen,
                                            ghost_web::redraw_drop_generation(),
                                            drop_generation_seen,
                                            heartbeat);
@@ -119,8 +122,32 @@ int main()
     return 1;
   }
 
+  /* A resize may arrive on the final tick of an older readiness episode while its replacement
+   * surface/backbuffer is still validating. The resize request can spend that final update before
+   * the new extent is drawable; the later coherent commit must therefore start its own budget. */
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
   retry_generation_seen = active_request;
+  ghost_web::request_redraw_retry();
+  const uint64_t resize_request = ghost_web::redraw_retry_generation();
+  if (!require(recovery_tick() && retry_generation_seen == resize_request &&
+                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
+               "resize request can consume the final tick of an older recovery episode"))
+  {
+    return 1;
+  }
+  const uint64_t before_episode = ghost_web::redraw_episode_generation();
+  ghost_web::request_redraw_episode();
+  const uint64_t after_episode = ghost_web::redraw_episode_generation();
+  if (!require(after_episode == before_episode + 1u,
+               "a drawable extent commit publishes a monotonic episode generation") ||
+      !require(recovery_tick() && episode_generation_seen == after_episode && heartbeat == 1,
+               "a drawable extent commit starts a fresh bounded recovery episode"))
+  {
+    return 1;
+  }
+
+  heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
+  retry_generation_seen = resize_request;
   drop_generation_seen = active_drop;
   ghost_web::note_redraw_drop();
   const uint64_t final_drop = ghost_web::redraw_drop_generation();
@@ -149,10 +176,13 @@ int main()
 
   constexpr uint64_t wrapped_generation = std::numeric_limits<uint64_t>::max();
   retry_generation_seen = wrapped_generation;
+  episode_generation_seen = ghost_web::redraw_episode_generation();
   drop_generation_seen = ghost_web::redraw_drop_generation();
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS;
   if (!require(ghost_web::redraw_recovery_tick(0,
                                                retry_generation_seen,
+                                               episode_generation_seen,
+                                               episode_generation_seen,
                                                drop_generation_seen,
                                                drop_generation_seen,
                                                heartbeat) &&
@@ -162,9 +192,24 @@ int main()
     return 1;
   }
 
+  episode_generation_seen = wrapped_generation;
+  heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS;
+  if (!require(ghost_web::redraw_recovery_tick(retry_generation_seen,
+                                               retry_generation_seen,
+                                               0,
+                                               episode_generation_seen,
+                                               drop_generation_seen,
+                                               drop_generation_seen,
+                                               heartbeat) &&
+                   episode_generation_seen == 0 && heartbeat == 1,
+               "episode generation wrap starts a fresh bounded burst"))
+  {
+    return 1;
+  }
+
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
-      "late=immediate drops=bounded readiness=rearmed wrap=rearmed\n",
+      "late=immediate drops=bounded readiness=rearmed resize_commit=fresh wrap=rearmed\n",
       checks);
-  return checks == 15 ? 0 : 1;
+  return checks == 19 ? 0 : 1;
 }

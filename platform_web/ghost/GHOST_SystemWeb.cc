@@ -1353,6 +1353,8 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
   if (window_ != nullptr &&
       ghost_web::redraw_recovery_tick(ghost_web::redraw_retry_generation(),
                                       redraw_retry_generation_seen_,
+                                      ghost_web::redraw_episode_generation(),
+                                      redraw_episode_generation_seen_,
                                       ghost_web::redraw_drop_generation(),
                                       redraw_drop_generation_seen_,
                                       redraw_heartbeat_))
@@ -1783,6 +1785,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
             return;
           }
           redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();
+          redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();
           redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
           redraw_heartbeat_ = 0;
         }

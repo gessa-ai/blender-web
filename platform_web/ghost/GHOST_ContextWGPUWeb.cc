@@ -55,6 +55,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_present_count(void)
   return double(ghost_web::present_count());
 }
 
+/* Read-only live proof that a validated replacement surface/backbuffer published a fresh redraw
+ * episode. Resize regressions sample this separately from size events and presentation counts. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_episode_count(void)
+{
+  return double(ghost_web::redraw_episode_generation());
+}
+
 /* --- M4.T11 (ADR-007) worker-side device delivery ---------------------------- */
 /* The WebGPU device cannot be acquired synchronously here (emdawnwebgpu needs an
  * event-loop turn or asyncify) and cannot cross realms, so it is acquired
@@ -769,8 +776,14 @@ void GHOST_ContextWGPUWeb::ensureBackbuffer()
                     owner.configured_ = false;
                     owner.ensureBackbuffer();
                   }
-                  else if (!owner.initialization_settled_) {
-                    owner.completeInitialization(true);
+                  if (result == ghost_web::SurfaceResizeResult::Committed) {
+                    /* The resize request's earlier WindowUpdate may have run against the old
+                     * backbuffer and exhausted the tail of a prior recovery episode. Start a
+                     * fresh bounded episode only now that the replacement extent is coherent. */
+                    ghost_web::request_redraw_episode();
+                    if (!owner.initialization_settled_) {
+                      owner.completeInitialization(true);
+                    }
                   }
                 });
               });

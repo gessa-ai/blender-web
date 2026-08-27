@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Bind deferred WebGPU draw readiness to bounded web-window redraw recovery."""
+"""Bind deferred WebGPU readiness and resize commits to bounded window redraw recovery."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ COMPUTE_PIPELINE_MARKER = "wgpu::ComputePipeline WGPUShader::compute_pipeline("
 BIND_GROUP_MARKER = "bool WGPUShader::bind_group_entries_complete("
 EXPLICIT_LAYOUT_MARKER = "bool WGPUShader::ensure_explicit_layout("
 RENDER_PIPELINE_MARKER = "wgpu::RenderPipeline WGPUPipelinePool::get("
+RESIZE_COMMIT_MARKER = "void GHOST_ContextWGPUWeb::ensureBackbuffer()"
 
 
 def method(source: str, marker: str) -> str:
@@ -55,15 +56,19 @@ def validate(
     wm_window_source: str,
     shader_source: str,
     pipeline_source: str,
+    context_source: str,
 ) -> None:
     helper = method(display_header, HELPER_MARKER)
     for token in (
         "FIRST_PIXEL_SETTLE_TICKS = 180u",
         "FIRST_PIXEL_SETTLE_INTERVAL = 12u",
         "inline std::atomic<uint64_t> redraw_retry_counter{0};",
+        "inline std::atomic<uint64_t> redraw_episode_counter{0};",
         "inline std::atomic<uint64_t> redraw_drop_counter{0};",
         "inline void request_redraw_retry()",
         "inline uint64_t redraw_retry_generation()",
+        "inline void request_redraw_episode()",
+        "inline uint64_t redraw_episode_generation()",
         "inline void note_redraw_drop()",
         "inline uint64_t redraw_drop_generation()",
     ):
@@ -71,10 +76,11 @@ def validate(
     for token in (
         "retry_generation != retry_generation_seen",
         "retry_generation_seen = retry_generation;",
+        "episode_generation != episode_generation_seen",
+        "episode_generation_seen = episode_generation;",
         "drop_generation != drop_generation_seen",
         "drop_generation_seen = drop_generation;",
-        "heartbeat = 0;",
-        "readiness_published || draw_dropped ||",
+        "episode_published || readiness_published || draw_dropped ||",
         "(heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u",
         "heartbeat++;",
         "return request_update;",
@@ -82,6 +88,7 @@ def validate(
         require_once(helper, token, "redraw recovery helper")
     require_count(helper, "if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS)", 2,
                   "redraw recovery helper")
+    require_count(helper, "heartbeat = 0;", 2, "redraw recovery helper")
     if "present_count" in helper or "present_baseline" in helper:
         raise ValueError("redraw recovery still terminates on presentation count")
 
@@ -89,6 +96,11 @@ def validate(
         system_header,
         "uint64_t redraw_retry_generation_seen_ = 0;",
         "per-window recovery state",
+    )
+    require_once(
+        system_header,
+        "uint64_t redraw_episode_generation_seen_ = 0;",
+        "per-window episode state",
     )
     require_once(
         system_header,
@@ -103,6 +115,8 @@ def validate(
         "ghost_web::redraw_recovery_tick(",
         "ghost_web::redraw_retry_generation()",
         "redraw_retry_generation_seen_",
+        "ghost_web::redraw_episode_generation()",
+        "redraw_episode_generation_seen_",
         "ghost_web::redraw_drop_generation()",
         "redraw_drop_generation_seen_",
         "GHOST_kEventWindowUpdate",
@@ -124,13 +138,36 @@ def validate(
 
     creation = method(system_source, CREATE_MARKER)
     generation = "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();"
+    episode_generation = (
+        "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();"
+    )
     drop_generation = "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();"
     heartbeat = "redraw_heartbeat_ = 0;"
     require_once(creation, generation, "window publication")
+    require_once(creation, episode_generation, "window publication")
     require_once(creation, drop_generation, "window publication")
     require_once(creation, heartbeat, "window publication")
-    if max(creation.index(generation), creation.index(drop_generation)) > creation.index(heartbeat):
+    if max(
+        creation.index(generation),
+        creation.index(episode_generation),
+        creation.index(drop_generation),
+    ) > creation.index(heartbeat):
         raise ValueError("window publication resets ticks before capturing its retry generation")
+
+    resize_commit = method(context_source, RESIZE_COMMIT_MARKER)
+    committed = method(
+        resize_commit,
+        "if (result == ghost_web::SurfaceResizeResult::Committed)",
+    )
+    require_once(
+        committed,
+        "ghost_web::request_redraw_episode();",
+        "coherent resize commit recovery",
+    )
+    if resize_commit.index("surface_resize_commit_if_current(") > resize_commit.index(
+        "if (result == ghost_web::SurfaceResizeResult::Committed)"
+    ):
+        raise ValueError("resize recovery is published before the coherent commit result")
 
     update_case = wm_window_source.find("case GHOST_kEventWindowUpdate:")
     case_end = wm_window_source.find("break;", update_case)
@@ -205,25 +242,33 @@ def selfcheck(
     wm_window_source: str,
     shader_source: str,
     pipeline_source: str,
+    context_source: str,
 ) -> None:
     validate(display_header, system_header, system_source, wm_window_source,
-             shader_source, pipeline_source)
+             shader_source, pipeline_source, context_source)
     mutations = (
         (replace_once(display_header, "FIRST_PIXEL_SETTLE_TICKS = 180u", "FIRST_PIXEL_SETTLE_TICKS = 0u"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "FIRST_PIXEL_SETTLE_INTERVAL = 12u", "FIRST_PIXEL_SETTLE_INTERVAL = 1u"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_retry_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "episode_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "readiness_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "draw_dropped ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "episode_generation != episode_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "episode_generation_seen = episode_generation;\n    heartbeat = 0;", "episode_generation_seen = episode_generation;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "retry_generation != retry_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "drop_generation != drop_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_retry_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
+        (display_header, replace_once(system_header, "uint64_t redraw_episode_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_drop_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_recovery_tick(", "ghost_web::redraw_recovery_disabled("), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_episode_generation()", "ghost_web::redraw_episode_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_drop_generation()", "ghost_web::redraw_drop_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "GHOST_kEventWindowUpdate", "GHOST_kEventWindowActivate"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::request_redraw_retry();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);", ""), shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "#ifdef __EMSCRIPTEN__\n      /* A web surface", "#if 1\n      /* A web surface"), shader_source, pipeline_source),
@@ -242,7 +287,36 @@ def selfcheck(
     )
     for index, mutation in enumerate(mutations, start=1):
         try:
-            validate(*mutation)
+            validate(*mutation, context_source)
+        except ValueError:
+            continue
+        raise ValueError(f"mutation {index} was accepted")
+
+    context_mutations = (
+        mutate_method(
+            context_source,
+            RESIZE_COMMIT_MARKER,
+            "ghost_web::request_redraw_episode();",
+            "",
+        ),
+        mutate_method(
+            context_source,
+            RESIZE_COMMIT_MARKER,
+            "if (result == ghost_web::SurfaceResizeResult::Committed)",
+            "if (result == ghost_web::SurfaceResizeResult::Superseded)",
+        ),
+    )
+    for index, context_mutation in enumerate(context_mutations, start=len(mutations) + 1):
+        try:
+            validate(
+                display_header,
+                system_header,
+                system_source,
+                wm_window_source,
+                shader_source,
+                pipeline_source,
+                context_mutation,
+            )
         except ValueError:
             continue
         raise ValueError(f"mutation {index} was accepted")
@@ -256,6 +330,7 @@ def main() -> int:
     parser.add_argument("wm_window_source", type=Path)
     parser.add_argument("shader_source", type=Path)
     parser.add_argument("pipeline_source", type=Path)
+    parser.add_argument("context_source", type=Path)
     parser.add_argument("--selfcheck", action="store_true")
     args = parser.parse_args()
     inputs = tuple(
@@ -267,13 +342,14 @@ def main() -> int:
             args.wm_window_source,
             args.shader_source,
             args.pipeline_source,
+            args.context_source,
         )
     )
     if args.selfcheck:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=6 mutations=30 bounded=180 readiness=4 drops=1 resize=rearmed")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=39 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh")
     return 0
 
 

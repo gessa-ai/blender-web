@@ -47,6 +47,8 @@ async function sample(page) {
         Number(module._bw_wm_tick_count()) : null,
       presents: module && typeof module._bw_present_count === "function" ?
         Number(module._bw_present_count()) : null,
+      episodes: module && typeof module._bw_redraw_episode_count === "function" ?
+        Number(module._bw_redraw_episode_count()) : null,
     };
   });
 }
@@ -110,6 +112,9 @@ try {
   if (!(shrunk.presents > initial.presents && restored.presents > shrunk.presents)) {
     failures.push("uncapped presentation count did not advance across both resize epochs");
   }
+  if (!(shrunk.episodes > initial.episodes && restored.episodes > shrunk.episodes)) {
+    failures.push("coherent resize commits did not start fresh redraw episodes");
+  }
   const shrinkRedrawPresents = shrunk.presents - initial.presents;
   const restoreRedrawPresents = restored.presents - shrunk.presents;
   if (shrinkRedrawPresents < 8 || restoreRedrawPresents < 8) {
@@ -128,6 +133,7 @@ try {
   console.log(`BW_M4_RESIZE_RECOVERY_PASS resize=${counters.resizeApplied} ` +
               `wm=${counters.wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
+              `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
               `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents}`);
 }
 finally {

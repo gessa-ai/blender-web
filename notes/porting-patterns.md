@@ -1745,3 +1745,18 @@ and restore every original mode on success, fetch failure, cleanup failure, and 
 manifest paths, duplicate rejection, same-parent rename, mode restoration, and exact post-publish
 bytes with mutations. See `sandbox/m8-staged-deploy/stage1-loader.js` and
 `sandbox/m8-stage0-ui-font/probe_candidate.mjs`.
+
+## Class 119 — request-time invalidation can expire before an asynchronous drawable commit
+
+Signature: a browser resize queues a size event and redraw immediately, while the matching surface
+and persistent backbuffer validate asynchronously. If an older bounded redraw episode is still
+active, that request does not reset its ceiling; the update can run against the old drawable on the
+last available tick, and the later coherent commit publishes no new invalidation. Identical resizes
+then alternate between a complete frame, stale overdraw, and black depending on callback timing.
+Keep ordinary readiness signals unable to extend an active hard ceiling, but give a newly committed
+drawable its own monotonic generation that always starts one fresh bounded episode. Publish it only
+after the complete extent-bound state commits, not when the resize is merely requested. Exercise
+the final-old-tick/late-commit schedule on native and wasm32, expose a read-only live commit counter,
+and still require repeated idle semantic pixels on hardware. See
+`platform_web/ghost/GHOST_WebDisplayState.hh`,
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and `sandbox/m4-resize-recovery/`.

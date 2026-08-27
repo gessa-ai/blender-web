@@ -1185,6 +1185,3 @@
 # 0293: reset resize semantics at WGPUContext::begin_frame, not at every context
 # activation, so late reactivation cannot erase the frame's VIEW_3D draw evidence.
 0293-gpu-webgpu-window-frame-trace.patch
-# 0294: bind a window frame to the drawable episode captured at begin_frame so a
-# later context reactivation cannot relabel old-drawable work after resize commit.
-0294-gpu-webgpu-frame-episode-snapshot.patch

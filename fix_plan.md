@@ -3186,29 +3186,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the absent exact-generation Apple binding (`20260827T175006-2293663`), and pinned-container
   regression restores M0 6/6 while retaining every named later boundary
   (`20260827T175010-2293716`).
-  **Incoming predecessor pixels 2026-08-27:** the driver deposited a legacy 10-attempt Apple run
-  after the `a8f6c43` relink and before its successor. It reports 10/10 zero-input shrinks with
-  zero rejects/page errors, and its retained 1100x640 PNG visibly contains the full grid, shaded
-  selected Cube, camera, light, and navigation gizmo. A six-extent shrink/restore stress run also
-  paints every extent and changes pixels after orbit. The legacy JSON has no artifact hashes or
-  canonical receipt inventory, so it is strong evidence for the preceding generation but cannot
-  bind a later product byte.
-  **Frame-ownership candidate 2026-08-27 (`efa907a`, patch 0294):** source audit found that
-  `sync_backbuffer()` still overwrote the frame episode on every context reactivation. A resize
-  commit followed by a later activation inside the same WM frame could therefore relabel work
-  that began on the old drawable as the replacement episode. The context now retains a separate
-  adopted-drawable episode and snapshots it only at `begin_frame()`; later activation can adopt a
-  replacement without changing the in-progress frame's admission label. Fail-first/final source
-  82/50, 59-case native/wasm32 recovery, patch round-trip, canonical 271-patch replay, REUSE,
-  CAPTURE preflight, producer/consumer/profile self-checks, and locked no-work are green.
-  **RELINKED windowed-opt @ `efa907a`:** JS `52a9a0257830`, Wasm `89acb092bb29`, wasm.orig
-  `070b3e89ba7a` (119,157,867 bytes), data `095d0ba748c3`, manifest `f49b6e9e1c0a`. The exact
-  fallback product is green at ticks `246/524/617`, presents `16/17/18`, episodes `0/1/2`, one
-  admitted present per resized extent, two complete/current/contained/VIEW_3D-bound traces, and
-  zero rejection/loss (`20260827T181936-2318989`), diagnostic only.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
-  grid+Cube+gizmo pixels with zero input against exact wasm.orig `070b3e89ba7a...`, followed by
-  the independent receipt-consumer PASS, before closing P0-E, cutting APPLY/public bytes, or
+  grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
   `notes/p0-window-resize-recovery-20260826.md` and
   `notes/p0-window-resize-idle-redraw-20260826.md` and
@@ -3219,8 +3198,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/p0-window-resize-ordered-present-20260827.md` and
   `notes/p0-window-resize-present-barrier-20260827.md` and
   `notes/p0-window-resize-commit-supersession-20260827.md` and
-  `notes/p0-window-resize-complete-frame-admission-20260827.md` and
-  `notes/p0-window-resize-frame-ownership-20260827.md`.
+  `notes/p0-window-resize-complete-frame-admission-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

@@ -15,11 +15,6 @@ Texture, format, extent, and committed redraw episode are read through one GHOST
 getters are insufficient: an `AllowSpontaneous` resize completion may commit between them and
 pair the previous texture with the replacement episode, admitting an untouched backbuffer at the
 completed-frame barrier.
-`sync_backbuffer()` stores that snapshot's episode as the currently adopted drawable, but only
-`WGPUContext::begin_frame()` copies it into the frame-bound episode. A later context activation in
-the same WM frame may adopt a newly committed drawable without relabeling work that began against
-the previous one; the next frame captures the replacement episode and becomes eligible for its
-barrier.
 The integrated first-pixel contract also requires every applied browser extent to
 request a redraw after surface reconfiguration and the WM size event, then requires the
 asynchronously validated replacement surface/backbuffer commit to start a fresh bounded episode.
@@ -54,11 +49,10 @@ episode on the new backbuffer before atomically canceling any older scheduled or
 This ordering prevents GHOST from copying a newly committed, untouched texture under the prior
 episode while cancellation releases the backend queue.
 The barrier's admission evidence is frame-local as well as episode-bound. Atomic backbuffer
-adoption updates the drawable episode, while the real `WGPUContext::begin_frame()` boundary
-captures it for the frame, resets semantic facts exactly once, and retains episode-wide counts for
-diagnostics. Later context reactivations inside the same WM frame may synchronize a replacement
-backbuffer but must neither erase earlier region draws nor relabel that frame. A drained barrier
-may present only when that one frame
+adoption selects the frame's episode, while the real `WGPUContext::begin_frame()` boundary resets
+the semantic facts exactly once and retains episode-wide counts for diagnostics. Later context
+reactivations inside the same WM frame may synchronize the backbuffer but must not erase earlier
+region draws. A drained barrier may present only when that one adopted frame
 contains the offscreen `overlay_background` draw for the visible 3D region, a later direct-window
 `OCIO_Display` composite, and ends on a window-target draw. An empty, chrome-only, window-only, or
 unfinished frame stays suppressed; GHOST completes the barrier as invalid so the ordered queue

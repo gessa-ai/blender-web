@@ -2931,6 +2931,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   canonical replay, locked compile/relink/no-work, CAPTURE preflight, and exact-product fallback
   shrink/restore are green. **RELINKED windowed-opt @ `94cccc1`:** `.wasm.orig` is 119,148,240 bytes
   at SHA-256 `aed9ba633f08b02d5fecaa461713cfbc2fabe880c0aad09ab3b88d037e47863a`.
+  **Trace-consumer hardening 2026-08-27:** `9f5037e` makes the exact-product repro parse all three
+  emitted draw plans instead of accepting only the log prefix. Each resize episode now requires
+  monotonic all/window draw counts, advancing `overlay_background` and `OCIO_Display` sequences,
+  current direct-window target extents, and contained scissors. The exact relinked fallback product
+  passes with 19/18 resize presentations and 37 fully checked trace rows; this strengthens the
+  diagnostic only and binds no hardware pixels.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -2938,7 +2944,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/p0-window-resize-idle-redraw-20260826.md` and
   `notes/p0-window-resize-commit-redraw-20260827.md` and
   `notes/p0-window-resize-draw-trace-20260827.md` and
-  `notes/p0-window-resize-backbuffer-reactivation-20260827.md`.
+  `notes/p0-window-resize-backbuffer-reactivation-20260827.md` and
+  `notes/p0-window-resize-trace-consumer-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

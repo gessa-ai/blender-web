@@ -947,6 +947,15 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const wgpu::RenderPipeline pipeline = present_pipeline_;
   const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
   const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
+  const uint64_t redraw_trace_episode = ghost_web::redraw_episode_generation();
+  const bool redraw_trace_active = ghost_web::redraw_trace_active(redraw_trace_episode);
+  const ghost_web::RedrawTraceSnapshot redraw_trace = ghost_web::redraw_trace_snapshot();
+  const uint32_t configured_width = width_;
+  const uint32_t configured_height = height_;
+  const uint32_t requested_width = requested_width_;
+  const uint32_t requested_height = requested_height_;
+  const uint32_t backbuffer_width = backbuffer_w_;
+  const uint32_t backbuffer_height = backbuffer_h_;
   present_pending_ = true;
   ghost_web::present_frame_encode_submit_scoped(
           [device]() { pushErrorScopes(device); },
@@ -997,7 +1006,16 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            device_state,
            surface_width,
            surface_height,
-           reconfigure_after_present](const bool valid) {
+           reconfigure_after_present,
+           redraw_trace_episode,
+           redraw_trace_active,
+           redraw_trace,
+           configured_width,
+           configured_height,
+           requested_width,
+           requested_height,
+           backbuffer_width,
+           backbuffer_height](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
               if (!ghost_web::device_state_allows_callback_work(device_state)) {
                 return;
@@ -1021,6 +1039,91 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
                     surface_width,
                     surface_height);
                 present_log_count++;
+              }
+              /* Hardware-only P0-E diagnostic: one line per successful present while the
+               * coherent-resize recovery episode is active. The cumulative draw sequences show
+               * whether Blender re-encoded the frame between presents; the dedicated background
+               * and display records expose the exact target, viewport, and scissor that reached
+               * WebGPU. Both per-episode and process caps keep this absent from steady state. */
+              static uint64_t resize_trace_episode_seen = 0;
+              static uint32_t resize_trace_episode_samples = 0;
+              static uint32_t resize_trace_total_samples = 0;
+              if (redraw_trace_active && resize_trace_total_samples < 64) {
+                if (redraw_trace_episode != resize_trace_episode_seen) {
+                  resize_trace_episode_seen = redraw_trace_episode;
+                  resize_trace_episode_samples = 0;
+                }
+                if (resize_trace_episode_samples < 24) {
+                  const ghost_web::RedrawTracePlan &any = redraw_trace.last;
+                  const ghost_web::RedrawTracePlan &background = redraw_trace.background;
+                  const ghost_web::RedrawTracePlan &display = redraw_trace.display;
+                  std::printf(
+                      "WGPUWeb-resize-trace: episode=%llu sample=%u present=%llu "
+                      "draws=%llu window_draws=%llu surface=%ux%u configured=%ux%u "
+                      "requested=%ux%u backbuffer=%ux%u "
+                      "any=%llu/%d/%dx%d/vp%d,%d,%ux%u/sc%d,%u,%u,%ux%u "
+                      "background=%llu/%d/%dx%d/vp%d,%d,%ux%u/sc%d,%u,%u,%ux%u "
+                      "display=%llu/%d/%dx%d/vp%d,%d,%ux%u/sc%d,%u,%u,%ux%u\n",
+                      static_cast<unsigned long long>(redraw_trace_episode),
+                      resize_trace_episode_samples,
+                      static_cast<unsigned long long>(ghost_web::present_count() + 1u),
+                      static_cast<unsigned long long>(redraw_trace.draw_count),
+                      static_cast<unsigned long long>(redraw_trace.window_draw_count),
+                      surface_width,
+                      surface_height,
+                      configured_width,
+                      configured_height,
+                      requested_width,
+                      requested_height,
+                      backbuffer_width,
+                      backbuffer_height,
+                      static_cast<unsigned long long>(any.sequence),
+                      any.window_target ? 1 : 0,
+                      any.target_width,
+                      any.target_height,
+                      any.viewport_x,
+                      any.viewport_y,
+                      any.viewport_width,
+                      any.viewport_height,
+                      any.scissor_enabled ? 1 : 0,
+                      any.scissor_x,
+                      any.scissor_y,
+                      any.scissor_width,
+                      any.scissor_height,
+                      static_cast<unsigned long long>(background.sequence),
+                      background.window_target ? 1 : 0,
+                      background.target_width,
+                      background.target_height,
+                      background.viewport_x,
+                      background.viewport_y,
+                      background.viewport_width,
+                      background.viewport_height,
+                      background.scissor_enabled ? 1 : 0,
+                      background.scissor_x,
+                      background.scissor_y,
+                      background.scissor_width,
+                      background.scissor_height,
+                      static_cast<unsigned long long>(display.sequence),
+                      display.window_target ? 1 : 0,
+                      display.target_width,
+                      display.target_height,
+                      display.viewport_x,
+                      display.viewport_y,
+                      display.viewport_width,
+                      display.viewport_height,
+                      display.scissor_enabled ? 1 : 0,
+                      display.scissor_x,
+                      display.scissor_y,
+                      display.scissor_width,
+                      display.scissor_height);
+                  resize_trace_episode_samples++;
+                  resize_trace_total_samples++;
+                  if (resize_trace_episode_samples == 24 ||
+                      resize_trace_total_samples == 64)
+                  {
+                    ghost_web::redraw_trace_finish(redraw_trace_episode);
+                  }
+                }
               }
               /* ghost-keepalive advances only after the submission scope completes cleanly. */
               ghost_web::note_present();

@@ -31799,10 +31799,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ecf860fddd5d06fe3b1b61df07a2d6c62bdfb884
+index 0000000000000000000000000000000000000000..895f034d54ef7267d253a072d936d2573fc9455d
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,1021 @@
+@@ -0,0 +1,1025 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32376,6 +32376,7 @@ index 0000000000000000000000000000000000000000..ecf860fddd5d06fe3b1b61df07a2d6c6
 +                             draw_parameters.vertex_first,
 +                             draw_parameters.instance_first);
 +              }
++              fb->debug_note_draw(shader->name_get().c_str());
 +              mv_pass.End();
 +              return true;
 +            },
@@ -32459,6 +32460,7 @@ index 0000000000000000000000000000000000000000..ecf860fddd5d06fe3b1b61df07a2d6c6
 +                    draw_parameters.vertex_first,
 +                    draw_parameters.instance_first);
 +        }
++        fb->debug_note_draw(shader->name_get().c_str());
 +        pass.End();
 +        return true;
 +      },
@@ -32757,6 +32759,7 @@ index 0000000000000000000000000000000000000000..ecf860fddd5d06fe3b1b61df07a2d6c6
 +              }
 +              mv_pass.SetBindGroup(0, mv_bind_group);
 +              issue_indirect_draws(mv_pass);
++              fb->debug_note_draw(shader->name_get().c_str());
 +              mv_pass.End();
 +              return true;
 +            },
@@ -32817,6 +32820,7 @@ index 0000000000000000000000000000000000000000..ecf860fddd5d06fe3b1b61df07a2d6c6
 +          pass.SetBindGroup(0, bind_group);
 +        }
 +        issue_indirect_draws(pass);
++        fb->debug_note_draw(shader->name_get().c_str());
 +        pass.End();
 +        return true;
 +      },
@@ -38377,10 +38381,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..46cfad58caf257e421fcd030d73b2d73898c59f4
+index 0000000000000000000000000000000000000000..5902f323c4ec11b405be6ddbff5d90b3a22992d4
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1947 @@
+@@ -0,0 +1,1987 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -38406,6 +38410,10 @@ index 0000000000000000000000000000000000000000..46cfad58caf257e421fcd030d73b2d73
 +#include "gpu_readback_private.hh"
 +
 +#include "BLI_math_vector_types.hh"
++
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
 +
 +#include <algorithm>
 +#include <array>
@@ -39568,6 +39576,42 @@ index 0000000000000000000000000000000000000000..46cfad58caf257e421fcd030d73b2d73
 +                                                 draw_viewport);
 +}
 +
++void WGPUFrameBuffer::debug_note_draw(const char *shader_name) const
++{
++#ifdef __EMSCRIPTEN__
++  if (!ghost_web::redraw_trace_capturing() || multi_viewport_) {
++    return;
++  }
++  webgpu::FramebufferViewportPlan draw_viewport;
++  if (!load_pass_viewport_plan(draw_viewport)) {
++    return;
++  }
++  ghost_web::RedrawTracePass pass = ghost_web::RedrawTracePass::Other;
++  if (shader_name != nullptr && std::strcmp(shader_name, "overlay_background") == 0) {
++    pass = ghost_web::RedrawTracePass::OverlayBackground;
++  }
++  else if (shader_name != nullptr && std::strcmp(shader_name, "OCIO_Display") == 0) {
++    pass = ghost_web::RedrawTracePass::OcioDisplay;
++  }
++  WGPUContext *wctx = active_context();
++  ghost_web::redraw_trace_note(pass,
++                               wctx != nullptr && wctx->is_window_backbuffer(this),
++                               width_,
++                               height_,
++                               draw_viewport.viewport.viewport_x,
++                               draw_viewport.viewport.viewport_y,
++                               draw_viewport.viewport.viewport_width,
++                               draw_viewport.viewport.viewport_height,
++                               draw_viewport.scissor_enabled,
++                               draw_viewport.scissor_x,
++                               draw_viewport.scissor_y,
++                               draw_viewport.scissor_width,
++                               draw_viewport.scissor_height);
++#else
++  (void)shader_name;
++#endif
++}
++
 +struct WGPUFramebufferReadPlan {
 +  webgpu::WGPUTexture *texture = nullptr;
 +  int mip = 0;
@@ -40330,10 +40374,10 @@ index 0000000000000000000000000000000000000000..46cfad58caf257e421fcd030d73b2d73
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..1edac01565ad6c4fd317bdb485a3507533068d57
+index 0000000000000000000000000000000000000000..6abe2abef618e9aeeee9e91917c235abc0e3a3f0
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,222 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -40439,6 +40483,11 @@ index 0000000000000000000000000000000000000000..1edac01565ad6c4fd317bdb485a35075
 +                                          const std::shared_ptr<
 +                                              webgpu::FramebufferLoadActionTransaction> &load_action,
 +                                          int force_layer = -1);
++
++  /** During a bounded browser-resize recovery episode, record the exact target and resolved
++   * viewport/scissor used by a successfully recorded draw. Native and steady-state paths are
++   * no-ops. */
++  void debug_note_draw(const char *shader_name) const;
 +
 +  /* --- Multi-viewport / layered emulation (M3.F7), read by wgpu_batch --- */
 +  /** Whether GPU_framebuffer_multi_viewports_set() is active on this framebuffer. */
@@ -40553,10 +40602,10 @@ index 0000000000000000000000000000000000000000..1edac01565ad6c4fd317bdb485a35075
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..715eed7a4993b92b5947cb8972cd0081176c8e9f
+index 0000000000000000000000000000000000000000..6f70e315309567c4d305299d6138a5f6b4405890
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
-@@ -0,0 +1,269 @@
+@@ -0,0 +1,270 @@
 +/* SPDX-FileCopyrightText: 2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -40819,6 +40868,7 @@ index 0000000000000000000000000000000000000000..715eed7a4993b92b5947cb8972cd0081
 +        else {
 +          pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
 +        }
++        fb->debug_note_draw(shader->name_get().c_str());
 +        pass.End();
 +        return true;
 +      },

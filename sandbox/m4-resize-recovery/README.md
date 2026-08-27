@@ -7,6 +7,11 @@
 framebuffer extent caches. The integrated first-pixel contract also requires every applied browser
 extent to request a redraw after surface reconfiguration and the WM size event, then requires the
 asynchronously validated replacement surface/backbuffer commit to start a fresh bounded episode.
+`verify_resize_trace.py` binds that episode to a diagnostic which records the exact resolved target,
+viewport, and scissor for every successfully encoded draw, retains dedicated `overlay_background`
+and `OCIO_Display` snapshots, and prints one line per successful present under hard per-episode and
+process ceilings. Comparing its cumulative sequences across presents distinguishes fresh content
+encoding from repeated presentation of a retained backbuffer without inferring liveness from logs.
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped
@@ -17,6 +22,8 @@ With a product server on port 8137:
 ```sh
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/m4-resize-recovery/verify_source.py
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/m4-resize-recovery/verify_resize_trace.py --selfcheck
 harness/buildwrap.sh env BW_NODE_MODULES="$PWD/.m4-node/node_modules" \
   xvfb-run -a /home/pc/tools-node/node-v22.16.0-linux-x64/bin/node \
   sandbox/m4-resize-recovery/live_resize_repro.mjs 8137

@@ -1760,3 +1760,18 @@ the final-old-tick/late-commit schedule on native and wasm32, expose a read-only
 and still require repeated idle semantic pixels on hardware. See
 `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and `sandbox/m4-resize-recovery/`.
+
+## Class 120 — repeated presents do not prove fresh region content
+
+Signature: a resize recovery episode produces many validated surface presents, yet hardware shows
+the same stale rectangle on every frame. Presentation counts prove compositor activity but cannot
+distinguish freshly encoded Blender regions from repeated blits of a retained backbuffer. Before
+changing invalidation or draw ordering again, correlate each successful present with a bounded
+single-worker snapshot of cumulative draw sequence plus the exact target, resolved viewport, and
+scissor for the suspect scene-background and display-composite shaders. An unchanged shader
+sequence across presents identifies retained-content reuse; an advancing sequence with a stable
+wrong target identifies a stale geometry source; correct advancing plans point at submission or
+composition order. Keep the trace episode-scoped and capped, and require semantic hardware pixels
+for closure. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
+`upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc`, and
+`sandbox/m4-resize-recovery/verify_resize_trace.py`.

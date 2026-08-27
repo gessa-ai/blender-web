@@ -42,6 +42,7 @@ GHOST_WINDOW_HEADER="$ROOT/platform_web/ghost/GHOST_WindowWeb.hh"
 GHOST_DISPLAY_HEADER="$ROOT/platform_web/ghost/GHOST_WebDisplayState.hh"
 FIRST_PIXEL_SETTLE_CONTRACT="$HERE/first_pixel_settle_contract.py"
 FIRST_PIXEL_SETTLE_TEST="$HERE/first_pixel_settle_test.cc"
+RESIZE_TRACE_CONTRACT="$ROOT/sandbox/m4-resize-recovery/verify_resize_trace.py"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 DIAGNOSTICS_BOOTSTRAP_SOURCE="$ROOT/platform_web/shell/diagnostics-bootstrap.js"
 WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
@@ -1639,7 +1640,7 @@ require_fixed_count 1 \
   'return webgpu::window_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 1 \
   'return webgpu::offscreen_viewport_scissor_plan(' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
-require_fixed_count 2 \
+require_fixed_count 3 \
   'if (!load_pass_viewport_plan(draw_viewport))' "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
 require_fixed_count 0 \
   'layered_load_clear_pending_mask_.fetch_or(pending_bit, std::memory_order_acq_rel);' \
@@ -1660,17 +1661,22 @@ mapfile -t LOAD_PASS_PLAN_LINES < <(
 )
 PREPARE_LINE="$(grep -nF 'bool WGPUFrameBuffer::load_action_transaction_prepare(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
+DEBUG_NOTE_LINE="$(grep -nF 'void WGPUFrameBuffer::debug_note_draw(' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
 BEGIN_LOAD_PASS_LINE="$(grep -nF 'wgpu::RenderPassEncoder WGPUFrameBuffer::begin_load_pass(' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
 BEGIN_PASS_LINE="$(grep -nF \
   'if (!webgpu::transient_handle_publish_if_valid(encoder.BeginRenderPass(&rp), pass))' \
   "$WEBGPU_SOURCE/wgpu_framebuffer.cc" | cut -d: -f1)"
-if [ "${#LOAD_PASS_PLAN_LINES[@]}" -ne 2 ] ||
-   [ -z "$PREPARE_LINE" ] || [ -z "$BEGIN_LOAD_PASS_LINE" ] || [ -z "$BEGIN_PASS_LINE" ] ||
+if [ "${#LOAD_PASS_PLAN_LINES[@]}" -ne 3 ] ||
+   [ -z "$PREPARE_LINE" ] || [ -z "$DEBUG_NOTE_LINE" ] ||
+   [ -z "$BEGIN_LOAD_PASS_LINE" ] || [ -z "$BEGIN_PASS_LINE" ] ||
    [ "$PREPARE_LINE" -ge "${LOAD_PASS_PLAN_LINES[0]}" ] ||
-   [ "${LOAD_PASS_PLAN_LINES[0]}" -ge "$BEGIN_LOAD_PASS_LINE" ] ||
-   [ "$BEGIN_LOAD_PASS_LINE" -ge "${LOAD_PASS_PLAN_LINES[1]}" ] ||
-   [ "${LOAD_PASS_PLAN_LINES[1]}" -ge "$BEGIN_PASS_LINE" ]
+   [ "${LOAD_PASS_PLAN_LINES[0]}" -ge "$DEBUG_NOTE_LINE" ] ||
+   [ "$DEBUG_NOTE_LINE" -ge "${LOAD_PASS_PLAN_LINES[1]}" ] ||
+   [ "${LOAD_PASS_PLAN_LINES[1]}" -ge "$BEGIN_LOAD_PASS_LINE" ] ||
+   [ "$BEGIN_LOAD_PASS_LINE" -ge "${LOAD_PASS_PLAN_LINES[2]}" ] ||
+   [ "${LOAD_PASS_PLAN_LINES[2]}" -ge "$BEGIN_PASS_LINE" ]
 then
   echo "ERROR: framebuffer viewport preflight does not guard clear reservation and pass allocation" >&2
   exit 1
@@ -1779,6 +1785,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/upstream/source/blender/windowmanager/intern/wm_window.cc" \
   "$WEBGPU_SOURCE/wgpu_shader.cc" "$WEBGPU_SOURCE/wgpu_pipeline.cc" \
   "$GHOST_SOURCE" --selfcheck
+"$PYBIN" "$RESIZE_TRACE_CONTRACT" --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
 "$PYBIN" "$IME_BRIDGE_CONTRACT" \
@@ -2344,7 +2351,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=19 periodic=15 late=immediate drops=bounded readiness=rearmed resize_commit=fresh wrap=rearmed'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=26 periodic=15 late=immediate drops=bounded readiness=rearmed resize_commit=fresh trace=bounded-exact wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

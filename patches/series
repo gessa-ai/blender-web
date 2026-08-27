@@ -1161,3 +1161,6 @@
 # 0285: seed new browser origins with exact versioned WGSL cache envelopes so
 # first-frame shaderc/Tint translation no longer blocks the WM worker.
 0285-gpu-webgpu-first-boot-shader-cache-seed.patch
+# 0286: capture exact background/display target viewport and scissor plans once
+# per bounded resize-episode present for hardware-only stale-composite diagnosis.
+0286-gpu-webgpu-resize-draw-trace.patch

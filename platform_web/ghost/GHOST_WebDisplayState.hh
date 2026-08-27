@@ -74,6 +74,121 @@ inline std::atomic<uint64_t> redraw_retry_counter{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
 
+/**
+ * Episode-scoped draw-plan trace used to diagnose hardware-only resize composition failures.
+ * Rendering and presentation both run on the OffscreenCanvas-owning WM worker, so the payload is
+ * deliberately a plain single-writer snapshot; only the active flag crosses callback boundaries.
+ * Recording stops at the recovery ceiling (or the present logger's smaller sample ceiling), so
+ * the diagnostic adds no steady-state draw-path work after the bounded resize episode.
+ */
+enum class RedrawTracePass : uint8_t {
+  Other = 0,
+  OverlayBackground,
+  OcioDisplay,
+};
+
+struct RedrawTracePlan {
+  uint64_t sequence = 0;
+  bool window_target = false;
+  int32_t target_width = 0;
+  int32_t target_height = 0;
+  int32_t viewport_x = 0;
+  int32_t viewport_y = 0;
+  uint32_t viewport_width = 0;
+  uint32_t viewport_height = 0;
+  bool scissor_enabled = false;
+  uint32_t scissor_x = 0;
+  uint32_t scissor_y = 0;
+  uint32_t scissor_width = 0;
+  uint32_t scissor_height = 0;
+};
+
+struct RedrawTraceSnapshot {
+  uint64_t episode_generation = 0;
+  uint64_t draw_count = 0;
+  uint64_t window_draw_count = 0;
+  RedrawTracePlan last;
+  RedrawTracePlan background;
+  RedrawTracePlan display;
+};
+
+inline std::atomic<bool> redraw_trace_capture_active{false};
+inline RedrawTraceSnapshot redraw_trace_state{};
+
+inline void redraw_trace_begin(const uint64_t episode_generation)
+{
+  redraw_trace_capture_active.store(false, std::memory_order_release);
+  redraw_trace_state = {};
+  redraw_trace_state.episode_generation = episode_generation;
+  redraw_trace_capture_active.store(true, std::memory_order_release);
+}
+
+inline bool redraw_trace_capturing()
+{
+  return redraw_trace_capture_active.load(std::memory_order_acquire);
+}
+
+inline bool redraw_trace_active(const uint64_t episode_generation)
+{
+  return redraw_trace_capturing() &&
+         redraw_trace_state.episode_generation == episode_generation;
+}
+
+inline void redraw_trace_finish(const uint64_t episode_generation)
+{
+  if (redraw_trace_state.episode_generation == episode_generation) {
+    redraw_trace_capture_active.store(false, std::memory_order_release);
+  }
+}
+
+inline void redraw_trace_note(const RedrawTracePass pass,
+                              const bool window_target,
+                              const int32_t target_width,
+                              const int32_t target_height,
+                              const int32_t viewport_x,
+                              const int32_t viewport_y,
+                              const uint32_t viewport_width,
+                              const uint32_t viewport_height,
+                              const bool scissor_enabled,
+                              const uint32_t scissor_x,
+                              const uint32_t scissor_y,
+                              const uint32_t scissor_width,
+                              const uint32_t scissor_height)
+{
+  if (!redraw_trace_capturing()) {
+    return;
+  }
+  RedrawTracePlan plan;
+  plan.sequence = ++redraw_trace_state.draw_count;
+  plan.window_target = window_target;
+  plan.target_width = target_width;
+  plan.target_height = target_height;
+  plan.viewport_x = viewport_x;
+  plan.viewport_y = viewport_y;
+  plan.viewport_width = viewport_width;
+  plan.viewport_height = viewport_height;
+  plan.scissor_enabled = scissor_enabled;
+  plan.scissor_x = scissor_x;
+  plan.scissor_y = scissor_y;
+  plan.scissor_width = scissor_width;
+  plan.scissor_height = scissor_height;
+  redraw_trace_state.last = plan;
+  if (window_target) {
+    redraw_trace_state.window_draw_count++;
+  }
+  if (pass == RedrawTracePass::OverlayBackground) {
+    redraw_trace_state.background = plan;
+  }
+  else if (pass == RedrawTracePass::OcioDisplay) {
+    redraw_trace_state.display = plan;
+  }
+}
+
+inline RedrawTraceSnapshot redraw_trace_snapshot()
+{
+  return redraw_trace_state;
+}
+
 inline void request_redraw_retry()
 {
   redraw_retry_counter.fetch_add(1u, std::memory_order_release);
@@ -91,7 +206,9 @@ inline uint64_t redraw_retry_generation()
  */
 inline void request_redraw_episode()
 {
-  redraw_episode_counter.fetch_add(1u, std::memory_order_release);
+  const uint64_t generation =
+      redraw_episode_counter.fetch_add(1u, std::memory_order_release) + 1u;
+  redraw_trace_begin(generation);
 }
 
 inline uint64_t redraw_episode_generation()
@@ -147,6 +264,7 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
     drop_generation_seen = drop_generation;
   }
   if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
+    redraw_trace_finish(episode_generation);
     return false;
   }
   const bool request_update = episode_published || readiness_published || draw_dropped ||

@@ -146,6 +146,96 @@ int main()
     return 1;
   }
 
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::Other,
+                               false,
+                               640,
+                               480,
+                               1,
+                               2,
+                               300,
+                               200,
+                               true,
+                               3,
+                               4,
+                               250,
+                               150);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayBackground,
+                               false,
+                               808,
+                               306,
+                               0,
+                               0,
+                               808,
+                               306,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OcioDisplay,
+                               true,
+                               1100,
+                               640,
+                               50,
+                               87,
+                               808,
+                               306,
+                               true,
+                               50,
+                               87,
+                               808,
+                               306);
+  const ghost_web::RedrawTraceSnapshot trace = ghost_web::redraw_trace_snapshot();
+  if (!require(ghost_web::redraw_trace_active(after_episode),
+               "a fresh drawable episode enables bounded draw tracing") ||
+      !require(trace.episode_generation == after_episode && trace.draw_count == 3 &&
+                   trace.window_draw_count == 1,
+               "draw tracing counts one episode without crossing generations") ||
+      !require(trace.last.sequence == 3 && trace.last.window_target &&
+                   trace.last.target_width == 1100 && trace.last.target_height == 640 &&
+                   trace.last.viewport_x == 50 && trace.last.viewport_y == 87 &&
+                   trace.last.viewport_width == 808 && trace.last.viewport_height == 306 &&
+                   trace.last.scissor_enabled && trace.last.scissor_x == 50 &&
+                   trace.last.scissor_y == 87 && trace.last.scissor_width == 808 &&
+                   trace.last.scissor_height == 306,
+               "latest draw tracing preserves the exact target viewport and scissor") ||
+      !require(trace.background.sequence == 2 && trace.background.target_width == 808 &&
+                   trace.background.target_height == 306 &&
+                   !trace.background.window_target,
+               "background tracing remains independently addressable") ||
+      !require(trace.display.sequence == 3 && trace.display.window_target,
+               "display-composite tracing remains independently addressable"))
+  {
+    return 1;
+  }
+  ghost_web::redraw_trace_finish(after_episode - 1u);
+  if (!require(ghost_web::redraw_trace_active(after_episode),
+               "a stale generation cannot retire current tracing"))
+  {
+    return 1;
+  }
+  ghost_web::redraw_trace_finish(after_episode);
+  const uint64_t stopped_draw_count = ghost_web::redraw_trace_snapshot().draw_count;
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::Other,
+                               true,
+                               1,
+                               1,
+                               0,
+                               0,
+                               1,
+                               1,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  if (!require(!ghost_web::redraw_trace_active(after_episode) &&
+                   ghost_web::redraw_trace_snapshot().draw_count == stopped_draw_count,
+               "retired tracing ignores later draws"))
+  {
+    return 1;
+  }
+
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
   retry_generation_seen = resize_request;
   drop_generation_seen = active_drop;
@@ -209,7 +299,8 @@ int main()
 
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
-      "late=immediate drops=bounded readiness=rearmed resize_commit=fresh wrap=rearmed\n",
+      "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
+      "trace=bounded-exact wrap=rearmed\n",
       checks);
-  return checks == 19 ? 0 : 1;
+  return checks == 26 ? 0 : 1;
 }

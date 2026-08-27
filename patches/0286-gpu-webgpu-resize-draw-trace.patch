@@ -1,0 +1,107 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -570,6 +570,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                              draw_parameters.vertex_first,
+                              draw_parameters.instance_first);
+               }
++              fb->debug_note_draw(shader->name_get().c_str());
+               mv_pass.End();
+               return true;
+             },
+@@ -657,6 +658,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+                     draw_parameters.vertex_first,
+                     draw_parameters.instance_first);
+         }
++        fb->debug_note_draw(shader->name_get().c_str());
+         pass.End();
+         return true;
+       },
+@@ -965,5 +967,6 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+               mv_pass.SetBindGroup(0, mv_bind_group);
+               issue_indirect_draws(mv_pass);
++              fb->debug_note_draw(shader->name_get().c_str());
+               mv_pass.End();
+               return true;
+             },
+@@ -1016,5 +1019,6 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+         }
+         issue_indirect_draws(pass);
++        fb->debug_note_draw(shader->name_get().c_str());
+         pass.End();
+         return true;
+       },
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -27,3 +27,7 @@
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ #include <algorithm>
+ #include <array>
+ #include <atomic>
+@@ -1192,3 +1196,39 @@
++void WGPUFrameBuffer::debug_note_draw(const char *shader_name) const
++{
++#ifdef __EMSCRIPTEN__
++  if (!ghost_web::redraw_trace_capturing() || multi_viewport_) {
++    return;
++  }
++  webgpu::FramebufferViewportPlan draw_viewport;
++  if (!load_pass_viewport_plan(draw_viewport)) {
++    return;
++  }
++  ghost_web::RedrawTracePass pass = ghost_web::RedrawTracePass::Other;
++  if (shader_name != nullptr && std::strcmp(shader_name, "overlay_background") == 0) {
++    pass = ghost_web::RedrawTracePass::OverlayBackground;
++  }
++  else if (shader_name != nullptr && std::strcmp(shader_name, "OCIO_Display") == 0) {
++    pass = ghost_web::RedrawTracePass::OcioDisplay;
++  }
++  WGPUContext *wctx = active_context();
++  ghost_web::redraw_trace_note(pass,
++                               wctx != nullptr && wctx->is_window_backbuffer(this),
++                               width_,
++                               height_,
++                               draw_viewport.viewport.viewport_x,
++                               draw_viewport.viewport.viewport_y,
++                               draw_viewport.viewport.viewport_width,
++                               draw_viewport.viewport.viewport_height,
++                               draw_viewport.scissor_enabled,
++                               draw_viewport.scissor_x,
++                               draw_viewport.scissor_y,
++                               draw_viewport.scissor_width,
++                               draw_viewport.scissor_height);
++#else
++  (void)shader_name;
++#endif
++}
++
+ struct WGPUFramebufferReadPlan {
+   webgpu::WGPUTexture *texture = nullptr;
+   int mip = 0;
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
+@@ -107,3 +107,8 @@ class WGPUFrameBuffer : public FrameBuffer {
++  /** During a bounded browser-resize recovery episode, record the exact target and resolved
++   * viewport/scissor used by a successfully recorded draw. Native and steady-state paths are
++   * no-ops. */
++  void debug_note_draw(const char *shader_name) const;
++
+   /* --- Multi-viewport / layered emulation (M3.F7), read by wgpu_batch --- */
+   /** Whether GPU_framebuffer_multi_viewports_set() is active on this framebuffer. */
+   bool is_multi_viewport() const
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -257,6 +257,7 @@ void WGPUImmediate::end()
+         else {
+           pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
+         }
++        fb->debug_note_draw(shader->name_get().c_str());
+         pass.End();
+         return true;
+       },

@@ -11,6 +11,7 @@ const {chromium} = createRequire(resolve(moduleRoot, "package.json"))("playwrigh
 const port = Number(process.argv[2] || 8137);
 
 const lines = [];
+const resizeTraces = [];
 const counters = {
   scissorRejected: 0,
   encodingRejected: 0,
@@ -18,8 +19,21 @@ const counters = {
   transactionRejected: 0,
   deviceLost: 0,
   resizeApplied: 0,
+  resizeTrace: 0,
   wmResizeProcessed: 0,
 };
+
+function parseResizeTrace(line) {
+  const match = line.match(/episode=(\d+) sample=(\d+) present=(\d+) draws=(\d+) window_draws=(\d+) surface=(\d+)x(\d+) configured=(\d+)x(\d+) requested=(\d+)x(\d+) backbuffer=(\d+)x(\d+)/);
+  if (!match) return null;
+  const values = match.slice(1).map(Number);
+  return {
+    episode: values[0], sample: values[1], present: values[2],
+    draws: values[3], windowDraws: values[4],
+    surface: values.slice(5, 7), configured: values.slice(7, 9),
+    requested: values.slice(9, 11), backbuffer: values.slice(11, 13),
+  };
+}
 
 const pythonTrace = String.raw`
 import bpy
@@ -74,10 +88,15 @@ try {
     if (line.includes("present transaction rejected")) counters.transactionRejected++;
     if (line.includes("[bw][GPU-LOST]")) counters.deviceLost++;
     if (line.includes("WGPUWeb-resize: backing ->")) counters.resizeApplied++;
+    if (line.includes("WGPUWeb-resize-trace:")) {
+      counters.resizeTrace++;
+      const trace = parseResizeTrace(line);
+      if (trace) resizeTraces.push(trace);
+    }
     if (line.includes("ghost_event_proc: window") && line.includes("state =")) {
       counters.wmResizeProcessed++;
     }
-    if (/WGPUWeb-resize:|bw-resize-python|Scissor rect|draw encoding rejected|queue submission rejected|present transaction rejected|ghost_event_proc: window|GPU-LOST/.test(line)) {
+    if (/WGPUWeb-resize:|WGPUWeb-resize-trace:|bw-resize-python|Scissor rect|draw encoding rejected|queue submission rejected|present transaction rejected|ghost_event_proc: window|GPU-LOST/.test(line)) {
       lines.push(line);
     }
   });
@@ -101,7 +120,7 @@ try {
   await page.waitForTimeout(6000);
   const restored = await sample(page);
 
-  const evidence = {initial, shrunk, restored, counters, lines};
+  const evidence = {initial, shrunk, restored, counters, resizeTraces, lines};
   const failures = [];
   if (!dimensionsMatch(initial, 1280, 720)) failures.push("initial canvas extent mismatch");
   if (!dimensionsMatch(shrunk, 1100, 640)) failures.push("shrunk canvas extent mismatch");
@@ -122,6 +141,27 @@ try {
   }
   if (counters.resizeApplied < 3) failures.push("shell backing resize was not observed");
   if (counters.wmResizeProcessed < 2) failures.push("WM resize processing was not observed");
+  const traceEpochs = [
+    {episode: shrunk.episodes, extent: [1100, 640], label: "shrink"},
+    {episode: restored.episodes, extent: [1280, 720], label: "restore"},
+  ];
+  for (const {episode, extent, label} of traceEpochs) {
+    const traces = resizeTraces.filter((trace) => trace.episode === episode);
+    if (traces.length === 0 || traces.length > 24) {
+      failures.push(`${label} trace sample count=${traces.length}`);
+      continue;
+    }
+    for (const trace of traces) {
+      for (const field of ["surface", "configured", "requested", "backbuffer"]) {
+        if (trace[field][0] !== extent[0] || trace[field][1] !== extent[1]) {
+          failures.push(`${label} trace ${field}=${trace[field].join("x")}`);
+        }
+      }
+    }
+  }
+  if (counters.resizeTrace > 64 || resizeTraces.length !== counters.resizeTrace) {
+    failures.push(`resize trace bound/parse mismatch=${resizeTraces.length}/${counters.resizeTrace}`);
+  }
   for (const name of ["scissorRejected", "encodingRejected", "submissionRejected",
                       "transactionRejected", "deviceLost"]) {
     if (counters[name] !== 0) failures.push(`${name}=${counters[name]}`);
@@ -134,7 +174,8 @@ try {
               `wm=${counters.wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
               `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
-              `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents}`);
+              `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
+              `trace=${resizeTraces.length}`);
 }
 finally {
   await browser.close();

@@ -3142,6 +3142,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   consumer 2/13, syntax, CAPTURE preflight, locked no-work, and REUSE are green. All five product
   identities remain exact, including `.wasm.orig` `4b279e0e152f...`; this is diagnostic-only and
   supplies no pixels.
+  **Diagnostic-priority hardening 2026-08-27 (`93fe263`):** the failure sidecar's fixed 128-line
+  budget can no longer be exhausted by a post-resize bind-group warning storm before the decisive
+  resize, immutable frame-tail trace, and barrier lines arrive. Mechanism lines displace the
+  oldest completeness warnings without growing the cap; an all-mechanism buffer still fails
+  closed. Producer self-check is 42/17, the independent consumer remains 2/13, the source/trace
+  and native/wasm32 queue contracts are green, and the exact fallback shrink/restore reports
+  episodes `0/1/2`, barriers `2`, immutable traces `2`, and zero rejection/loss. This changes no
+  runtime byte; `.wasm.orig` remains `4b279e0e152f...`, and supplies no hardware pixels.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

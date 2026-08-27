@@ -59,6 +59,11 @@ does not drive behavior.
 - Exact fallback product shrink/restore: `20260827T043503-1624562` reports
   `ticks=246/497/748`, `presents=16/34/52`, `episodes=0/1/2`, `redrawPresents=18/18`, and zero
   scissor/encode/submit/transaction/device-loss failures.
+- Ten fresh fallback-browser shrink/restore cycles against the relinked artifact all pass the same
+  commit-generation boundary: `20260827T044246-1631630` reports `episodes=0/1/2`, 18–19 uncapped
+  redraw presentations per resized extent, and zero scissor/encode/submit/transaction/device-loss
+  failures in every cycle. This is scheduling stress evidence only; it does not replace the Apple
+  semantic-pixel acceptance bar.
 - Locked relink and committed-HEAD no-work replay: `20260827T043358-1623430` and
   `20260827T043707-1626482`.
 - CAPTURE preflight, producer self-check (`positive=21`, `negative=23`, zero browser launches), and

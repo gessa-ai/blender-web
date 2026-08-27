@@ -2911,6 +2911,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green with commit generations `0/1/2`, redraw presentations `18/18`, and zero rejection/loss.
   **RELINKED windowed-opt @ `8f604ab`:** `.wasm.orig` is 119,144,886 bytes at SHA-256
   `390062afea7c7117c40640b3259ae7328507c840ada80b62551f33ad992507f2`.
+  Ten fresh local fallback-browser shrink/restore cycles are green against that exact generation:
+  every run publishes commit episodes `0/1/2`, produces 18–19 redraw presentations per resized
+  extent, and reports zero rejection/loss (`20260827T044246-1631630`). This is diagnostic only.
   **Still open:** require 10/10 consecutive Apple hardware shrinks to full idle grid+Cube+gizmo
   pixels with zero input before closing P0-E, cutting APPLY/public bytes, or tagging. See
   `notes/p0-window-resize-recovery-20260826.md` and

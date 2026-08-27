@@ -3019,6 +3019,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   before generated-control and small-Wasm deltas. **Boundary:** CAPTURE remains nonshipping; fresh
   current-generation Apple profiles, APPLY, exact <=15 MB/<=8 s receipts, and hardware pixels are
   still mandatory. See `notes/m8-pthread-single-transfer-20260827.md`.
+- [x] **P1-M8-CURRENT-COMPLETE-WIRE-PROJECTION [root]:** the canonical public assembler and
+  independent full-stage provenance replay now close the generated-control uncertainty against
+  the current `b8b2a682ff09` shell/data tree. The exact current non-Wasm/control subtotal is
+  2,397,124 Brotli bytes. Combined only as a cross-generation planning fixture with the earlier
+  12,292,157-byte c9 provisional primary, complete critical wire is 14,689,281 bytes, 310,719
+  under the decimal ceiling; the current primary must therefore be <=12,602,876 bytes. The
+  accepted r2 profiles have 136,751 counters/20,447 union hits while current b8 has 136,754
+  defined functions and shifted controller ordinals, so checksum rewriting or counter padding is
+  explicitly rejected. **Boundary:** this is not APPLY, a current primary, a size receipt, or a
+  hardware timing result; fresh exact-generation Apple profiles remain mandatory. See
+  `notes/m8-current-complete-wire-projection-20260827.md`.
 - [x] **P1-M8-STAGED-PACKER-RECONCILIATION [driver] (`cb459b9`):** the fail-closed manifest
   parser and post-first-pixel partition behind the provisional measurement are now committed and
   covered by the staged provenance and release-freeze consumers. Product probing found and fixed

@@ -3275,13 +3275,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   monolithic/staged assembler, provenance/minifier, technical receipt, first-presentation
   fallback, and REUSE contracts are green. This shell-only commit does not relink or invalidate
   P0-E's pending Apple candidate. See `notes/m4-loader-two-phase-20260827.md`.
-- [ ] **P1-RELEASE-VIEWPORT-CONTENT-LOADER-DISMISSAL [driver, claimed_by: none,
-  blocked-by: P0-E safe successor plus Apple 10/10]:** replace the generic
+- [~] **P1-RELEASE-VIEWPORT-CONTENT-LOADER-DISMISSAL [driver, claimed_by: root,
+  blocked-by: none]:** replace the generic
   first-presentation hide signal with a distinct marker proving successful visible
   `SPACE_VIEW3D` content (grid/gizmo/scene), then require the loader to remain visible through
   every chrome-only/clear viewport frame. Do not infer readiness from elapsed time or present
   count. This requires a C++ relink and same-rig cold-boot pixel verification; keep the current
   P0-E candidate stable until its filed acceptance run completes.
+  **Source candidate 2026-08-27:** cold boot now starts a bounded semantic episode; successful
+  `overlay_background` -> `overlay_grid_next` -> `OCIO_Display` encoding plus the matching
+  validated surface submission publishes a one-shot browser export, and the shell has no generic
+  present fallback. Native/wasm32 behavior, controlled Chromium, canonical replay, public-shell
+  consumers, compliance, and REUSE are green. The Apple-accepted `v0.1.1-rc.1` CAPTURE bytes were
+  deliberately not relinked and remain the exact profile handoff. **Not resolved:** relink this
+  successor separately and require Apple cold-boot pixels before closing; no device-free result
+  binds that receipt. See `notes/m4-viewport-content-loader-dismissal-20260827.md`.
 - [x] **P1-RELEASE-PUBLICATION-METADATA-SCRUB [compliance] (`a920bfd`):** the two public-facing
   migration comments no longer publish the private host runbook name, and the preserved
   outer-worktree recovery patch is regenerated from its exact `0577f7f` anchor without private

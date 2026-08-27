@@ -1185,3 +1185,6 @@
 # 0293: reset resize semantics at WGPUContext::begin_frame, not at every context
 # activation, so late reactivation cannot erase the frame's VIEW_3D draw evidence.
 0293-gpu-webgpu-window-frame-trace.patch
+# 0294: keep the loader authoritative until a validated surface submission carries
+# an encoded VIEW_3D background, stock grid, and final display composite.
+0294-gpu-webgpu-viewport-content-ready.patch

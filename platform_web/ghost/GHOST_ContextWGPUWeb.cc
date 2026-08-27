@@ -55,6 +55,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_present_count(void)
   return double(ghost_web::present_count());
 }
 
+/* Readiness is stricter than a generic surface submit: it advances only after a frame containing
+ * a successfully encoded VIEW_3D background, grid, and final display composite validates on the
+ * presentation queue. The shell keeps its loader visible until this edge is observable. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_viewport_content_present_count(void)
+{
+  return double(ghost_web::viewport_content_present_count());
+}
+
 /* Read-only live proof that a validated replacement surface/backbuffer published a fresh redraw
  * episode. Resize regressions sample this separately from size events and presentation counts. */
 extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_episode_count(void)
@@ -333,7 +341,10 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()
   backbuffer_ = std::move(candidate_backbuffer);
   width_ = requested_width_ = backbuffer_w_ = candidate_width;
   height_ = requested_height_ = backbuffer_h_ = candidate_height;
-  backbuffer_redraw_episode_ = ghost_web::redraw_episode_generation();
+  /* Cold boot needs the same complete-frame admission used by coherent resize recovery. Start a
+   * bounded semantic trace for the already validated pre-main drawable so chrome-only frames can
+   * never authorize the shell's VIEW_3D-ready marker. */
+  backbuffer_redraw_episode_ = ghost_web::request_redraw_episode();
   configured_ = true;
   completeInitialization(true);
   return GHOST_kSuccess;
@@ -1219,6 +1230,11 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
                     ghost_web::redraw_trace_finish(redraw_trace_episode);
                   }
                 }
+              }
+              if (redraw_trace_available &&
+                  ghost_web::note_viewport_content_presented(redraw_trace, redraw_trace_episode))
+              {
+                std::printf("WGPUWeb: validated VIEW_3D content presented\n");
               }
               /* ghost-keepalive advances only after the submission scope completes cleanly. */
               ghost_web::note_present();

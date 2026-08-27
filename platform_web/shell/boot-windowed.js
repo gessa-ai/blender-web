@@ -198,11 +198,11 @@ if (argvEl) argvEl.textContent = "argv: blender " + ARGV.join(" ");
 let t0 = 0;
 let finished = false;
 let booted = false;
-let firstPixels = false;
-const FIRST_PIXELS_POLL_MS = 100;
-const FIRST_PIXELS_POLL_LIMIT = 1200;
-let firstPixelsPollTimer = 0;
-let firstPixelsPollAttempts = 0;
+let viewportContentReady = false;
+const VIEWPORT_CONTENT_POLL_MS = 100;
+const VIEWPORT_CONTENT_POLL_LIMIT = 1200;
+let viewportContentPollTimer = 0;
+let viewportContentPollAttempts = 0;
 
 // ---------------------------------------------------------------------------
 // Diagnostics plumbing - writes to the HIDDEN elements only. The state marker
@@ -303,54 +303,41 @@ function hideLoader() {
   loaderGoneTimer = setTimeout(() => loaderEl.classList.add("bw-gone"), 600);
 }
 
-// Legacy first-pixels boundary = the canvas has presented something. GHOST prints
-// "presentBackbuffer frame 0" at the first present, but that frame can contain only
-// UI chrome while a 3D viewport is still clear. Keep this generic signal stable for
-// the existing shell contract; the stricter viewport-content marker is tracked as a
-// separate successor. The counter fallback below handles a shifted print format.
-function noteFirstPixels(reason) {
-  if (firstPixels) return;
-  firstPixels = true;
-  if (firstPixelsPollTimer) {
-    clearTimeout(firstPixelsPollTimer);
-    firstPixelsPollTimer = 0;
+// VIEWPORT_CONTENT_LOADER_GATE_V1
+// A surface present can contain only UI chrome or a clear VIEW_3D region. GHOST therefore
+// publishes a distinct edge only after a queue-validated frame carries the stock VIEW_3D
+// background, grid, and final display composite. The poll is bounded and fails closed.
+function noteViewportContentReady(reason) {
+  if (viewportContentReady) return;
+  viewportContentReady = true;
+  if (viewportContentPollTimer) {
+    clearTimeout(viewportContentPollTimer);
+    viewportContentPollTimer = 0;
   }
-  append("[shell] first pixels (" + reason + ") - dismissing loader", "sys");
+  append("[shell] viewport content (" + reason + ") - dismissing loader", "sys");
   hideLoader();
 }
 
-function scanForPixels(line) {
-  if (firstPixels || typeof line !== "string") return;
-  if (line.indexOf("presentBackbuffer") !== -1) {
-    noteFirstPixels("presentBackbuffer");
-  }
-}
-
-// FIRST_PIXELS_COUNTER_FALLBACK_V1
-// The console marker above is the primary signal. If its text changes, fall back
-// to GHOST's uncapped successful-presentation counter rather than elapsed wall
-// time: WM_main resolves long before Python/shader warmup produces a frame. The
-// poll is bounded and fails closed; zero presentations leave the loader visible.
-function armFirstPixelsCounterFallback(mod) {
-  firstPixelsPollAttempts = 0;
+function armViewportContentGate(mod) {
+  viewportContentPollAttempts = 0;
   const poll = () => {
-    firstPixelsPollTimer = 0;
-    if (firstPixels || finished) return;
-    if (mod && typeof mod._bw_present_count === "function") {
-      const presents = Number(mod._bw_present_count());
-      if (Number.isFinite(presents) && presents > 0) {
-        noteFirstPixels("present counter");
+    viewportContentPollTimer = 0;
+    if (viewportContentReady || finished) return;
+    if (mod && typeof mod._bw_viewport_content_present_count === "function") {
+      const contentPresents = Number(mod._bw_viewport_content_present_count());
+      if (Number.isFinite(contentPresents) && contentPresents > 0) {
+        noteViewportContentReady("validated VIEW_3D frame");
         return;
       }
     }
-    firstPixelsPollAttempts++;
-    if (firstPixelsPollAttempts >= FIRST_PIXELS_POLL_LIMIT) {
-      append("[shell] no successful presentation after " +
-        String((FIRST_PIXELS_POLL_MS * FIRST_PIXELS_POLL_LIMIT) / 1000) +
+    viewportContentPollAttempts++;
+    if (viewportContentPollAttempts >= VIEWPORT_CONTENT_POLL_LIMIT) {
+      append("[shell] no validated VIEW_3D content after " +
+        String((VIEWPORT_CONTENT_POLL_MS * VIEWPORT_CONTENT_POLL_LIMIT) / 1000) +
         "; loader remains visible", "err");
       return;
     }
-    firstPixelsPollTimer = setTimeout(poll, FIRST_PIXELS_POLL_MS);
+    viewportContentPollTimer = setTimeout(poll, VIEWPORT_CONTENT_POLL_MS);
   };
   poll();
 }
@@ -608,13 +595,11 @@ async function boot() {
     print: (line) => {
       console.log(line);
       append(line);
-      scanForPixels(line);
       if (window.BWFileBridge) window.BWFileBridge.noteConsoleLine(line);
     },
     printErr: (line) => {
       console.error(line);
       append(line, "err");
-      scanForPixels(line);
       if (window.BWFileBridge) window.BWFileBridge.noteConsoleLine(line);
     },
     preRun: [
@@ -707,10 +692,9 @@ async function boot() {
           mq.addEventListener("change", onWindowResize);
         }
       } catch (_) {}
-      // Fallback for a changed printf format: consume the uncapped successful-
-      // presentation counter. A wall-clock timeout must never expose a canvas
-      // that has not presented a frame.
-      armFirstPixelsCounterFallback(mod);
+      // Loader visibility follows validated VIEW_3D content, never elapsed time or a
+      // chrome-only surface presentation.
+      armViewportContentGate(mod);
     } else {
       // Gate mode: never show loading UI once booted.
       if (loaderEl) { loaderEl.classList.add("bw-hidden", "bw-gone"); }

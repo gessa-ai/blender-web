@@ -36295,10 +36295,10 @@ index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc985
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f09703b5d926
+index 0000000000000000000000000000000000000000..b1b4d15a145f776696c54761e57e993e340791bd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1369 @@
+@@ -0,0 +1,1375 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37624,10 +37624,16 @@ index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f097
 +  const uint64_t episode = ghost_web::redraw_episode_generation();
 +  const ghost_web::RedrawTraceSnapshot completed_frame =
 +      ghost_web::redraw_trace_snapshot();
++  const bool viewport_content_pending =
++      ghost_web::viewport_content_present_count() == 0u;
++  const bool frame_complete =
++      viewport_content_pending ?
++          ghost_web::viewport_content_trace_complete(completed_frame, episode) :
++          ghost_web::redraw_present_trace_complete(completed_frame, episode);
 +  if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
 +                                      redraw_present_frame_episode_, episode) &&
 +      ghost_web::redraw_trace_active(episode) &&
-+      ghost_web::redraw_present_trace_complete(completed_frame, episode) &&
++      frame_complete &&
 +      ghost_web::schedule_redraw_present_barrier(
 +          episode, completed_frame))
 +  {
@@ -38445,10 +38451,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5902f323c4ec11b405be6ddbff5d90b3a22992d4
+index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b863260fc
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1987 @@
+@@ -0,0 +1,1990 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -39653,6 +39659,9 @@ index 0000000000000000000000000000000000000000..5902f323c4ec11b405be6ddbff5d90b3
 +  ghost_web::RedrawTracePass pass = ghost_web::RedrawTracePass::Other;
 +  if (shader_name != nullptr && std::strcmp(shader_name, "overlay_background") == 0) {
 +    pass = ghost_web::RedrawTracePass::OverlayBackground;
++  }
++  else if (shader_name != nullptr && std::strcmp(shader_name, "overlay_grid_next") == 0) {
++    pass = ghost_web::RedrawTracePass::OverlayGrid;
 +  }
 +  else if (shader_name != nullptr && std::strcmp(shader_name, "OCIO_Display") == 0) {
 +    pass = ghost_web::RedrawTracePass::OcioDisplay;

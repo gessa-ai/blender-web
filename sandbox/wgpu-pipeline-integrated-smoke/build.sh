@@ -42,6 +42,7 @@ GHOST_WINDOW_HEADER="$ROOT/platform_web/ghost/GHOST_WindowWeb.hh"
 GHOST_DISPLAY_HEADER="$ROOT/platform_web/ghost/GHOST_WebDisplayState.hh"
 FIRST_PIXEL_SETTLE_CONTRACT="$HERE/first_pixel_settle_contract.py"
 FIRST_PIXEL_SETTLE_TEST="$HERE/first_pixel_settle_test.cc"
+VIEWPORT_CONTENT_LOADER_CONTRACT="$ROOT/sandbox/m4-viewport-content-loader/verify.py"
 RESIZE_TRACE_CONTRACT="$ROOT/sandbox/m4-resize-recovery/verify_resize_trace.py"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 DIAGNOSTICS_BOOTSTRAP_SOURCE="$ROOT/platform_web/shell/diagnostics-bootstrap.js"
@@ -235,6 +236,7 @@ require_file "$GHOST_EVENT_BRIDGE_SOURCE"
 require_file "$GHOST_IME_QUEUE_HEADER"
 require_file "$GHOST_DISPLAY_HEADER"
 require_file "$FIRST_PIXEL_SETTLE_CONTRACT"
+require_file "$VIEWPORT_CONTENT_LOADER_CONTRACT"
 require_file "$FIRST_PIXEL_SETTLE_TEST"
 require_file "$GHOST_BASE_WINDOW_SOURCE"
 require_file "$GHOST_TYPES_SOURCE"
@@ -1785,6 +1787,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/upstream/source/blender/windowmanager/intern/wm_window.cc" \
   "$WEBGPU_SOURCE/wgpu_shader.cc" "$WEBGPU_SOURCE/wgpu_pipeline.cc" \
   "$GHOST_SOURCE" --selfcheck
+"$PYBIN" "$VIEWPORT_CONTENT_LOADER_CONTRACT" --selfcheck
 "$PYBIN" "$RESIZE_TRACE_CONTRACT" --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
@@ -2360,7 +2363,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=57 periodic=15 late=immediate drops=bounded readiness=rearmed resize_commit=fresh present_barrier=ordered-sync-commit-superseded trace=bounded-exact wrap=rearmed'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=65 periodic=15 late=immediate drops=bounded readiness=rearmed resize_commit=fresh present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

@@ -87,6 +87,7 @@ inline std::atomic<uint64_t> redraw_drop_counter{0};
 enum class RedrawTracePass : uint8_t {
   Other = 0,
   OverlayBackground,
+  OverlayGrid,
   OcioDisplay,
 };
 
@@ -117,6 +118,7 @@ struct RedrawTraceSnapshot {
   uint64_t frame_last_window_sequence = 0;
   RedrawTracePlan last;
   RedrawTracePlan background;
+  RedrawTracePlan grid;
   RedrawTracePlan display;
 };
 
@@ -167,6 +169,7 @@ inline void redraw_trace_frame_begin(const uint64_t episode_generation)
   redraw_trace_state.frame_last_window_sequence = 0;
   redraw_trace_state.last = {};
   redraw_trace_state.background = {};
+  redraw_trace_state.grid = {};
   redraw_trace_state.display = {};
 }
 
@@ -216,6 +219,9 @@ inline void redraw_trace_note(const RedrawTracePass pass,
   }
   if (pass == RedrawTracePass::OverlayBackground) {
     redraw_trace_state.background = plan;
+  }
+  else if (pass == RedrawTracePass::OverlayGrid) {
+    redraw_trace_state.grid = plan;
   }
   else if (pass == RedrawTracePass::OcioDisplay) {
     redraw_trace_state.display = plan;
@@ -294,6 +300,41 @@ inline bool redraw_present_trace_complete(const RedrawTraceSnapshot &trace,
          trace.frame_last_window_sequence == trace.last.sequence &&
          trace.background.sequence > 0u && !trace.background.window_target &&
          trace.display.sequence > trace.background.sequence && trace.display.window_target;
+}
+
+/**
+ * A generic complete VIEW_3D composite may still contain only its clear/background pass while
+ * the lazily validated overlay pipeline is unavailable. Loader dismissal is stricter: require a
+ * successfully encoded stock grid draw between the visible region background and the final
+ * direct-window OCIO composite. `debug_note_draw()` runs only after bind-group completeness and
+ * draw encoding succeed, so this cannot be satisfied by a dropped `overlay_grid_next` draw.
+ */
+inline bool viewport_content_trace_complete(const RedrawTraceSnapshot &trace,
+                                             const uint64_t episode)
+{
+  return redraw_present_trace_complete(trace, episode) &&
+         trace.grid.sequence > trace.background.sequence && !trace.grid.window_target &&
+         trace.display.sequence > trace.grid.sequence;
+}
+
+/** Successful surface submissions carrying a strict VIEW_3D frame. The first value is the
+ * loader-readiness edge; the counter shape avoids a BigInt hop in the browser export. */
+inline std::atomic<uint64_t> viewport_content_present_counter{0};
+
+inline uint64_t viewport_content_present_count()
+{
+  return viewport_content_present_counter.load(std::memory_order_acquire);
+}
+
+inline bool note_viewport_content_presented(const RedrawTraceSnapshot &trace,
+                                             const uint64_t episode)
+{
+  if (!viewport_content_trace_complete(trace, episode)) {
+    return false;
+  }
+  uint64_t expected = 0;
+  return viewport_content_present_counter.compare_exchange_strong(
+      expected, 1u, std::memory_order_release, std::memory_order_relaxed);
 }
 
 /**
@@ -615,6 +656,12 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
     retry_generation_seen = retry_generation;
     if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
       heartbeat = 0;
+      if (viewport_content_present_count() == 0u) {
+        /* A lazy browser pipeline may settle after the prior bounded trace ended. Reopen the
+         * semantic snapshot for the already-supported recovery burst, but retire this path
+         * permanently once a validated VIEW_3D present has published loader readiness. */
+        redraw_trace_begin(episode_generation);
+      }
     }
   }
   if (draw_dropped) {

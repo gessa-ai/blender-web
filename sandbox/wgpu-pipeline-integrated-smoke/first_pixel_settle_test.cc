@@ -98,7 +98,9 @@ int main()
                "WebGPU readiness publishes a monotonic retry generation") ||
       !require(recovery_tick() &&
                    retry_generation_seen == after_request && heartbeat == 1,
-               "late readiness re-arms a terminal recovery burst"))
+               "late readiness re-arms a terminal recovery burst") ||
+      !require(ghost_web::redraw_trace_active(ghost_web::redraw_episode_generation()),
+               "late readiness reopens semantic tracing before VIEW_3D readiness"))
   {
     return 1;
   }
@@ -404,7 +406,74 @@ int main()
                                0);
   if (!require(ghost_web::redraw_present_trace_complete(
                    ghost_web::redraw_trace_snapshot(), frame_episode),
-               "frame-local 3D background followed by window display authorizes presentation"))
+               "frame-local 3D background followed by window display authorizes presentation") ||
+      !require(!ghost_web::viewport_content_trace_complete(
+                   ghost_web::redraw_trace_snapshot(), frame_episode),
+               "background-only VIEW_3D content cannot dismiss the loader") ||
+      !require(!ghost_web::note_viewport_content_presented(
+                   ghost_web::redraw_trace_snapshot(), frame_episode) &&
+                   ghost_web::viewport_content_present_count() == 0,
+               "an incomplete VIEW_3D trace cannot publish loader readiness"))
+  {
+    return 1;
+  }
+
+  /* Loader readiness is stricter than resize-frame coherence. The stock grid draw must encode
+   * successfully between the region background and its direct-window display composite, and one
+   * validated surface submission publishes exactly one process-wide readiness edge. */
+  ghost_web::redraw_trace_frame_begin(frame_episode);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayBackground,
+                               false,
+                               900,
+                               547,
+                               0,
+                               0,
+                               900,
+                               547,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OverlayGrid,
+                               false,
+                               900,
+                               547,
+                               0,
+                               0,
+                               900,
+                               547,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::OcioDisplay,
+                               true,
+                               1100,
+                               640,
+                               0,
+                               0,
+                               1100,
+                               640,
+                               false,
+                               0,
+                               0,
+                               0,
+                               0);
+  const ghost_web::RedrawTraceSnapshot viewport_content_frame =
+      ghost_web::redraw_trace_snapshot();
+  if (!require(ghost_web::viewport_content_trace_complete(viewport_content_frame, frame_episode),
+               "background-grid-display frame qualifies as VIEW_3D content") ||
+      !require(viewport_content_frame.grid.sequence > viewport_content_frame.background.sequence &&
+                   viewport_content_frame.display.sequence > viewport_content_frame.grid.sequence,
+               "VIEW_3D trace preserves grid ordering") ||
+      !require(ghost_web::note_viewport_content_presented(viewport_content_frame, frame_episode) &&
+                   ghost_web::viewport_content_present_count() == 1,
+               "the first validated VIEW_3D present publishes loader readiness") ||
+      !require(!ghost_web::note_viewport_content_presented(viewport_content_frame, frame_episode) &&
+                   ghost_web::viewport_content_present_count() == 1,
+               "VIEW_3D loader readiness is a one-shot edge"))
   {
     return 1;
   }
@@ -471,7 +540,9 @@ int main()
   ghost_web::request_redraw_retry();
   const uint64_t settled_request = ghost_web::redraw_retry_generation();
   if (!require(recovery_tick() && retry_generation_seen == settled_request && heartbeat == 1,
-               "accepted readiness can rearm after a bounded drop episode"))
+               "accepted readiness can rearm after a bounded drop episode") ||
+      !require(!ghost_web::redraw_trace_active(frame_episode),
+               "semantic tracing stays retired after VIEW_3D readiness"))
   {
     return 1;
   }
@@ -545,7 +616,8 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
-      "present_barrier=ordered-sync-commit-superseded trace=bounded-exact wrap=rearmed\n",
+      "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
+      "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 57 ? 0 : 1;
+  return checks == 65 ? 0 : 1;
 }

@@ -193,7 +193,8 @@ def validate(
     require_count(helper, "if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS)", 2,
                   "redraw recovery helper")
     require_count(helper, "heartbeat = 0;", 2, "redraw recovery helper")
-    if "present_count" in helper or "present_baseline" in helper:
+    generic_present_helper = helper.replace("viewport_content_present_count()", "")
+    if "present_count" in generic_present_helper or "present_baseline" in helper:
         raise ValueError("redraw recovery still terminates on presentation count")
 
     require_once(

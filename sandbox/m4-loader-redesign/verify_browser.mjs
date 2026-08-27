@@ -44,9 +44,16 @@ try {
         contentType: "text/javascript",
         body: `
           "use strict";
-          window.__bwLoaderProbe = {};
+          let viewportContentPresents = 0;
+          window.__bwLoaderProbe = {
+            markViewportContent: () => { viewportContentPresents = 1; },
+          };
           async function createBlenderModule(config) {
-            const mod = {ENV: {}, _bw_present_count: () => 0};
+            const mod = {
+              ENV: {},
+              _bw_present_count: () => 1,
+              _bw_viewport_content_present_count: () => viewportContentPresents,
+            };
             for (const hook of config.preRun || []) hook(mod);
             config.setStatus("Downloading data... (25/100)");
             await new Promise(resolve => { window.__bwLoaderProbe.finishDownload = resolve; });
@@ -171,6 +178,16 @@ try {
   check(downloading.diagLeft === "-99999px", "hidden diagnostics contract became visible");
   check(external.length === 0, `loader made external requests: ${external.join(",")}`);
   await page.screenshot({path: screenshot});
+  await page.waitForTimeout(350);
+  const genericPresentHidden = await page.evaluate(() =>
+    document.getElementById("loader")?.classList.contains("bw-hidden"));
+  check(!genericPresentHidden, "generic surface presentation dismissed the loader");
+  await page.evaluate(() => window.__bwLoaderProbe.markViewportContent());
+  await page.waitForFunction(() =>
+    document.getElementById("loader")?.classList.contains("bw-hidden"));
+  const viewportContentHidden = await page.evaluate(() =>
+    document.getElementById("loader")?.classList.contains("bw-hidden"));
+  check(viewportContentHidden, "validated VIEW_3D content did not dismiss the loader");
 } finally {
   await browser.close();
 }
@@ -180,4 +197,5 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`M4_LOADER_BROWSER_PASS viewport=1280x720 spinner=1 progress=1 ` +
-  `phases=Downloading,Launching font=local basic_latin_raster=exact screenshot=${screenshot}`);
+  `phases=Downloading,Launching font=local basic_latin_raster=exact ` +
+  `dismiss=view3d-content-only screenshot=${screenshot}`);

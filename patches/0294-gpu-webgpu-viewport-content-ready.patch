@@ -1,0 +1,36 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -1321,10 +1321,16 @@ void WGPUContext::end_frame()
+    * target the previous drawable even if the resize episode becomes current before this tail. */
+   const uint64_t episode = ghost_web::redraw_episode_generation();
+   const ghost_web::RedrawTraceSnapshot completed_frame =
+       ghost_web::redraw_trace_snapshot();
++  const bool viewport_content_pending =
++      ghost_web::viewport_content_present_count() == 0u;
++  const bool frame_complete =
++      viewport_content_pending ?
++          ghost_web::viewport_content_trace_complete(completed_frame, episode) :
++          ghost_web::redraw_present_trace_complete(completed_frame, episode);
+   if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
+                                       redraw_present_frame_episode_, episode) &&
+       ghost_web::redraw_trace_active(episode) &&
+-      ghost_web::redraw_present_trace_complete(completed_frame, episode) &&
++      frame_complete &&
+       ghost_web::schedule_redraw_present_barrier(
+           episode, completed_frame))
+   {
+
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -1203,6 +1203,9 @@ void WGPUFrameBuffer::debug_note_draw(const char *shader_name) const
+   if (shader_name != nullptr && std::strcmp(shader_name, "overlay_background") == 0) {
+     pass = ghost_web::RedrawTracePass::OverlayBackground;
+   }
++  else if (shader_name != nullptr && std::strcmp(shader_name, "overlay_grid_next") == 0) {
++    pass = ghost_web::RedrawTracePass::OverlayGrid;
++  }
+   else if (shader_name != nullptr && std::strcmp(shader_name, "OCIO_Display") == 0) {
+     pass = ghost_web::RedrawTracePass::OcioDisplay;
+   }

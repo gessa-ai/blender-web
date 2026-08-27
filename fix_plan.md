@@ -2887,6 +2887,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   idle, and produces the expected semantic pixel delta across MMB orbit with zero encode/present
   rejection. See `notes/p0-bind-group-readiness-20260826.md` and
   `notes/p0-redraw-recovery-20260826.md`.
+- [x] **P0-H-M4-ORDERED-PRESENT-BOOT-CRASH [ghost-web, patch 0289] (`2971ea0`):**
+  the driver isolated a 10/10 Apple M4 Pro boot abort in `BLI_strdupn()` to the
+  `e3d284c7da0e` generation; `94cccc1` boots cleanly on the same rig, and `2c887da`/patch 0288 is
+  the only runtime commit in that range. Patch 0288 moved the actual surface acquire/blit/submit
+  out of GHOST's synchronous `swapBufferRelease()` boundary into a later backend queue callback.
+  Patch 0289 preserves the rejected experiment in history but reverses its backend registration;
+  the dead GHOST callback interface is removed and a fail-closed contract forbids all five seam
+  markers. The final four-source 12-check/11-mutation contract, patch round-trip, canonical freeze,
+  native/Wasm 42-contract GPU suite, split/capture producer self-checks, and locked relink/no-work
+  are green. **RELINKED windowed-opt:** all five artifact identities are byte-identical to the
+  driver-proven clean-boot `94cccc1` generation, including `.wasm.orig` 119,148,240 bytes at
+  SHA-256 `aed9ba633f08b02d5fecaa461713cfbc2fabe880c0aad09ab3b88d037e47863a`.
+  A fresh fallback windowed boot reaches first presentation in 5.578 seconds with zero page errors
+  or Blender assertions; that run binds no hardware pixel/performance receipt. This closes the
+  crash by exact rollback, not by weakening `BLI_strdupn()` or masking the assertion. P0-E remains
+  open at its pre-0288 grey-resize baseline. See
+  `notes/p0-boot-crash-ordered-present-rollback-20260827.md`.
 - [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282, claimed_by: root]:** live tracing disproved
   a missing GHOST/WM resize: the event is processed and Blender relayouts every area. The persistent
   `WGPUTexture` wrapper adopts the new handle/extent in place, but pointer-identical
@@ -2990,6 +3007,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   hardware-acceptance self-check remains green (`20260827T100818-1894660`), and pinned-container
   regression restores M0 6/6 while retaining the named later-tier boundaries
   (`20260827T101510-1899114`). The exact relinked candidate remains unchanged and hardware-pending.
+  **P0-H supersession 2026-08-27 (patch 0289):** Apple hardware could not evaluate resize on the
+  `e3d284c7da0e` ordered-present generation because it hard-aborted during boot on 10/10 attempts.
+  That cross-frame callback seam is retired. The current CAPTURE generation is byte-identical to
+  the hardware-known-clean-boot `94cccc1` artifacts (`.wasm.orig` `aed9ba633f08...`), which are a
+  safe diagnostic baseline but already known not to clear P0-E's grey-overdraw pixel bar. The next
+  P0-E candidate must start from this safe baseline and preserve synchronous GHOST presentation.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -3067,7 +3090,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   fallback, and REUSE contracts are green. This shell-only commit does not relink or invalidate
   P0-E's pending Apple candidate. See `notes/m4-loader-two-phase-20260827.md`.
 - [ ] **P1-RELEASE-VIEWPORT-CONTENT-LOADER-DISMISSAL [driver, claimed_by: none,
-  blocked-by: P0-E Apple 10/10 against wasm.orig `e3d284c7da0e`]:** replace the generic
+  blocked-by: P0-E safe successor plus Apple 10/10]:** replace the generic
   first-presentation hide signal with a distinct marker proving successful visible
   `SPACE_VIEW3D` content (grid/gizmo/scene), then require the loader to remain visible through
   every chrome-only/clear viewport frame. Do not infer readiness from elapsed time or present

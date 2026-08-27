@@ -65,7 +65,7 @@ continues from the backbuffer lifecycle and bounded trace evidence rather than r
   `ledger/buildlogs/20260827T104433-1922910.log`.
 - Locked relink and exact no-work replay:
   `ledger/buildlogs/20260827T104500-1924523.log` and
-  `ledger/buildlogs/20260827T104714-1926199.log`.
+  `ledger/buildlogs/20260827T105309-1931149.log`.
 - Hardware-resize producer, capture producer, and split-preflight self-checks:
   `ledger/buildlogs/20260827T104714-1926200.log`,
   `ledger/buildlogs/20260827T104714-1926204.log`, and

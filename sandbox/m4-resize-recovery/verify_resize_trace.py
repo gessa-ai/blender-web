@@ -139,14 +139,25 @@ def validate(
 
     for token in (
         "function parseDrawPlan(token)",
+        "function parseResizeLayout(line)",
+        "function latestResizeLayout(layouts, extent)",
+        "const resizeLayouts = [];",
+        "const layout = parseResizeLayout(line);",
+        "resizeLayouts.push(layout);",
+        "const layout = latestResizeLayout(resizeLayouts, extent);",
+        "view3d_window={snapshot[4]}x{snapshot[5]}",
         "any: parseDrawPlan(match[14])",
         "background: parseDrawPlan(match[15])",
         "display: parseDrawPlan(match[16])",
-        "function validateResizeTraceEpoch(traces, episode, extent, label)",
+        "function validateResizeTraceEpoch(traces, episode, extent, layout, label)",
         "trace.any.sequence !== trace.draws",
+        "trace.background.windowTarget",
+        "trace.background.target[0] !== layout.view3dWindow[0]",
+        "!trace.display.windowTarget",
         'for (const planName of ["any", "background", "display"])',
         'failures.push(`${label} draw counts did not advance`);',
         'failures.push(`${label} window draw counts did not advance`);',
+        "plans=advancing,current,contained,view3d-bound",
     ):
         require_once(live, token, "live trace consumer")
 
@@ -185,7 +196,36 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         ("immediate", "fb->debug_note_draw(shader->name_get().c_str());", ""),
         ("series", "0286-gpu-webgpu-resize-draw-trace.patch", ""),
         ("live", "function parseDrawPlan(token)", "function disabledDrawPlan(token)"),
+        ("live", "function parseResizeLayout(line)", "function disabledResizeLayout(line)"),
+        (
+            "live",
+            "function latestResizeLayout(layouts, extent)",
+            "function disabledLatestResizeLayout(layouts, extent)",
+        ),
+        ("live", "resizeLayouts.push(layout);", ""),
+        (
+            "live",
+            "const layout = latestResizeLayout(resizeLayouts, extent);",
+            "const layout = null;",
+        ),
+        (
+            "live",
+            "view3d_window={snapshot[4]}x{snapshot[5]}",
+            "disabled_region={snapshot[4]}x{snapshot[5]}",
+        ),
         ("live", "trace.any.sequence !== trace.draws", "false"),
+        ("live", "trace.background.windowTarget", "false"),
+        (
+            "live",
+            "trace.background.target[0] !== layout.view3dWindow[0]",
+            "false",
+        ),
+        ("live", "!trace.display.windowTarget", "false"),
+        (
+            "live",
+            "plans=advancing,current,contained,view3d-bound",
+            "plans=advancing,current,contained",
+        ),
         (
             "live",
             'failures.push(`${label} draw counts did not advance`);',
@@ -243,7 +283,8 @@ def main() -> int:
     print(
         "BW_M4_RESIZE_TRACE_PASS "
         f"sources={len(sources)} mutations={mutations} episode=24 global=64 "
-        "passes=all,overlay_background,OCIO_Display consumer=draw-plans"
+        "passes=all,overlay_background,OCIO_Display "
+        "consumer=draw-plans layout=view3d-window"
     )
     return 0
 

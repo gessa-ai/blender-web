@@ -2964,6 +2964,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   submit behind that FIFO. The focused 14-mutation source contract and 43-contract native/Wasm
   ordering smoke are green at `20260827T083704-1814063` and `20260827T083708-1814093`.
   The relinked candidate is unchanged.
+  **Trace/layout binding 2026-08-27:** the exact-product repro now parses Blender's live
+  `VIEW_3D`/`WINDOW` region after each WM relayout and requires every `overlay_background` target
+  and viewport to match it while remaining offscreen; `OCIO_Display` must remain a direct
+  full-window draw. The relinked fallback product passes shrink/restore with eleven advancing,
+  current, contained, VIEW_3D-bound traces and zero rejection/loss
+  (`20260827T091755-1848021`). This executable boundary rejects the proposed full-window
+  substitution for the correct 900x547 region and changes no runtime byte or pending candidate.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

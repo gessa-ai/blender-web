@@ -22,7 +22,10 @@ tick/presentation progress, and zero WebGPU encoding or submission rejection. It
 captured draw plan rather than accepting the log prefix alone: all/window draw sequences must
 advance within each episode, the latest-plan sequence must equal the all-draw count,
 `overlay_background` and `OCIO_Display` must each be freshly encoded more than once, every direct
-window target must use the committed extent, and every enabled scissor must fit its target.
+window target must use the committed extent, and every enabled scissor must fit its target. A
+focused Blender Python marker also publishes the live `VIEW_3D` area's `WINDOW` region after each
+WM relayout. Every `overlay_background` plan must remain offscreen and match that region's exact
+extent/viewport, while every `OCIO_Display` plan must remain a direct full-window draw.
 
 The Apple trace's `overlay_background=900x547` is not a stale 1100x640 window extent. Live Blender
 layout introspection proves that 900x547 is the current `VIEW_3D` window region after shrink (and

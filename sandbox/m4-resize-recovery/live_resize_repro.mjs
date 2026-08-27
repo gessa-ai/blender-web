@@ -12,6 +12,7 @@ const port = Number(process.argv[2] || 8137);
 
 const lines = [];
 const resizeTraces = [];
+const resizeLayouts = [];
 const counters = {
   scissorRejected: 0,
   encodingRejected: 0,
@@ -57,11 +58,37 @@ function parseResizeTrace(line) {
   };
 }
 
-function validateResizeTraceEpoch(traces, episode, extent, label) {
+function parseResizeLayout(line) {
+  const match = line.match(
+    /\[bw-resize-python\] window=(\d+)x(\d+) view3d_area=(\d+)x(\d+) view3d_window=(\d+)x(\d+)/,
+  );
+  if (!match) return null;
+  const values = match.slice(1).map(Number);
+  return {
+    window: values.slice(0, 2),
+    view3dArea: values.slice(2, 4),
+    view3dWindow: values.slice(4, 6),
+  };
+}
+
+function latestResizeLayout(layouts, extent) {
+  for (let index = layouts.length - 1; index >= 0; index--) {
+    if (layouts[index].window[0] === extent[0] && layouts[index].window[1] === extent[1]) {
+      return layouts[index];
+    }
+  }
+  return null;
+}
+
+function validateResizeTraceEpoch(traces, episode, extent, layout, label) {
   const failures = [];
   const epoch = traces.filter((trace) => trace.episode === episode);
   if (epoch.length === 0 || epoch.length > 24) {
     failures.push(`${label} trace sample count=${epoch.length}`);
+    return failures;
+  }
+  if (layout === null) {
+    failures.push(`${label} has no matching Blender VIEW_3D layout`);
     return failures;
   }
   for (let index = 0; index < epoch.length; index++) {
@@ -85,6 +112,26 @@ function validateResizeTraceEpoch(traces, episode, extent, label) {
     }
     if (trace.windowDraws > trace.draws) {
       failures.push(`${label} window draws exceed all draws`);
+    }
+    if (trace.background.sequence !== 0) {
+      if (trace.background.windowTarget) {
+        failures.push(`${label} overlay_background incorrectly targets the window`);
+      }
+      if (trace.background.target[0] !== layout.view3dWindow[0] ||
+          trace.background.target[1] !== layout.view3dWindow[1]) {
+        failures.push(
+          `${label} overlay_background target=${trace.background.target.join("x")} ` +
+          `VIEW_3D/WINDOW=${layout.view3dWindow.join("x")}`,
+        );
+      }
+      if (trace.background.viewport[0] !== 0 || trace.background.viewport[1] !== 0 ||
+          trace.background.viewport[2] !== layout.view3dWindow[0] ||
+          trace.background.viewport[3] !== layout.view3dWindow[1]) {
+        failures.push(`${label} overlay_background viewport does not cover VIEW_3D/WINDOW`);
+      }
+    }
+    if (trace.display.sequence !== 0 && !trace.display.windowTarget) {
+      failures.push(`${label} OCIO_Display is not a direct window draw`);
     }
     for (const planName of ["any", "background", "display"]) {
       const plan = trace[planName];
@@ -132,9 +179,12 @@ def _bw_resize_trace():
     global _bw_resize_last
     window = bpy.context.window
     screen = bpy.context.screen
-    snapshot = (window.width, window.height, tuple((area.type, area.x, area.y, area.width, area.height, tuple((region.type, region.x, region.y, region.width, region.height) for region in area.regions)) for area in screen.areas)) if window and screen else None
+    view3d_area = next((area for area in screen.areas if area.type == 'VIEW_3D'), None) if screen else None
+    view3d_window = next((region for region in view3d_area.regions if region.type == 'WINDOW'), None) if view3d_area else None
+    snapshot = (window.width, window.height, view3d_area.width, view3d_area.height, view3d_window.width, view3d_window.height) if window and view3d_area and view3d_window else None
     if snapshot != _bw_resize_last:
-        print('[bw-resize-python] ' + repr(snapshot), flush=True)
+        if snapshot:
+            print(f'[bw-resize-python] window={snapshot[0]}x{snapshot[1]} view3d_area={snapshot[2]}x{snapshot[3]} view3d_window={snapshot[4]}x{snapshot[5]}', flush=True)
         _bw_resize_last = snapshot
     return 0.1
 bpy.app.timers.register(_bw_resize_trace, first_interval=0.0, persistent=True)
@@ -183,6 +233,10 @@ try {
       const trace = parseResizeTrace(line);
       if (trace) resizeTraces.push(trace);
     }
+    if (line.includes("[bw-resize-python]")) {
+      const layout = parseResizeLayout(line);
+      if (layout) resizeLayouts.push(layout);
+    }
     if (line.includes("ghost_event_proc: window") && line.includes("state =")) {
       counters.wmResizeProcessed++;
     }
@@ -210,7 +264,7 @@ try {
   await page.waitForTimeout(6000);
   const restored = await sample(page);
 
-  const evidence = {initial, shrunk, restored, counters, resizeTraces, lines};
+  const evidence = {initial, shrunk, restored, counters, resizeLayouts, resizeTraces, lines};
   const failures = [];
   if (!dimensionsMatch(initial, 1280, 720)) failures.push("initial canvas extent mismatch");
   if (!dimensionsMatch(shrunk, 1100, 640)) failures.push("shrunk canvas extent mismatch");
@@ -236,7 +290,8 @@ try {
     {episode: restored.episodes, extent: [1280, 720], label: "restore"},
   ];
   for (const {episode, extent, label} of traceEpochs) {
-    failures.push(...validateResizeTraceEpoch(resizeTraces, episode, extent, label));
+    const layout = latestResizeLayout(resizeLayouts, extent);
+    failures.push(...validateResizeTraceEpoch(resizeTraces, episode, extent, layout, label));
   }
   if (counters.resizeTrace > 64 || resizeTraces.length !== counters.resizeTrace) {
     failures.push(`resize trace bound/parse mismatch=${resizeTraces.length}/${counters.resizeTrace}`);
@@ -254,7 +309,7 @@ try {
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
               `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
               `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
-              `trace=${resizeTraces.length} plans=advancing,current,contained`);
+              `trace=${resizeTraces.length} plans=advancing,current,contained,view3d-bound`);
 }
 finally {
   await browser.close();

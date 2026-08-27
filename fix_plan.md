@@ -2937,6 +2937,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   current direct-window target extents, and contained scissors. The exact relinked fallback product
   passes with 19/18 resize presentations and 37 fully checked trace rows; this strengthens the
   diagnostic only and binds no hardware pixels.
+  **Ordered-present candidate 2026-08-27 (patch 0288):** direct Blender layout introspection
+  falsifies the driver's proposed full-window substitution: `overlay_background=900x547` is the
+  exact live `VIEW_3D` region after shrink, and correctly returns to 1048x621 after restore.
+  The actual ordering gap is between encoding and submission. Browser error scopes leave the
+  frame's draw/write submissions pending in `OrderedQueueScheduler`, while GHOST previously
+  submitted the backbuffer-to-surface blit immediately outside that FIFO. The browser GPU context
+  now registers the swap blit as an ordered operation after all prior frame work; surface acquire,
+  encode, and submit remain synchronous within the eventual callback turn, and the standalone
+  GHOST harness retains its immediate path. Fail-first/final source binding, native/Wasm queue
+  ordering/cancel/retry, canonical replay, locked CAPTURE relink/no-work, exact inventory, producer
+  self-check, and fallback shrink/restore are green. **RELINKED windowed-opt candidate:**
+  `.wasm.orig` is 119,155,301 bytes at SHA-256
+  `e3d284c7da0e11f09beada6c9a4b788044b0c8f9715dcee42bc80839d70c8238`.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -2945,7 +2958,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/p0-window-resize-commit-redraw-20260827.md` and
   `notes/p0-window-resize-draw-trace-20260827.md` and
   `notes/p0-window-resize-backbuffer-reactivation-20260827.md` and
-  `notes/p0-window-resize-trace-consumer-20260827.md`.
+  `notes/p0-window-resize-trace-consumer-20260827.md` and
+  `notes/p0-window-resize-ordered-present-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

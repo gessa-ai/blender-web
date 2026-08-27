@@ -1,0 +1,32 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -81,6 +81,15 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
+    * already-initialized Dawn instance/adapter/device/queue (ownership stays with
+    * GHOST). */
+   WGPUGhostContext *wgpu_ghost = static_cast<WGPUGhostContext *>(ghost_context);
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* Browser error-scope completion is asynchronous, so draws from this frame can still be
++   * waiting in queue_scheduler_ when WM reaches swapBufferRelease(). Put the persistent-
++   * backbuffer blit in that same FIFO: it can no longer overtake the content it presents. */
++  wgpu_ghost->setPresentQueueEnqueue(
++      [this](WGPUGhostContext::QueuedPresent present) {
++        queue_scheduler_.enqueue(std::move(present));
++      });
++#endif
+   instance_ = wgpu_ghost->getInstance();
+   adapter_ = wgpu_ghost->getAdapter();
+   device_ = wgpu_ghost->getDevice();
+@@ -127,5 +136,12 @@ WGPUContext::WGPUContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_context) : Context()
+ WGPUContext::~WGPUContext()
+ {
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* The GHOST window outlives this borrowed backend context. Remove the only callback that
++   * captures this scheduler before releasing backend resources. */
++  if (ghost_context_ != nullptr) {
++    static_cast<WGPUGhostContext *>(ghost_context_)->setPresentQueueEnqueue({});
++  }
++#endif
+   /* Drop the back-buffer wrapper first: the base Texture dtor detaches it from
+    * back_left/front_left (which are still alive here), releasing the surface
+    * texture ref without destroying the surface's own texture. */

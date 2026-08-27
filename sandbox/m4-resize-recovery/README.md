@@ -24,6 +24,17 @@ advance within each episode, the latest-plan sequence must equal the all-draw co
 `overlay_background` and `OCIO_Display` must each be freshly encoded more than once, every direct
 window target must use the committed extent, and every enabled scissor must fit its target.
 
+The Apple trace's `overlay_background=900x547` is not a stale 1100x640 window extent. Live Blender
+layout introspection proves that 900x547 is the current `VIEW_3D` window region after shrink (and
+that it returns to 1048x621 on restore); this pass intentionally targets an offscreen region while
+`OCIO_Display` targets the full window. The remaining stale-pixel mechanism is queue order:
+browser validation leaves Blender draw submissions pending in `OrderedQueueScheduler`, while the
+old GHOST swap path submitted its backbuffer-to-surface blit immediately. The backend now registers
+that blit as a queued operation at `swapBufferRelease()`, after every draw/write already recorded for
+the frame. Its acquire, encode, and submit still execute synchronously within the eventual browser
+callback turn so the swapchain texture cannot expire. The standalone GHOST harness retains its
+immediate path because it has no Blender backend scheduler.
+
 With a product server on port 8137:
 
 ```sh

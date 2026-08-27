@@ -227,6 +227,12 @@ a failed head cancels 100,000 already-resolved followers with bounded stack use.
 reference counts retain a failed epoch only while it is current or still names queued work; a
 second 100,000-failure sequence proves completed epochs do not accumulate and a clean epoch still
 executes afterward on both native and wasm32.
+Window presentation participates in the same chronology. The browser GPU context installs one
+GHOST enqueue seam, and `swapBufferRelease()` appends the persistent-backbuffer blit after the
+frame's already-reserved draw/write operations instead of letting an immediate surface submit
+overtake them. A three-case contract requires draw-present-write order, holds later mutations until
+present validation settles, cancels a stale present with its rejected frame, and accepts the next
+epoch's retry. The standalone GHOST harness installs no enqueue seam and retains immediate present.
 The strip contract requires
 `Uint16`/`Uint32` only for indexed
 line-strip, line-loop, and triangle-strip pipelines and keeps every non-strip

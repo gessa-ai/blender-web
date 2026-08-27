@@ -1134,6 +1134,80 @@ bool ordered_queue_scheduler_failure_drain_contract()
   return true;
 }
 
+bool frame_present_queue_order_contract()
+{
+  bw::OrderedQueueScheduler scheduler;
+  bw::OrderedQueueScheduler::Ticket draw = scheduler.reserve();
+  std::string order;
+  std::function<void(bool)> present_complete;
+  int canceled_presents = 0;
+  int later_queue_work = 0;
+
+  scheduler.enqueue(
+      [&](std::function<void(bool)> done) {
+        order += 'P';
+        present_complete = std::move(done);
+      },
+      [&]() { canceled_presents++; });
+  scheduler.enqueue([&](std::function<void(bool)> done) {
+    order += 'W';
+    later_queue_work++;
+    done(true);
+  });
+
+  if (!require(order.empty() && scheduler.pending_count() == 3,
+               "present waits behind unresolved frame draws"))
+  {
+    return false;
+  }
+  draw.resolve([&](std::function<void(bool)> done) {
+    order += 'D';
+    done(true);
+  });
+  if (!require(order == "DP" && present_complete,
+               "present starts strictly after frame draw submission") ||
+      !require(later_queue_work == 0 && scheduler.pending_count() == 2,
+               "present completion holds later queue mutations"))
+  {
+    return false;
+  }
+  present_complete(true);
+  if (!require(order == "DPW" && later_queue_work == 1 && scheduler.pending_count() == 0,
+               "validated present releases later queue mutations"))
+  {
+    return false;
+  }
+
+  scheduler.begin_epoch();
+  bw::OrderedQueueScheduler::Ticket rejected_draw = scheduler.reserve();
+  scheduler.enqueue(
+      [&](std::function<void(bool)> done) {
+        order += 'X';
+        done(true);
+      },
+      [&]() { canceled_presents++; });
+  rejected_draw.resolve([&](std::function<void(bool)> done) { done(false); });
+  if (!require(canceled_presents == 1 && order == "DPW",
+               "rejected frame cancels its stale present"))
+  {
+    return false;
+  }
+
+  scheduler.begin_epoch();
+  scheduler.enqueue([&](std::function<void(bool)> done) {
+    order += 'R';
+    done(true);
+  });
+  if (!require(order == "DPWR" && scheduler.pending_count() == 0,
+               "next frame can retry after a canceled present"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT frame_present_queue_order PASS cases=3 order=draw-present-write retry=1");
+  return true;
+}
+
 bool transient_resource_gate_contract()
 {
   struct ResourceCase {
@@ -4099,6 +4173,7 @@ int main()
       !context_owned_pipeline_cache_contract() ||
       !context_backend_handle_registry_contract() ||
       !ordered_queue_scheduler_failure_drain_contract() ||
+      !frame_present_queue_order_contract() ||
       !transient_resource_gate_contract() ||
       !compute_bind_group_scope_contract() ||
       !compute_pipeline_cache_publication_contract() ||
@@ -4123,11 +4198,12 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=42 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=43 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
+      "frame_present_queue_cases=3 "
       "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

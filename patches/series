@@ -1167,3 +1167,6 @@
 # 0287: reactivate the browser WebGPU window context before each drawn frame so
 # a coherently committed replacement backbuffer is adopted before region draws.
 0287-wm-webgpu-refresh-window-backbuffer.patch
+# 0288: queue the browser surface blit behind every asynchronously validated
+# draw/write submission so presentation cannot expose an intermediate backbuffer.
+0288-gpu-webgpu-ordered-window-present.patch

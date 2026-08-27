@@ -64,10 +64,19 @@ semantic facts, and later activations cannot discard already encoded region evid
 - `blender_browser.split-build.json`: 13,251 bytes,
   `10b181385e609313a07c59f936e34be892cc5cdb9d9a2fb526cd7c1bd2097788`
 
-## Boundary
+## Hardware closure and release boundary
 
-P0-E remains open. Only the driver-operated Apple M4 Pro producer reporting
-`BW_P0E_HARDWARE_RESIZE_PASS attempts=10/10` and the independent consumer reporting
-`BW_P0E_HARDWARE_RESIZE_RECEIPT_PASS attempts=10/10`, with stable zero-input grid, Cube, and gizmo
-pixels, may close it. This software run authorizes no APPLY build, public bundle, v0.1.1 tag,
-profile, receipt, result, tolerance, golden, blacklist, promise, or launch claim.
+The driver subsequently bound this exact generation (`blender_browser.wasm.orig`
+`505702dbf41ce0a9552f47e6a78ff9f10562c068c9471a35031835b33e9c062c`) to the Apple M4 Pro
+pixel run. The standing zero-input shrink bar passes 10/10 fresh contexts in about 10.8–11.1
+seconds per repaint; every result contains the full grid, shaded Cube, camera, light, panels, and
+navigation gizmo, with zero page errors or WebGPU rejections. A separate six-cycle shrink/grow
+stress run paints 1100x640, 1280x720, 900x550, 1280x720, 700x500, and 1280x720 without input, then
+continues to produce a semantic pixel delta on orbit. P0-E is closed on hardware.
+
+Commit `7ea0093` removes the later unverified runtime experiment and restores this accepted source
+tree. The locked relink at `20260827T183234-2327996` reproduces all five artifact sizes and hashes
+listed above byte-for-byte; CAPTURE preflight and locked no-work pass. CAPTURE remains diagnostic
+and nonshipping. No current success/terminal profile pair is bound to this exact original, so the
+hash-bound APPLY relink, public bundle, final `v0.1.1` tag, hardware staged receipt, and launch
+claim remain unavailable until the driver returns those profiles.

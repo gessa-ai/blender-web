@@ -2904,7 +2904,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   crash by exact rollback, not by weakening `BLI_strdupn()` or masking the assertion. P0-E remains
   open at its pre-0288 grey-resize baseline. See
   `notes/p0-boot-crash-ordered-present-rollback-20260827.md`.
-- [~] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patch 0282, claimed_by: root]:** live tracing disproved
+- [x] **P0-E-M4-RESIZE-AREA-SURFACE-COHERENCE [gpu-backend, patches 0282/0290–0293, hardware-verified 2026-08-27]:** live tracing disproved
   a missing GHOST/WM resize: the event is processed and Blender relayouts every area. The persistent
   `WGPUTexture` wrapper adopts the new handle/extent in place, but pointer-identical
   `FrameBuffer::attachment_set()` leaves the default framebuffers' cached width/height stale.
@@ -3186,9 +3186,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the absent exact-generation Apple binding (`20260827T175006-2293663`), and pinned-container
   regression restores M0 6/6 while retaining every named later boundary
   (`20260827T175010-2293716`).
-  **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
-  grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
-  tagging; patch 0286 remains baked in for any failing-run trace. See
+  **Hardware closure 2026-08-27:** the driver bound the preceding generation to exact
+  `.wasm.orig` SHA-256 `505702dbf41c...` and ran the standing Apple M4 Pro acceptance bar. Ten
+  independent fresh contexts repaint the full grid, shaded Cube, camera, light, panels, and gizmo
+  after a 1280x720 -> 1100x640 shrink with zero post-resize input (10/10, about 10.8–11.1 seconds,
+  zero page errors/rejections). A harder six-cycle 1100x640/1280x720/900x550/1280x720/700x500/
+  1280x720 stress run also repaints every extent without input, and a final orbit changes pixels.
+  Commit `7ea0093` removes the untested successor and restores the exact accepted source tree; the
+  locked relink reproduces all five accepted CAPTURE identities byte-for-byte, including
+  `blender_browser.wasm.orig` 119,157,853 bytes at
+  `505702dbf41ce0a9552f47e6a78ff9f10562c068c9471a35031835b33e9c062c`
+  (`20260827T183234-2327996`). P0-E is closed. This is still a nonshipping CAPTURE generation:
+  fresh success+terminal Apple profiles bound to this exact original remain mandatory before
+  APPLY/public packaging. See
   `notes/p0-window-resize-recovery-20260826.md` and
   `notes/p0-window-resize-idle-redraw-20260826.md` and
   `notes/p0-window-resize-commit-redraw-20260827.md` and
@@ -3307,16 +3317,32 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   tag/tree/inventory/archive mutations, refuses overwrite/symlinks/extras, strips local receipt
   paths, and explicitly rejects the current CAPTURE artifact. Both programs are required by the
   two-root release freeze and the public README documents the invocation. **Boundary:** this closes
-  the reproducibility contract, not the release: Apple P0-E pixels and accepted exact-generation
-  profiles remain mandatory before APPLY, tagging, or publication. See
+  the reproducibility contract, not the release: P0-E pixels are now Apple-verified for the exact
+  `505702dbf41c...` CAPTURE generation, while accepted same-generation success+terminal profiles
+  remain mandatory before APPLY, final tagging, or publication. See
   `notes/release-tagged-build-correspondence-20260826.md`.
+- [x] **P1-RELEASE-V0.1.1-RC1-CAPTURE-HANDOFF [driver] (`7ea0093`):** the release line drops the
+  unverified post-acceptance runtime experiment and reconstructs the exact `72dde88` source tree
+  exercised by Apple hardware. A locked relink reproduces the accepted five-file CAPTURE set
+  byte-for-byte: JS `52a9a0257830`, Wasm `69b2f10ebac7`, 119,157,853-byte `.wasm.orig`
+  `505702dbf41c`, data `095d0ba748c3`, and manifest `10b181385e60`. The driver reports 10/10
+  zero-input shrink recovery plus a six-extent stress run on Apple M4 Pro, closing P0-E. Source,
+  trace, native/wasm32 queue, hardware-producer/consumer self-checks, canonical replay, CAPTURE
+  preflight/no-work, tagged-release contract, and REUSE 6.2.0 are green; the containing clean
+  source state is annotated `v0.1.1-rc.1`. **Boundary:** this immutable tag is the driver's
+  profile/final-gauntlet input, not a public archive. CAPTURE remains nonshipping and the existing
+  profiles are hash-incompatible; fresh exact-generation success+terminal profiles remain the
+  only authority for APPLY, the staged public bundle, and the final `v0.1.1` package. See
+  `notes/release-v0.1.1-rc1-capture-20260827.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  freshly relinked at implementation commit `5a48bb4` as a strict CAPTURE generation with
-  120,506,270-byte instrumented Wasm, 119,152,955-byte `.wasm.orig` at SHA-256
-  `6fb76b7f760930385cb6be4b18f828c6fca1cfae02e65ce240e72ae78568cdfa`, and a schema-1 PASS
+  relinked from the hardware-accepted `a8f6c43` runtime and release restoration `7ea0093` as a
+  strict CAPTURE generation with 120,511,178-byte instrumented Wasm and 119,157,853-byte
+  `.wasm.orig` at SHA-256
+  `505702dbf41ce0a9552f47e6a78ff9f10562c068c9471a35031835b33e9c062c`, and a schema-1 PASS
   clean-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, canonical replay, committed-state locked no-work, and exact-artifact fallback
-  shrink/restore are green. **Not resolved:**
+  shrink/restore are green; Apple hardware passes the 10/10 zero-input shrink bar and six-cycle
+  extent stress run against these exact bytes. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
   produce the exact success plus terminal-error profiles; only their accepted union can authorize
   the hash-bound APPLY relink. Any intervening relink requires new profiles. See

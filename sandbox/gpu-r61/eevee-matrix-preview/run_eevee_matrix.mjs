@@ -61,6 +61,11 @@ const BROWSER_ARGS = Object.freeze([
   ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []),
   '--disable-dev-tools',
 ]);
+const ADAPTER_CONTRACT = 'hardware-webgpu-adapter-v1';
+const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
+  'swiftshader', 'llvmpipe', 'lavapipe', 'softpipe', 'software rasterizer',
+  'microsoft basic render', 'warp',
+]);
 const CC0 =
   'SPDX-FileCopyrightText: 2026 blender-web contributors\n' +
   'SPDX-License-Identifier: CC0-1.0\n';
@@ -82,6 +87,45 @@ function sha256Bytes(bytes) {
 
 function sha256File(path) {
   return sha256Bytes(readFileSync(path));
+}
+
+function validateHardwareAdapterReceipt(receipt) {
+  const errors = [];
+  const info = receipt?.info;
+  const infoKeys = ['architecture', 'description', 'device', 'vendor'];
+  if (receipt?.contract !== ADAPTER_CONTRACT) errors.push('contract');
+  if (receipt?.status !== 'ACCEPTED') errors.push(`status=${receipt?.status}`);
+  if (receipt?.reason !== 'accepted-hardware') errors.push(`reason=${receipt?.reason}`);
+  if (receipt?.present !== true) errors.push('present');
+  if (receipt?.isFallbackAdapter !== false) errors.push('fallback');
+  if (receipt?.powerPreference !== 'high-performance') errors.push('power preference');
+  if (typeof receipt?.platform !== 'string' || !receipt.platform) errors.push('platform');
+  if (!info || JSON.stringify(Object.keys(info).sort()) !== JSON.stringify(infoKeys) ||
+      !infoKeys.every((key) => typeof info[key] === 'string'))
+  {
+    errors.push('adapter info shape');
+  }
+  const identity = info ? Object.values(info).join(' ').trim().toLowerCase() : '';
+  const detailIdentity = info ? [info.architecture, info.device, info.description].join(' ').trim() : '';
+  const softwareMatches = SOFTWARE_ADAPTER_TOKENS.filter((token) => identity.includes(token));
+  if (/(^|[^a-z0-9])cpu([^a-z0-9]|$)/.test(identity)) softwareMatches.push('cpu');
+  if (!identity || !detailIdentity) errors.push('adapter identity');
+  if (softwareMatches.length) errors.push(`software adapter=${softwareMatches.join(',')}`);
+  if (!Array.isArray(receipt?.softwareMatches) || receipt.softwareMatches.length !== 0) {
+    errors.push('reported software matches');
+  }
+  const normalized = errors.length === 0 ? {
+    contract: receipt.contract,
+    status: receipt.status,
+    present: receipt.present,
+    platform: receipt.platform,
+    powerPreference: receipt.powerPreference,
+    isFallbackAdapter: receipt.isFallbackAdapter,
+    info: Object.fromEntries(infoKeys.map((key) => [key, info[key]])),
+    softwareMatches: [],
+    reason: receipt.reason,
+  } : null;
+  return { ok: errors.length === 0, errors, normalized };
 }
 
 function requirePositiveInteger(raw, label, fallback) {
@@ -820,9 +864,34 @@ function selfcheck() {
   const expectedBrowserArgs = process.platform === 'darwin' ?
     ['--enable-unsafe-webgpu', '--use-angle=metal', '--disable-dev-tools'] :
     ['--enable-unsafe-webgpu', '--disable-dev-tools'];
+  const hardwareAdapterFixture = {
+    contract: ADAPTER_CONTRACT,
+    status: 'ACCEPTED',
+    present: true,
+    platform: 'darwin',
+    powerPreference: 'high-performance',
+    isFallbackAdapter: false,
+    info: {
+      vendor: 'apple', architecture: 'metal-3', device: '', description: '',
+    },
+    softwareMatches: [],
+    reason: 'accepted-hardware',
+  };
+  const adapterNegativeFixtures = [
+    { ...hardwareAdapterFixture, isFallbackAdapter: true },
+    { ...hardwareAdapterFixture, isFallbackAdapter: null },
+    { ...hardwareAdapterFixture,
+      info: { vendor: 'Google', architecture: 'SwiftShader', device: '', description: '' } },
+    { ...hardwareAdapterFixture, info: {
+      vendor: 'apple', architecture: '', device: '', description: '',
+    } },
+    { ...hardwareAdapterFixture, softwareMatches: ['untrusted-reported-match'] },
+  ];
   if (!existsSync(`${ROOT}/GOAL.md`) || HERE !== dirname(HARNESS_PATH) ||
       NODE_MODULE_ROOTS.length < 2 || !NODE_MODULE_ROOTS.every(isAbsolute) ||
       JSON.stringify(BROWSER_ARGS) !== JSON.stringify(expectedBrowserArgs) ||
+      !validateHardwareAdapterReceipt(hardwareAdapterFixture).ok ||
+      adapterNegativeFixtures.some((fixture) => validateHardwareAdapterReceipt(fixture).ok) ||
       !validRunRoot(`${RUNS_ROOT}/selfcheck`) || validRunRoot(RUNS_ROOT) ||
       validRunRoot(`${RUNS_ROOT}/nested/child`) ||
       validRunRoot(`${HERE}/runs-escape/child`))
@@ -976,6 +1045,7 @@ function selfcheck() {
       `generated_driver_selfchecks=${generated.plan.length} browser_launches=0 ` +
       `gpu_concurrency=1 setup_coverage=PASS samples=${JSON.stringify(sampleCounts)} ` +
       `view_transforms=${JSON.stringify(viewTransformCounts)} ` +
+      `adapter=${ADAPTER_CONTRACT} ` +
       `root=${ROOT} shell_files=6 browser_args=${JSON.stringify(BROWSER_ARGS)} ` +
       `thresholds_sha256=${thresholds.upstreamRunner.sha256} ` +
       `categories=${JSON.stringify(categoryCounts)}`);
@@ -1086,7 +1156,7 @@ function summarize(results, total) {
 
 function consolidatedJson(results, total, status, provenancePath) {
   return {
-    schema: 'blender-web.eevee-matrix-results.v1',
+    schema: 'blender-web.eevee-matrix-results.v2',
     generatedAt: new Date().toISOString(),
     status,
     summary: summarize(results, total),
@@ -1098,8 +1168,12 @@ function consolidatedJson(results, total, status, provenancePath) {
 function validateRowManifestBinding(row, receipt) {
   const errors = [];
   if (!receipt) return { ok: false, errors: ['manifest absent or unparseable'] };
-  if (receipt.schema !== 'blender-web.f12-eevee-acceptance.v4') errors.push('schema');
+  if (receipt.schema !== 'blender-web.f12-eevee-acceptance.v5') errors.push('schema');
   if (!['PASS', 'FAIL'].includes(receipt.verdict)) errors.push(`verdict=${receipt.verdict}`);
+  const adapterBinding = validateHardwareAdapterReceipt(receipt.hardwareAdapter);
+  if (!adapterBinding.ok) {
+    errors.push(`hardware adapter contract: ${adapterBinding.errors.join(', ')}`);
+  }
   if (receipt.driver?.sha256 !== row.sourceSha256) errors.push('generated driver identity');
   if (receipt.inputs?.blend?.hostPath !== row.actualBlendPath ||
       receipt.inputs?.blend?.sha256 !== row.actualBlendSha256)
@@ -1226,6 +1300,7 @@ function validateRowManifestBinding(row, receipt) {
       'blenderRenderPreStartedExactlyOnce',
       'noBpyRenderOperator',
       'setupOperatorsPresentOnlyWhenCanonical',
+      'acceptedHardwareAdapter',
       'computeWorkgroupStorageAtLeast32768',
       'colorAttachmentBytesPerSampleAtLeast36',
       'exactRenderSamplesAndViewTransform',
@@ -1247,7 +1322,11 @@ function validateRowManifestBinding(row, receipt) {
       errors.push('PASS assertion set');
     }
   }
-  return { ok: errors.length === 0, errors };
+  return {
+    ok: errors.length === 0,
+    errors,
+    hardwareAdapter: adapterBinding.normalized,
+  };
 }
 
 function rowResult(row, child, manifestPath, logPath) {
@@ -1365,6 +1444,7 @@ function main() {
   let runCreated = false;
   let provenance = null;
   let gpuLock = null;
+  let hardwareAdapterBinding = null;
   const results = [];
   try {
     generated = temporaryPlan(selection.rows, runRoot, runLabel);
@@ -1389,7 +1469,7 @@ function main() {
     runCreated = true;
     const provenancePath = `${runRoot}/provenance.json`;
     provenance = {
-      schema: 'blender-web.eevee-matrix-provenance.v1',
+      schema: 'blender-web.eevee-matrix-provenance.v2',
       status: 'RUNNING',
       generatedAt: new Date().toISOString(),
       completedAt: null,
@@ -1404,6 +1484,7 @@ function main() {
         productMode: true,
         markerIndependent: true,
         physicalF12: true,
+        hardwareAdapterContract: ADAPTER_CONTRACT,
         browserRowsSerialized: true,
         maximumGpuConcurrency: 1,
         exclusiveGpuLock: gpuLock.receipt,
@@ -1419,6 +1500,7 @@ function main() {
         requestedKeys: selection.requestedKeys,
       },
       mappings: resolved.mapping,
+      hardwareAdapter: null,
       rowCount: generated.plan.length,
       temporaryDrivers: {
         persisted: false,
@@ -1476,7 +1558,19 @@ function main() {
       }
       const manifestPath = `${row.rowOutputDir}/${row.outputLabel}-manifest.json`;
       const result = rowResult(row, child, manifestPath, logPath);
+      const rowAdapter = result.receiptBinding.hardwareAdapter;
+      if (rowAdapter && hardwareAdapterBinding === null) {
+        hardwareAdapterBinding = rowAdapter;
+      }
+      else if (rowAdapter &&
+          JSON.stringify(rowAdapter) !== JSON.stringify(hardwareAdapterBinding))
+      {
+        result.receiptBinding.ok = false;
+        result.receiptBinding.errors.push('hardware adapter identity drift within matrix');
+        result.verdict = 'RIG_FAIL';
+      }
       results.push(result);
+      provenance.hardwareAdapter = hardwareAdapterBinding;
       provenance.progress = summarize(results, generated.plan.length);
       atomicWrite(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
       writeConsolidated(runRoot, results, generated.plan.length, 'RUNNING', provenancePath);

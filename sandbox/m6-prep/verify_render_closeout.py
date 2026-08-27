@@ -57,6 +57,11 @@ CYCLES_ARTIFACTS = {
 OIIOTOOL = shutil.which("oiiotool") or "/opt/homebrew/bin/oiiotool"
 MAX_RE = re.compile(r"Max error\s*=\s*([0-9.eE+-]+)")
 PERCENT_RE = re.compile(r"\(([0-9.]+)%\)\s*over")
+ADAPTER_CONTRACT = "hardware-webgpu-adapter-v1"
+SOFTWARE_ADAPTER_TOKENS = (
+    "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
+    "microsoft basic render", "warp",
+)
 CYCLES_LEGACY_RE = re.compile(
     r"^M6T_LEGACY_SETTINGS_OK "
     r"file_version=([0-9]+\.[0-9]+\.[0-9]+) "
@@ -91,6 +96,46 @@ def sha256_tree(path: Path) -> tuple[str, int]:
         h.update(item.read_bytes())
         h.update(b"\0")
     return h.hexdigest(), len(files)
+
+
+def verify_hardware_adapter_receipt(receipt: dict, context: str) -> dict:
+    if not isinstance(receipt, dict):
+        fail(f"{context}: hardware adapter receipt missing")
+    info = receipt.get("info")
+    info_keys = {"vendor", "architecture", "device", "description"}
+    if (receipt.get("contract") != ADAPTER_CONTRACT
+            or receipt.get("status") != "ACCEPTED"
+            or receipt.get("reason") != "accepted-hardware"
+            or receipt.get("present") is not True
+            or receipt.get("isFallbackAdapter") is not False
+            or receipt.get("powerPreference") != "high-performance"
+            or not isinstance(receipt.get("platform"), str)
+            or not receipt.get("platform")):
+        fail(f"{context}: hardware adapter acceptance fields invalid")
+    if (not isinstance(info, dict) or set(info) != info_keys
+            or any(not isinstance(info.get(key), str) for key in info_keys)):
+        fail(f"{context}: hardware adapter info shape invalid")
+    identity = " ".join(info.values()).strip().lower()
+    detail_identity = " ".join(
+        (info["architecture"], info["device"], info["description"])
+    ).strip()
+    software_matches = [token for token in SOFTWARE_ADAPTER_TOKENS if token in identity]
+    if re.search(r"(^|[^a-z0-9])cpu([^a-z0-9]|$)", identity):
+        software_matches.append("cpu")
+    if (not identity or not detail_identity or software_matches
+            or receipt.get("softwareMatches") != []):
+        fail(f"{context}: hardware adapter identity is absent or software-backed")
+    return {
+        "contract": receipt["contract"],
+        "status": receipt["status"],
+        "present": receipt["present"],
+        "platform": receipt["platform"],
+        "powerPreference": receipt["powerPreference"],
+        "isFallbackAdapter": receipt["isFallbackAdapter"],
+        "info": {key: info[key] for key in sorted(info_keys)},
+        "softwareMatches": [],
+        "reason": receipt["reason"],
+    }
 
 
 def verify_tree_receipt(item: dict, context: str, expected_path: Path) -> None:
@@ -416,15 +461,16 @@ def verify_workbench(entries, manifest_rows) -> tuple[int, int]:
     return passed, skipped
 
 
-def verify_eevee_provenance(manifest_rows) -> dict[str, dict]:
+def verify_eevee_provenance(manifest_rows) -> tuple[dict[str, dict], dict]:
     provenance = load_json(EEVEE_ROOT / "provenance.json")
     progress = provenance.get("progress", {})
     run = provenance.get("run", {})
-    if (provenance.get("schema") != "blender-web.eevee-matrix-provenance.v1"
+    if (provenance.get("schema") != "blender-web.eevee-matrix-provenance.v2"
             or run.get("label") != EEVEE_LABEL or Path(str(run.get("root", ""))).resolve() != EEVEE_ROOT.resolve()
             or run.get("productMode") is not True or run.get("markerIndependent") is not True
             or run.get("physicalF12") is not True or run.get("browserRowsSerialized") is not True
             or run.get("maximumGpuConcurrency") != 1 or run.get("canonicalProbes") is not True
+            or run.get("hardwareAdapterContract") != ADAPTER_CONTRACT
             or provenance.get("rowCount") != 30
             or provenance.get("status") != "FAIL" or progress.get("completed") != 30
             or progress.get("pending") != 0 or progress.get("pass") != 13 or progress.get("fail") != 17
@@ -473,11 +519,14 @@ def verify_eevee_provenance(manifest_rows) -> dict[str, dict]:
                 or substitutions.get("manifestSelector") != f"eevee/{key}"):
             fail(f"EEVEE generated-driver substitutions stale: {key}")
         mapping[key] = item
-    return mapping
+    hardware_adapter = verify_hardware_adapter_receipt(
+        provenance.get("hardwareAdapter"), "EEVEE provenance"
+    )
+    return mapping, hardware_adapter
 
 
 def verify_eevee(entries, manifest_rows) -> tuple[int, int]:
-    generated_rows = verify_eevee_provenance(manifest_rows)
+    generated_rows, hardware_adapter = verify_eevee_provenance(manifest_rows)
     results = EEVEE_ROOT / "results.tsv"
     rows = [row for row in csv.reader((line for line in results.open() if not line.startswith("#")), delimiter="\t") if row]
     if len(rows) != 30:
@@ -507,8 +556,15 @@ def verify_eevee(entries, manifest_rows) -> tuple[int, int]:
         if row[23] != sha256(manifest_path):
             fail(f"EEVEE manifest result hash mismatch: {key}")
         manifest = load_json(manifest_path)
-        if manifest.get("schema") != "blender-web.f12-eevee-acceptance.v4" or not valid_physical_f12(manifest.get("invocation", {})):
+        if manifest.get("schema") != "blender-web.f12-eevee-acceptance.v5" or not valid_physical_f12(manifest.get("invocation", {})):
             fail(f"EEVEE schema/trusted F12 receipt failed: {key}")
+        row_adapter = verify_hardware_adapter_receipt(
+            manifest.get("hardwareAdapter"), f"EEVEE {key}"
+        )
+        if row_adapter != hardware_adapter:
+            fail(f"EEVEE hardware adapter identity drift within matrix: {key}")
+        if manifest.get("assertions", {}).get("acceptedHardwareAdapter") is not True:
+            fail(f"EEVEE hardware adapter assertion failed: {key}")
         generated = generated_rows[key]
         substitutions = generated["substitutions"]
         if manifest.get("driver", {}).get("sha256") != generated["sha256"]:
@@ -771,6 +827,46 @@ def selfcheck() -> int:
         pass
     else:
         fail("exact-match comparator negative self-check")
+    hardware_adapter = {
+        "contract": ADAPTER_CONTRACT,
+        "status": "ACCEPTED",
+        "present": True,
+        "platform": "darwin",
+        "powerPreference": "high-performance",
+        "isFallbackAdapter": False,
+        "info": {
+            "vendor": "apple", "architecture": "metal-3",
+            "device": "", "description": "",
+        },
+        "softwareMatches": [],
+        "reason": "accepted-hardware",
+    }
+    verify_hardware_adapter_receipt(hardware_adapter, "hardware adapter positive self-check")
+    adapter_negative_fixtures = []
+    for changes in ({"isFallbackAdapter": True}, {"isFallbackAdapter": None}):
+        fixture = json.loads(json.dumps(hardware_adapter))
+        fixture.update(changes)
+        adapter_negative_fixtures.append(fixture)
+    software_fixture = json.loads(json.dumps(hardware_adapter))
+    software_fixture["info"] = {
+        "vendor": "Google", "architecture": "SwiftShader", "device": "", "description": "",
+    }
+    adapter_negative_fixtures.append(software_fixture)
+    masked_fixture = json.loads(json.dumps(hardware_adapter))
+    masked_fixture["info"] = {
+        "vendor": "apple", "architecture": "", "device": "", "description": "",
+    }
+    adapter_negative_fixtures.append(masked_fixture)
+    reported_software_fixture = json.loads(json.dumps(hardware_adapter))
+    reported_software_fixture["softwareMatches"] = ["untrusted-reported-match"]
+    adapter_negative_fixtures.append(reported_software_fixture)
+    for index, fixture in enumerate(adapter_negative_fixtures):
+        try:
+            verify_hardware_adapter_receipt(fixture, f"hardware adapter negative self-check {index}")
+        except AssertionError:
+            pass
+        else:
+            fail(f"hardware adapter negative self-check {index}")
     manifest_rows = load_manifest()
     entries = parse_blacklist()
     verify_blacklist_coverage(entries, manifest_rows)
@@ -800,7 +896,7 @@ def selfcheck() -> int:
         pass
     else:
         fail("orphan blacklist negative self-check")
-    print("M6_RENDER_SELFCHECK_PASS rows=20+30+27 blacklist=1+17+0 selectors=workbench,eevee,cycles-smoke,cycles-suite legacy_receipts=1")
+    print("M6_RENDER_SELFCHECK_PASS rows=20+30+27 blacklist=1+17+0 selectors=workbench,eevee,cycles-smoke,cycles-suite legacy_receipts=1 adapter=hardware-webgpu-adapter-v1")
     return 0
 
 

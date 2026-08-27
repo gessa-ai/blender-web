@@ -80,10 +80,15 @@ The current matrix producer derives the checkout from its own source location,
 not the caller's working directory. It resolves Playwright from
 `BW_NODE_MODULES`, `NODE_PATH`, `.m4-node/node_modules`, or the checkout's
 `node_modules`, in that order. On macOS it retains the historical Metal ANGLE
-selection; on Linux it omits that platform-only flag and leaves hardware-adapter
-acceptance to the migration s7 preflight. A software adapter still binds no
-matrix receipt. Each row attests the six current served shell files, including
-`diagnostics-bootstrap.js`.
+selection; on Linux it omits that platform-only flag. Every row independently
+probes `navigator.gpu`, prefers the current-spec
+`adapter.info.isFallbackAdapter` field with the legacy adapter field as a
+fallback, and must satisfy `hardware-webgpu-adapter-v1`. Absent or masked
+fallback status, absent adapter detail, explicit fallback status, CPU identity,
+and named software adapters such as SwiftShader or llvmpipe all fail closed.
+The matrix also requires one identical accepted adapter across every row, and
+the final M6 verifier rechecks that aggregate binding. Each row attests the six
+current served shell files, including `diagnostics-bootstrap.js`.
 
 ## Guarded native-prebaked fixture batch
 

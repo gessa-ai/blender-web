@@ -56,6 +56,11 @@ const EEVEE_SETUP_SCHEMA = 'blender-web.eevee-passive-upstream-setup.v1';
 const CANONICAL_PROBE_SCHEMA = 'blender-web.eevee-canonical-probe-setup.v2';
 const EEVEE_TEST_SCRIPT_HOST = `${ROOT}/upstream/tests/python/eevee_render_tests.py`;
 const WGPU_PREINIT_PREFIX = '[bw] WM-worker WebGPU device pre-acquired (ADR-007);';
+const ADAPTER_CONTRACT = 'hardware-webgpu-adapter-v1';
+const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
+  'swiftshader', 'llvmpipe', 'lavapipe', 'softpipe', 'software rasterizer',
+  'microsoft basic render', 'warp',
+]);
 const PRODUCT_MODE = process.env.BW_EEVEE_PRODUCT_SMOKE === '1';
 const CANONICAL_PROBES = process.env.BW_EEVEE_CANONICAL_PROBES === '1';
 const EXPORT_BAKED_BLEND = process.env.BW_EEVEE_EXPORT_BAKED_BLEND === '1';
@@ -760,6 +765,51 @@ function parseWebGpuPreinitReceipt(text, { requireColor = PRODUCT_MODE } = {}) {
   };
 }
 
+function classifyAdapterProbe(raw, platform = process.platform) {
+  const info = Object.fromEntries(['vendor', 'architecture', 'device', 'description']
+    .map((key) => [key, typeof raw?.info?.[key] === 'string' ? raw.info[key] : '']));
+  const identity = Object.values(info).join(' ').trim().toLowerCase();
+  const detailIdentity = [info.architecture, info.device, info.description].join(' ').trim();
+  const softwareMatches = SOFTWARE_ADAPTER_TOKENS.filter((token) => identity.includes(token));
+  if (/(^|[^a-z0-9])cpu([^a-z0-9]|$)/.test(identity)) softwareMatches.push('cpu');
+  const present = raw?.present === true;
+  const isFallbackAdapter = typeof raw?.isFallbackAdapter === 'boolean' ?
+    raw.isFallbackAdapter : null;
+  let reason = 'accepted-hardware';
+  if (!present) reason = 'adapter-absent';
+  else if (isFallbackAdapter === true) reason = 'fallback-adapter';
+  else if (isFallbackAdapter !== false) reason = 'fallback-status-absent';
+  else if (!identity || !detailIdentity) reason = 'adapter-info-absent';
+  else if (softwareMatches.length) reason = 'software-adapter';
+  return {
+    contract: ADAPTER_CONTRACT,
+    status: reason === 'accepted-hardware' ? 'ACCEPTED' : 'REJECTED',
+    present,
+    platform,
+    powerPreference: 'high-performance',
+    isFallbackAdapter,
+    info,
+    softwareMatches,
+    reason,
+  };
+}
+
+async function probeAdapter(page) {
+  const raw = await page.evaluate(async () => {
+    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return { present: false, isFallbackAdapter: null, info: null };
+    const info = adapter.info || {};
+    return {
+      present: true,
+      isFallbackAdapter: typeof info.isFallbackAdapter === 'boolean' ?
+        info.isFallbackAdapter : (adapter.isFallbackAdapter ?? null),
+      info: Object.fromEntries(['vendor', 'architecture', 'device', 'description']
+        .map((key) => [key, typeof info[key] === 'string' ? info[key] : ''])),
+    };
+  });
+  return classifyAdapterProbe(raw);
+}
+
 function trustedPhysicalF12(receipt) {
   return receipt?.length === 1 && receipt[0].key === 'F12' && receipt[0].code === 'F12' &&
     receipt[0].isTrusted === true && receipt[0].repeat === false &&
@@ -1124,6 +1174,45 @@ if (process.argv[2] === '--selfcheck') {
     stripped_diag_envs: Object.fromEntries(
       STRIPPED_DIAGNOSTIC_ENV_KEYS.map((key) => [key, null])),
   };
+  const probeAdapterFixture = async (adapter) => {
+    const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { gpu: { requestAdapter: async () => adapter } },
+    });
+    try {
+      return await probeAdapter({ evaluate: (action) => action() });
+    }
+    finally {
+      if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor);
+      else delete globalThis.navigator;
+    }
+  };
+  const currentSpecHardwareAdapter = await probeAdapterFixture({
+    isFallbackAdapter: true,
+    info: {
+      vendor: 'apple', architecture: 'metal-3', device: '', description: '',
+      isFallbackAdapter: false,
+    },
+  });
+  const legacyHardwareAdapter = await probeAdapterFixture({
+    isFallbackAdapter: false,
+    info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '' },
+  });
+  const currentSpecFallbackAdapter = await probeAdapterFixture({
+    info: {
+      vendor: 'fixture', architecture: 'hardware', device: 'GPU', description: '',
+      isFallbackAdapter: true,
+    },
+  });
+  const absentFallbackStatusAdapter = await probeAdapterFixture({
+    info: { vendor: 'NVIDIA', architecture: 'Ada', device: 'GeForce RTX 4090', description: '' },
+  });
+  const softwareAdapter = classifyAdapterProbe({
+    present: true,
+    isFallbackAdapter: false,
+    info: { vendor: 'Google', architecture: 'SwiftShader', device: '', description: '' },
+  }, 'linux');
   const canonicalProbeSample = {
     schema: CANONICAL_PROBE_SCHEMA,
     requested: true,
@@ -1264,6 +1353,17 @@ if (process.argv[2] === '--selfcheck') {
     lowLimitReceipt?.pass === false,
     lowColorLimitReceipt?.pass === false,
     parseWebGpuPreinitReceipt('unrelated console line') === null,
+    currentSpecHardwareAdapter.status === 'ACCEPTED' &&
+      currentSpecHardwareAdapter.isFallbackAdapter === false,
+    legacyHardwareAdapter.status === 'ACCEPTED' &&
+      legacyHardwareAdapter.isFallbackAdapter === false,
+    currentSpecFallbackAdapter.status === 'REJECTED' &&
+      currentSpecFallbackAdapter.reason === 'fallback-adapter',
+    absentFallbackStatusAdapter.status === 'REJECTED' &&
+      absentFallbackStatusAdapter.reason === 'fallback-status-absent',
+    softwareAdapter.status === 'REJECTED' && softwareAdapter.reason === 'software-adapter' &&
+      softwareAdapter.softwareMatches.includes('swiftshader'),
+    classifyAdapterProbe({ present: false, info: null }, 'linux').reason === 'adapter-absent',
     trustedPhysicalF12(trustedF12Sample),
     !trustedPhysicalF12([{ ...trustedF12Sample[0], isTrusted: false }]),
     !trustedPhysicalF12([...trustedF12Sample, ...trustedF12Sample]),
@@ -1332,7 +1432,7 @@ if (process.argv[2] === '--selfcheck') {
     sha256Bytes(readFileSync(GOLDEN_HOST)) === '1677fddfb42b592e62be8e29b6aa1bbcb575d3fd45e890e89901d28b8d269ca5',
   ];
   if (checks.every(Boolean)) {
-    console.log(`SELF_CHECK_PASS probe=f12-eevee schema=${ASYNC.schemaStatus} product=marker-independent canonical_probes=modal-job-cache-blocking sample_override=positive-product-diagnostic diagnostic=legacy physical_f12=one bpy_render_op=none opfs=startup limits=compute+color comparator=${FAIL_THRESHOLD}/${FAIL_PERCENT}`);
+    console.log(`SELF_CHECK_PASS probe=f12-eevee schema=${ASYNC.schemaStatus} product=marker-independent canonical_probes=modal-job-cache-blocking sample_override=positive-product-diagnostic diagnostic=legacy physical_f12=one bpy_render_op=none opfs=startup limits=compute+color adapter=${ADAPTER_CONTRACT} comparator=${FAIL_THRESHOLD}/${FAIL_PERCENT}`);
     process.exit(0);
   }
   console.error(`SELF_CHECK_FAIL probe=f12-eevee accepted=${JSON.stringify(accepted.errors)} no_write=${JSON.stringify(withoutWrite.errors)} wrong_order=${JSON.stringify(wrongOrder.errors)} wrong_worker=${JSON.stringify(wrongWorker.errors)} failed=${JSON.stringify(failed.errors)} py_syntax=${JSON.stringify(pySyntax.stderr || pySyntax.error?.message || '')} product_py_syntax=${JSON.stringify(productPySyntax.stderr || productPySyntax.error?.message || '')} canonical_probe_py_syntax=${JSON.stringify(canonicalProbePySyntax.stderr || canonicalProbePySyntax.error?.message || '')} one_sample_py_syntax=${JSON.stringify(oneSamplePySyntax.stderr || oneSamplePySyntax.error?.message || '')}`);
@@ -1454,6 +1554,7 @@ let bakedBlendReceipt = null;
 let doneReceipt = null;
 let physicalKeyReceipt = null;
 let webGpuPreinitReceipt = null;
+let hardwareAdapterReceipt = null;
 let topology = null;
 let tickBeforeF12 = null;
 let tickAfterRender = null;
@@ -1547,6 +1648,12 @@ let heartbeatPromise = null;
 try {
   mark('OPFS seed begin', { opfsName: OPFS_NAME, hostBytes: blendBytes.length, blendSha256 });
   await page.goto(`${base}/bin/bw_seed.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  hardwareAdapterReceipt = await probeAdapter(page);
+  if (hardwareAdapterReceipt.status !== 'ACCEPTED') {
+    throw new Error(
+      `hardware WebGPU adapter required for EEVEE acceptance: ${JSON.stringify(hardwareAdapterReceipt)}`);
+  }
+  mark('hardware WebGPU adapter accepted', hardwareAdapterReceipt);
   seedReceipt = await page.evaluate(async ({ b64, name }) => {
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
@@ -1991,7 +2098,8 @@ const f12DispatchAtMs = marks.find((entry) => entry.label === 'physical F12 disp
 const noF12BeforeProbeTerminal = !CANONICAL_PROBES ||
   (probeReadyAtMs !== null && f12DispatchAtMs !== null && f12DispatchAtMs > probeReadyAtMs);
 const accepted = !runError && !pageCrashed && pageErrors.length === 0 && gpuErrors.length === 0 &&
-  !heartbeatError && webGpuPreinitReceipt?.pass === true && exactGate && physicalF12 &&
+  !heartbeatError && hardwareAdapterReceipt?.status === 'ACCEPTED' &&
+  webGpuPreinitReceipt?.pass === true && exactGate && physicalF12 &&
   renderPreStarted && handlerComplete && topology?.ok === true &&
   (!PRODUCT_MODE || wmTickAdvanced) &&
   (!CANONICAL_PROBES || probeValidation?.ok === true) && noF12BeforeProbeTerminal &&
@@ -2004,7 +2112,7 @@ const accepted = !runError && !pageCrashed && pageErrors.length === 0 && gpuErro
   renderCaptured &&
   screenshotCaptured && Boolean(renderSha256) && Boolean(screenshotSha256);
 const manifest = {
-  schema: 'blender-web.f12-eevee-acceptance.v4',
+  schema: 'blender-web.f12-eevee-acceptance.v5',
   verdict: accepted ?
     (SAMPLE_DIAGNOSTIC_MODE ? 'DIAGNOSTIC_PASS' : 'PASS') :
     (SAMPLE_DIAGNOSTIC_MODE ? 'DIAGNOSTIC_FAIL' : 'FAIL'),
@@ -2024,6 +2132,7 @@ const manifest = {
     headed: true,
     args: ['--enable-unsafe-webgpu', '--use-angle=metal', '--disable-dev-tools'],
   },
+  hardwareAdapter: hardwareAdapterReceipt,
   webGpuPreinit: webGpuPreinitReceipt,
   invocation: {
     method: 'page.keyboard.press(F12)',
@@ -2113,6 +2222,7 @@ const manifest = {
     noBpyRenderOperator: !/bpy\.ops\.render/.test(pythonExpr),
     setupOperatorsPresentOnlyWhenCanonical:
       /\bbpy\.ops\./.test(pythonExpr) === CANONICAL_PROBES,
+    acceptedHardwareAdapter: hardwareAdapterReceipt?.status === 'ACCEPTED',
     computeWorkgroupStorageAtLeast32768: webGpuPreinitReceipt?.computePass === true,
     colorAttachmentBytesPerSampleAtLeast36:
       !PRODUCT_MODE || webGpuPreinitReceipt?.colorPass === true,

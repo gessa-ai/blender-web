@@ -1088,6 +1088,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
     entering sample rendering. The fail-first/final source contract, shipping Wasm rebuild/no-work,
     canonical clean-pin replay, and REUSE are GREEN. The four shadow-scene goldens still require
     the deferred conformant hardware receipt; no pixel or M6 pass is claimed.
+  - [x] **M6.EEVEE-HARDWARE-RECEIPT-GUARD [driver, device-free]:** the physical-F12
+    EEVEE producer no longer permits a software/fallback browser to mint an acceptance row.
+    Manifest v5 records the shared `hardware-webgpu-adapter-v1` receipt, reading the current
+    `GPUAdapterInfo.isFallbackAdapter` location before its legacy fallback and rejecting absent,
+    masked, fallback, CPU, SwiftShader, llvmpipe, lavapipe, softpipe, WARP, and other named
+    software identities. Matrix result/provenance v2 requires the same accepted identity across
+    every row; the final M6 verifier independently recomputes and checks that binding. The
+    canonical current/legacy adapter-shape fixtures, 30 generated-driver self-checks, verifier
+    mutation fixtures, and Python/JavaScript syntax checks are GREEN. This is receipt-integrity
+    work only: no hardware run or EEVEE pixel pass is claimed, and the old v4/v1 matrix cannot
+    satisfy current M6.
   - [x] **GPU-fallback dialog re-triage [driver, diagnosis-only]:** the inherited non-Apple
     `UserDef.gpu_backend` default is OpenGL, and `wm_gpu_backend_override_from_userdef()` inserts
     it before the compiled-in WebGPU backend. Detection rejects that compiled-out override, sets

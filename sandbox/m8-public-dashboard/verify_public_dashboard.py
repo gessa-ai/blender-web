@@ -90,8 +90,8 @@ def main() -> None:
         "that generation's exact non-Wasm/control subtotal is 2,336,272 bytes",
         "12,663,728-byte maximum primary for that preceding generation",
         "last fully replayed cross-generation hybrid planning fixture was produced against the preceding b8b2a682ff09 generation",
-        "sets no exact primary ceiling for the 2f45a8ed62eb relink",
-        "136,751 counters while the current 2f45a8ed62eb CAPTURE original has 136,771",
+        "sets no exact primary ceiling for the 6fb76b7f7609 relink",
+        "136,751 counters while the current 6fb76b7f7609 CAPTURE original has 136,772",
         "structurally incompatible with the current relink",
     )
     for marker in staging_markers:

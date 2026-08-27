@@ -3078,6 +3078,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   tick, uncapped present, and redraw-episode counters plus all bounded resize/draw-plan/barrier
   lines. This changes no product byte and gives the next Apple run the missing discriminator before
   another runtime patch is attempted.
+  **Frame-episode candidate 2026-08-27 (`5a48bb4`, patch 0290):** source tracing identifies the
+  round-six all-black mechanism at the barrier's generation read. A replacement backbuffer can
+  commit after a frame activates against the old drawable but before that frame reaches
+  `end_frame()`; the old code labeled that old-backbuffer work as the completed replacement frame,
+  then copied the untouched new backbuffer while holding the genuinely new-extent work behind the
+  barrier. The window context now captures its episode at `begin_frame()` and schedules only when
+  the same episode is still current at the tail; offscreen contexts are ineligible. The retained
+  bounded trace snapshot remains printable if a slow barrier outlives the 180-tick capture episode.
+  Fail-first/final source contracts, native/wasm32 queue integration, canonical replay, hardware
+  producer/consumer self-checks, CAPTURE preflight, locked no-work, and REUSE are green. The exact
+  fallback product reports ticks `246/519/607`, presents `16/17/18`, episodes `0/1/2`, one barrier
+  present per extent, 18 complete/current/contained/VIEW_3D-bound traces, and zero rejection/loss
+  (`20260827T141610-2103171`). **RELINKED windowed-opt @ `5a48bb4`:** `.wasm.orig` is
+  119,152,955 bytes/136,772 defined functions at SHA-256
+  `6fb76b7f760930385cb6be4b18f828c6fca1cfae02e65ce240e72ae78568cdfa`.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -3201,9 +3216,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   profiles remain mandatory before APPLY, tagging, or publication. See
   `notes/release-tagged-build-correspondence-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  freshly relinked at implementation commit `86d2ef6` as a strict CAPTURE generation with
-  120,506,081-byte instrumented Wasm, 119,152,777-byte `.wasm.orig` at SHA-256
-  `2f45a8ed62ebeee3a9a80587ceca7e6918cb5c79c59f5a8fcd8219bb4934ffc6`, and a schema-1 PASS
+  freshly relinked at implementation commit `5a48bb4` as a strict CAPTURE generation with
+  120,506,270-byte instrumented Wasm, 119,152,955-byte `.wasm.orig` at SHA-256
+  `6fb76b7f760930385cb6be4b18f828c6fca1cfae02e65ce240e72ae78568cdfa`, and a schema-1 PASS
   clean-build manifest. Inventory preflight, the strict producer self-check, two-phase source
   contract, canonical replay, committed-state locked no-work, and exact-artifact fallback
   shrink/restore are green. **Not resolved:**

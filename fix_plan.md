@@ -3283,13 +3283,25 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   count. This requires a C++ relink and same-rig cold-boot pixel verification; keep the current
   P0-E candidate stable until its filed acceptance run completes.
   **Source candidate 2026-08-27 (`2c82c19`):** cold boot now starts a bounded semantic episode; successful
-  `overlay_background` -> `overlay_grid_next` -> `OCIO_Display` encoding plus the matching
+  `overlay_background` plus `overlay_grid_next` encoding before `OCIO_Display`, together with the matching
   validated surface submission publishes a one-shot browser export, and the shell has no generic
   present fallback. Native/wasm32 behavior, controlled Chromium, canonical replay, public-shell
   consumers, compliance, and REUSE are green. The Apple-accepted `v0.1.1-rc.1` CAPTURE bytes were
   deliberately not relinked and remain the exact profile handoff. **Not resolved:** relink this
   successor separately and require Apple cold-boot pixels before closing; no device-free result
-  binds that receipt. See `notes/m4-viewport-content-loader-dismissal-20260827.md`.
+  binds that receipt.
+  **Exact-product order correction and relink 2026-08-27 (`e369b6e`):** the first relink exposed
+  a source-only contract error before hardware handoff: all real frames encoded grid before
+  background, so the candidate withheld every present despite advancing WM ticks. The predicate
+  now requires both offscreen passes before the display composite without inventing an order
+  between separate targets; a fail-first case binds the measured order and the native/wasm model
+  is green across 66 cases. The exact fallback product presents qualified content and hides the
+  loader afterward with zero page errors. **RELINKED windowed-opt @ `e369b6e`:** JS
+  `8d05e8c8f0c4`, Wasm `9b0cbb993e16`, `.wasm.orig` `f3251f948449` (119,160,136 bytes), data
+  `095d0ba748c3`, manifest `eefd2418dbf9`; CAPTURE preflight and committed-state no-work are green.
+  **Not resolved:** Apple cold-boot pixels and a P0-E regression check remain mandatory; this new
+  generation needs fresh accepted success+terminal profiles before APPLY. See
+  `notes/m4-viewport-content-loader-dismissal-20260827.md`.
 - [x] **P1-RELEASE-PUBLICATION-METADATA-SCRUB [compliance] (`a920bfd`):** the two public-facing
   migration comments no longer publish the private host runbook name, and the preserved
   outer-worktree recovery patch is regenerated from its exact `0577f7f` anchor without private

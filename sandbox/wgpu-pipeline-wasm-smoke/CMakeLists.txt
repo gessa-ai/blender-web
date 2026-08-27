@@ -67,6 +67,7 @@ add_executable(wgpu_pipeline_integrated_smoke
 target_compile_definitions(wgpu_pipeline_integrated_smoke PRIVATE
   BW_WGPU_PIPELINE_SOURCE="${BW_INTEGRATED_PIPELINE_SOURCE_DIR}/wgpu_pipeline.cc"
   BW_GHOST_PRESENT_TRANSACTION_HEADER="${BW_GHOST_PRESENT_TRANSACTION_HEADER}"
+  BW_GHOST_DISPLAY_STATE_HEADER="${BW_GHOST_DISPLAY_STATE_HEADER}"
 )
 set_target_properties(wgpu_pipeline_integrated_smoke PROPERTIES
   CXX_STANDARD 20

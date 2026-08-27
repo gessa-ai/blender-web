@@ -23,11 +23,15 @@
 #ifndef BW_GHOST_PRESENT_TRANSACTION_HEADER
 #  error "BW_GHOST_PRESENT_TRANSACTION_HEADER must name the shipping GHOST transaction header"
 #endif
+#ifndef BW_GHOST_DISPLAY_STATE_HEADER
+#  error "BW_GHOST_DISPLAY_STATE_HEADER must name the shipping web display-state header"
+#endif
 
 /* The dummy-binding helper intentionally has internal linkage. Including the
  * canonical translation unit keeps this contract on the shipping vertex plan. */
 #include BW_WGPU_PIPELINE_SOURCE
 #include BW_GHOST_PRESENT_TRANSACTION_HEADER
+#include BW_GHOST_DISPLAY_STATE_HEADER
 
 namespace bw = blender::gpu::webgpu;
 namespace gw = ghost_web;
@@ -1131,6 +1135,71 @@ bool ordered_queue_scheduler_failure_drain_contract()
 
   std::puts(
       "CONTRACT ordered_queue_scheduler_failure_drain PASS followers=100000 executed=0 canceled=100000 failed_epochs=100000 retained_peak=1 retained_final=0 stack=bounded retry=accepted");
+  return true;
+}
+
+bool resize_present_barrier_queue_contract()
+{
+  constexpr uint64_t episode = 17;
+  bw::OrderedQueueScheduler scheduler;
+  gw::RedrawPresentBarrier barrier;
+  std::function<void(bool)> settle_prior_frame;
+  std::array<int, 5> order = {};
+  size_t order_size = 0;
+
+  scheduler.enqueue([&](auto done) {
+    order[order_size++] = 1;
+    settle_prior_frame = std::move(done);
+  });
+  if (!require(barrier.schedule(episode),
+               "resize queue barrier schedules for the committed episode"))
+  {
+    return false;
+  }
+  scheduler.enqueue(
+      [&](auto done) {
+        order[order_size++] = 2;
+        barrier.arrive(episode, [&, done = std::move(done)](const bool valid) mutable {
+          order[order_size++] = 4;
+          done(valid);
+        });
+      },
+      [&]() { barrier.cancel(episode); });
+  scheduler.begin_epoch();
+  scheduler.enqueue([&](auto done) {
+    order[order_size++] = 5;
+    done(true);
+  });
+
+  if (!require(order_size == 1 && order[0] == 1 && scheduler.pending_count() == 3,
+               "prior frame validation holds the barrier and later frame work"))
+  {
+    return false;
+  }
+  settle_prior_frame(true);
+  if (!require(order_size == 2 && order[1] == 2 && barrier.is_ready() &&
+                   scheduler.pending_count() == 2,
+               "the barrier arrives only after prior frame work drains") ||
+      !require(barrier.filter_update(episode, true),
+               "the arrived barrier admits one synchronous presentation update"))
+  {
+    return false;
+  }
+
+  /* Model the P0-H-safe GHOST boundary: acquire/copy/submit occurs synchronously before
+   * complete() releases the backend queue into work encoded by the following frame. */
+  order[order_size++] = 3;
+  if (!require(barrier.complete(episode, true) && scheduler.pending_count() == 0,
+               "synchronous present releases later frame work") ||
+      !require(order_size == order.size() &&
+                   order == std::array<int, 5>{1, 2, 3, 4, 5},
+               "resize ordering is prior-frame, barrier, present, release, later-frame"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT resize_present_barrier_queue PASS cases=6 "
+            "order=prior,barrier,present,release,later");
   return true;
 }
 
@@ -4099,6 +4168,7 @@ int main()
       !context_owned_pipeline_cache_contract() ||
       !context_backend_handle_registry_contract() ||
       !ordered_queue_scheduler_failure_drain_contract() ||
+      !resize_present_barrier_queue_contract() ||
       !transient_resource_gate_contract() ||
       !compute_bind_group_scope_contract() ||
       !compute_pipeline_cache_publication_contract() ||
@@ -4123,11 +4193,12 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=42 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=43 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
+      "resize_present_barrier_cases=6 "
       "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

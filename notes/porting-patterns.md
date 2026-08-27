@@ -1775,3 +1775,18 @@ composition order. Keep the trace episode-scoped and capped, and require semanti
 for closure. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc`, and
 `sandbox/m4-resize-recovery/verify_resize_trace.py`.
+
+## Class 121 — replaceable window backbuffers require guaranteed context reactivation
+
+Signature: a browser surface validates and commits a replacement backbuffer, bounded invalidation
+drives many real presents, and every present still contains the same stale region. A persistent
+texture wrapper can adopt the replacement only when its GPU context activates, but a single-window
+WM considers the already-current window drawable and skips activation indefinitely. Clearing the
+cached drawable identity before the draw loop forces the ordinary activation path to synchronize
+the latest backbuffer before region encoding. Scope this to backends with replaceable drawable
+attachments; Blender's Metal path already establishes the rule, and Emscripten WebGPU shares it.
+Bind the activation/adoption order device-free, retain bounded per-present diagnostics, and require
+semantic hardware pixels for closure. See
+`upstream/source/blender/windowmanager/intern/wm_draw.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
+`sandbox/m4-resize-recovery/verify_source.py`.

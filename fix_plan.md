@@ -2923,13 +2923,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   across shrink/restore (`20260827T062044-1706137`). **RELINKED windowed-opt @ `140f50b`:**
   `.wasm.orig` is 119,148,234 bytes at SHA-256
   `6730a8ad7b2050ca8873f6a73187556a74f4034e33e75e797248fe1d5ddb2f09`.
-  **Still open:** the driver must capture those lines on the failing Apple frame, then require 10/10
-  consecutive hardware shrinks to full idle grid+Cube+gizmo pixels with zero input before closing
-  P0-E, cutting APPLY/public bytes, or tagging. See
+  **Backbuffer-lifecycle candidate 2026-08-27:** source tracing found that the persistent replacement
+  backbuffer is adopted only from `WGPUContext::activate()`, while the single-window WM keeps the
+  same drawable active and can skip activation across every bounded resize redraw. Patch 0287 and
+  `94cccc1` extend Blender's existing Metal per-frame drawable reset to Emscripten WebGPU, forcing
+  adoption before region draws without changing native WebGPU. Focused fail-first/final contracts,
+  canonical replay, locked compile/relink/no-work, CAPTURE preflight, and exact-product fallback
+  shrink/restore are green. **RELINKED windowed-opt @ `94cccc1`:** `.wasm.orig` is 119,148,240 bytes
+  at SHA-256 `aed9ba633f08b02d5fecaa461713cfbc2fabe880c0aad09ab3b88d037e47863a`.
+  **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
+  grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
+  tagging; patch 0286 remains baked in for any failing-run trace. See
   `notes/p0-window-resize-recovery-20260826.md` and
   `notes/p0-window-resize-idle-redraw-20260826.md` and
   `notes/p0-window-resize-commit-redraw-20260827.md` and
-  `notes/p0-window-resize-draw-trace-20260827.md`.
+  `notes/p0-window-resize-draw-trace-20260827.md` and
+  `notes/p0-window-resize-backbuffer-reactivation-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

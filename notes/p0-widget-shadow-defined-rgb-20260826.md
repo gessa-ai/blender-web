@@ -5,14 +5,17 @@
 
 ## Outcome
 
-Patch 0284 is a hardware-validation candidate for the white transient-widget shadows. It keeps
+Patch 0284 is the hardware-verified fix for the white transient-widget shadows. It keeps
 shadows enabled and preserves their geometry, alpha curve, UBO interface, target format, and blend
 state. The only shader change constructs the complete fragment result as black RGB plus computed
 alpha in one assignment. Implementation commit: `6145c46`.
 
-This item remains open. The local fallback adapter is diagnostic-only and does not render usable
-semantic pixels. The driver-operated Apple M4 Pro must verify that tooltip/flyout and Adjust Last
-Operation shadows are black/translucent and that no white rounded bars or rings remain.
+The driver-operated Apple M4 Pro closed the pixel gate on 2026-08-27 against CAPTURE generation
+`b8b2a682ff09`: a toolbar tooltip, the Shift+A Add-menu flyout, and the F9 Adjust Last Operation
+panel all rendered soft dark shadows with no white fill. Those are the three acceptance surfaces
+named by this defect. A future audit can additionally exercise a text tooltip and a cascading
+Add > Mesh submenu, but that breadth check is nonblocking. The local fallback adapter remains
+diagnostic-only and binds no pixel receipt.
 
 ## Diagnostic before the fix
 

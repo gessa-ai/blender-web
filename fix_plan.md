@@ -2988,8 +2988,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   close the pointer-lock defect. Any later relink still requires fresh hash-bound profiles before
   APPLY, independently of P0-F. See
   `notes/p0-pointer-lock-promise-rejection-20260826.md`.
-- [~] **P0-G-M4-WIDGET-SHADOW-DEFINED-RGB [gpu-shader, patch 0284, claimed_by: root]:** Apple
-  hardware screenshots show correctly shaped/faded transient-widget shadows with bright white RGB.
+- [x] **P0-G-M4-WIDGET-SHADOW-DEFINED-RGB [gpu-shader, patch 0284] (`6145c46`,
+  hardware-verified 2026-08-27):** Pre-fix Apple hardware screenshots showed correctly
+  shaped/faded transient-widget shadows with bright white RGB.
   Diagnostic interception of the exact CAPTURE artifact disproved a missing sampler, incomplete
   bind group, wrong target clear, or wrong blend descriptor: this shader has no sampled resource,
   its sole 144-byte push UBO is bound, the target is transparent-black RGBA8, and the browser sees
@@ -2998,8 +2999,10 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   complete `float4(0,0,0,alpha)` value. Six negative source mutations, the 20,258-entry canonical
   freeze, locked CAPTURE relink/no-work, and live interception of the baked WGSL are green at
   `.wasm.orig` SHA-256 `5a9d0944007313bed75ac3deaf24d3c48e443a423c93918dbb561abb76d0d65b`.
-  **Not resolved:** this is a pixel defect; the Apple rig must show black/translucent shadows and
-  zero white rings/bars during tooltip, flyout, and Adjust Last Operation interactions. See
+  **Hardware closed:** on the driver-operated Apple M4 Pro, a toolbar tooltip, the Shift+A Add-menu
+  flyout, and the F9 Adjust Last Operation panel all render soft dark shadows with no white fill.
+  Those cover the three filed acceptance surfaces. A future audit may broaden the spot-check to a
+  text tooltip and cascading submenu without keeping this launch defect open. See
   `notes/p0-widget-shadow-defined-rgb-20260826.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
@@ -3010,8 +3013,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `presents=0`; current and masked-marker paths both hide at `presents=1` with zero page errors.
   Eight source mutations, loader source/browser checks, public hardening/minification/assembly,
   staged provenance, release freezes, compliance, and REUSE are green. This is shell-only and the
-  CAPTURE Wasm identity remains unchanged. Remaining transient-widget pixel flicker is part of the
-  pending Apple P0-G gauntlet, not a software-adapter pixel claim. See
+  CAPTURE Wasm identity remains unchanged. The later Apple shadow gauntlet closes the remaining
+  transient-widget pixel question; the software-adapter path still binds no pixel claim. See
   `notes/m4-first-pixel-loader-coherence-20260826.md`.
 - [x] **P1-RELEASE-LOADER-REDESIGN [shell, public-bundle] (`1040ac7`, boot correction `824686b`):** the windowed loader now
   uses the owner-specified `#17181b` surface, one thin ring, one 2-pixel determinate bar and percent,
@@ -3026,7 +3029,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   diagnostics fail closed on that real startup path. Final same-artifact fallback boot reaches
   `WM_main` with 261 ticks, 18 uncapped presentations, zero page errors, and black-RGB widget WGSL.
   Public-shell consumers, REUSE, and M0 6/6 regression checks are green. **Boundary:** the clean
-  CAPTURE relink is nonshipping; Apple P0-E/P0-G pixels and fresh exact-generation profiles remain
+  CAPTURE relink is nonshipping; Apple P0-E pixels and fresh exact-generation profiles remain
   mandatory before APPLY or publication. See
   `notes/m4-release-loader-redesign-20260826.md`.
 - [x] **P1-RELEASE-TWO-PHASE-LOADER [shell] (`f9dfb78`):** the same minimal loader now labels
@@ -3079,7 +3082,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   tag/tree/inventory/archive mutations, refuses overwrite/symlinks/extras, strips local receipt
   paths, and explicitly rejects the current CAPTURE artifact. Both programs are required by the
   two-root release freeze and the public README documents the invocation. **Boundary:** this closes
-  the reproducibility contract, not the release: Apple P0-E/P0-G pixels and accepted exact-generation
+  the reproducibility contract, not the release: Apple P0-E pixels and accepted exact-generation
   profiles remain mandatory before APPLY, tagging, or publication. See
   `notes/release-tagged-build-correspondence-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is

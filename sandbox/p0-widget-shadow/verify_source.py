@@ -49,8 +49,13 @@ def validate(shader: str, info: str, patch: str, series: str, preview: str, diag
             "widget-shadow unexpectedly acquired sampled/image resources")
 
     require(patch.count(FULL_OUTPUT) == 1, "0284 patch omits the exact postimage")
-    require(series.rstrip().endswith("0284-gpu-widget-shadow-defined-rgb.patch"),
-            "0284 is not the final applied series entry")
+    series_entries = [
+        line.strip()
+        for line in series.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    require(series_entries.count("0284-gpu-widget-shadow-defined-rgb.patch") == 1,
+            "0284 is not one active series entry")
     require(preview.count(FULL_OUTPUT) == 1, "canonical preview omits the shadow postimage")
 
     for marker in ("widget-wgsl", "widget-pipeline", "widget-pass", "widget-bind-group",
@@ -74,6 +79,7 @@ def mutation_selfcheck(values: list[str]) -> int:
         (1, values[1].replace("PUSH_CONSTANT(float, alpha)",
                               "PUSH_CONSTANT(float, alpha)\nSAMPLER(0, sampler2D, shadow_tx)")),
         (3, values[3].replace("0284-gpu-widget-shadow-defined-rgb.patch", "")),
+        (3, values[3] + "\n0284-gpu-widget-shadow-defined-rgb.patch\n"),
         (5, values[5].replace("widget-bind-group", "widget-group")),
         (5, values[5].replace(", undefined, {", ", {", 1)),
         (5, values[5].replace("diagnostic-failure.json", "diagnostic.json")),

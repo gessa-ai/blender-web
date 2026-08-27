@@ -23,5 +23,7 @@ DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/p0-widget-shadow/capture_diagnostic.mjs 8123
 ```
 
-Only the driver-operated conformant Apple host can close the pixel defect. Acceptance requires
-transient UI shadows to be black/translucent with no white rounded bars or rings.
+The driver-operated conformant Apple host closed the pixel defect on 2026-08-27. A toolbar
+tooltip, the Shift+A Add-menu flyout, and the F9 Adjust Last Operation panel all rendered soft
+dark shadows without white fill. A future audit may broaden coverage to a text tooltip and a
+cascading submenu, but that spot-check is not a release blocker.

@@ -3150,6 +3150,20 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   and native/wasm32 queue contracts are green, and the exact fallback shrink/restore reports
   episodes `0/1/2`, barriers `2`, immutable traces `2`, and zero rejection/loss. This changes no
   runtime byte; `.wasm.orig` remains `4b279e0e152f...`, and supplies no hardware pixels.
+  **Commit-time barrier supersession 2026-08-27 (`f529943`):** source audit found a second
+  replacement race after the old frame barrier becomes ready but before GHOST presents it. A
+  newer coherent commit replaced the current backbuffer without immediately retiring that older
+  barrier, so `swapBufferRelease()` could copy the new untouched texture under the old episode.
+  The commit now returns and stores the replacement episode on the backbuffer before one atomic
+  stale-barrier cancellation releases the queue. The fail-first target rejects the old API;
+  final source 53-mutation and 48-case native/wasm32 GPU contracts, REUSE, CAPTURE preflight,
+  producer 42/17, consumer 2/13, and profile self-checks are green. **RELINKED windowed-opt @
+  `f529943`:** JS `5b6ed02286fd`, Wasm `71bfa062dada`, wasm.orig `fea3977234ce`
+  (119,155,652 bytes), data `095d0ba748c3`, manifest `b45308a71527`. Exact fallback
+  shrink/restore is green at ticks `246/523/617`, presents `17/18/19`, episodes `0/1/2`, one
+  barrier/immutable trace per extent, and zero rejection/loss (`20260827T162824-2217652`),
+  diagnostic only. Direct M4 remains hardware-pixel red; pinned-container regression restores M0
+  6/6 and leaves the later named boundaries intact (`20260827T163137-2220736`).
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -3160,7 +3174,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/p0-window-resize-backbuffer-reactivation-20260827.md` and
   `notes/p0-window-resize-trace-consumer-20260827.md` and
   `notes/p0-window-resize-ordered-present-20260827.md` and
-  `notes/p0-window-resize-present-barrier-20260827.md`.
+  `notes/p0-window-resize-present-barrier-20260827.md` and
+  `notes/p0-window-resize-commit-supersession-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now

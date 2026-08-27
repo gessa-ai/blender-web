@@ -3043,6 +3043,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   self-check remain green, and all five CAPTURE hashes still match the `86d2ef6` generation,
   including `.wasm.orig` `2f45a8ed62eb...`. Authoritative container regression restores M0 6/6;
   no newer Apple evidence is present, so this audit changes no runtime byte or pixel verdict.
+  **Integrated queue/barrier contract 2026-08-27 (`4be0219`):** the native/Wasm GPU parity suite
+  now exercises `OrderedQueueScheduler` and `RedrawPresentBarrier` together, proving that prior
+  frame work drains before barrier arrival, later-frame work stays held through the synchronous
+  GHOST present, and queue release occurs only afterward. The exact CAPTURE candidate remains
+  byte-identical; this closes a device-free contract gap and supplies no hardware pixel verdict.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

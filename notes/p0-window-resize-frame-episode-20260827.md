@@ -21,11 +21,14 @@ completion; `begin_frame()` no longer independently resamples global generation.
 whose adopted snapshot still matches the current episode may schedule the barrier. Offscreen
 contexts remain ineligible, and a late commit is retried by the existing bounded redraw episode.
 
-The retained draw-plan diagnostic now remains available to a ready barrier after the ordinary
-180-tick capture heartbeat has stopped. This does not extend drawing or presentation; it only lets
-a slow barrier present emit the already-bounded snapshot. The exact-product fallback diagnostic
-waits on real episode and uncapped-presentation progress within the same 24-second ceiling as the
-hardware producer instead of freezing evidence at an unrelated six-second delay.
+Commit `131b153` closes a separate time-of-observation hole in that diagnostic. The old logger
+sampled mutable draw state during the synthetic WindowUpdate used to present a ready barrier; CPU
+encoding for that later frame could advance the plans even though its submissions remained queued
+behind the barrier. `end_frame()` now stores the exact completed-frame snapshot with the barrier.
+It remains available after the 180-tick heartbeat stops, same-episode duplicates cannot overwrite
+it, and completion/cancellation clears it. This does not extend drawing or presentation. The
+exact-product fallback waits on real episode and uncapped-presentation progress within the same
+24-second ceiling as the hardware producer.
 
 ## Evidence
 
@@ -89,19 +92,39 @@ hardware producer instead of freezing evidence at an unrelated six-second delay.
   (`20260827T151420-2155636`). Direct M4 remains hardware-pixel red
   (`20260827T151503-2156629`), while container-backed regression restores M0 6/6 and preserves
   every named later boundary (`20260827T151511-2156708`). Commit `06732e5` changes no runtime byte.
+- A fail-first audit proved the present logger sampled mutable live plans after the synthetic
+  WindowUpdate had encoded later work behind the ready barrier (`20260827T152459-2163682`,
+  `20260827T152504-2163739`). Commit `131b153` captures the draw snapshot at the exact
+  `end_frame()` barrier schedule instead. Duplicate same-episode scheduling cannot overwrite it;
+  ready exposes it; completion/cancellation clear it. Final source/trace contracts, the 47-mutation
+  redraw contract, native/wasm32 GPU matrix, canonical replay/receipt self-check, patch reverse
+  check, and REUSE 6.2.0 are green (`20260827T152622-2164145`,
+  `20260827T152622-2164146`, `20260827T153031-2168791`,
+  `20260827T153025-2168659`, `20260827T153025-2168660`,
+  `20260827T153440-2173379`, `20260827T153440-2173384`).
+- The locked relink and committed-state no-work are green (`20260827T153109-2170631`,
+  `20260827T153627-2175362`). The exact fallback product shrinks/restores at ticks
+  `246/526/619`, presents `17/18/19`, episodes `0/1/2`, with one synchronous barrier present and
+  one immutable completed-frame trace per extent (`20260827T153238-2171940`). CAPTURE preflight,
+  hardware producer 37/17, independent consumer 2/13, and capture-profile self-check are green
+  (`20260827T153339-2172604`, `20260827T153339-2172605`,
+  `20260827T153339-2172609`, `20260827T153339-2172616`). This is software-adapter diagnostic
+  evidence only. Direct M4 remains hardware-pixel red (`20260827T153349-2172765`); pinned-container
+  regression restores M0 6/6 while keeping M1-M8 at their named boundaries
+  (`20260827T153504-2174213`).
 
 ## Relinked CAPTURE generation
 
 - `blender_browser.js`: 707,565 bytes,
   `5b6ed02286fda34d4483734d23e347f3439dad985150463faad82c5f449d5214`
-- `blender_browser.wasm`: 120,506,125 bytes,
-  `db2bb9a8b0f9e22f0edd0616df19eeffbea4efb8a276c6eaa212c5dc1b64c81f`
-- `blender_browser.wasm.orig`: 119,152,820 bytes,
-  `fbd46f816a418cf7b3c647df59f5b6ea7acf1f55ddcd66615f8780eedbe16e7c`
+- `blender_browser.wasm`: 120,508,312 bytes,
+  `85ff089d4e87589c6b36a63fdaa76e3365ae94c6882cc5549607a3eaeff88b44`
+- `blender_browser.wasm.orig`: 119,154,997 bytes,
+  `4b279e0e152fb2b0aca77701feac429090f3ae02920457d2e69ca801750d1b64`
 - `blender_browser.data`: 168,637,598 bytes,
   `095d0ba748c3cdc2fcd0956def221e0f0d347d41d95e0a150a28670ab1cea24c`
 - `blender_browser.split-build.json`: 13,251 bytes,
-  `838a0d832e57e6677a33ae4f2a1c3e14c5d78eaa15ad42affce3ef871cee64a6`
+  `b7d833a30436fba9470f84f4f32e6841ca057b584e2ac23e3d61edf3c9e58672`
 
 ## Boundary
 

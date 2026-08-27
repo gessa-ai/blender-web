@@ -3117,6 +3117,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   wrong platform scope, and a chrome-before-screen ordering. The native/wasm32 GPU matrix,
   draw-trace self-check, and REUSE remain green. This is contract-only: the pending CAPTURE
   generation and its hardware-pixel boundary are unchanged.
+  **Frame-tail trace binding 2026-08-27 (`131b153`):** post-barrier audit found the hardware
+  diagnostic still sampled mutable draw plans during the later synthetic presentation frame.
+  Those commands sit behind the ready barrier and are not the content being copied, so a failure
+  log could falsely describe an unpresented frame as the completed backbuffer. `end_frame()` now
+  stores one immutable draw-plan snapshot with the barrier; duplicate same-episode scheduling
+  cannot overwrite it, supersession replaces it only with the newer episode, and completion or
+  cancellation clears it. Fail-first/final source, 47-mutation redraw, 36-mutation trace,
+  native/wasm32 GPU, canonical replay/self-check, patch reverse-check, CAPTURE preflight,
+  producer 37/17, consumer 2/13, and REUSE are green. **RELINKED windowed-opt @ `131b153`:**
+  `.wasm.orig` is 119,154,997 bytes at SHA-256
+  `4b279e0e152fb2b0aca77701feac429090f3ae02920457d2e69ca801750d1b64`.
+  The exact fallback shrink/restore reports ticks `246/526/619`, presents `17/18/19`, episodes
+  `0/1/2`, one barrier present and one immutable trace per extent, and zero rejection/loss
+  (`20260827T153238-2171940`). This corrects evidence attribution without claiming hardware
+  pixels; no newer Apple result is present.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

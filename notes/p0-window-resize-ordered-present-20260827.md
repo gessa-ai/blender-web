@@ -47,8 +47,9 @@ and keeps its immediate presentation path.
 - Native/Wasm integrated queue ordering, cancellation, and retry:
   `ledger/buildlogs/20260827T073014-1763223.log`.
 - Canonical 20,258-entry replay: `ledger/buildlogs/20260827T072821-1760666.log`.
-- Locked CAPTURE relink: `ledger/buildlogs/20260827T072618-1758606.log`; exact no-work replay:
-  `ledger/buildlogs/20260827T073123-1766142.log`.
+- Locked CAPTURE relink at implementation commit `2c887da`:
+  `ledger/buildlogs/20260827T073632-1770105.log`; exact no-work replay:
+  `ledger/buildlogs/20260827T073743-1770896.log`.
 - CAPTURE inventory and producer self-check: `ledger/buildlogs/20260827T073029-1764707.log` and
   `ledger/buildlogs/20260827T073036-1764763.log`.
 - Exact fallback product shrink/restore: ticks 270/595/903, presents 9/23/36, episodes 0/1/2,

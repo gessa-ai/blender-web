@@ -32,6 +32,12 @@ GHOST swap call.
   resized extent, two complete/current/contained/VIEW_3D-bound trace rows, and zero scissor,
   encode, submit, transaction, or device-loss rejection:
   `ledger/buildlogs/20260827T112204-1953387.log`.
+- Ten additional fresh-browser/fresh-X-server repetitions of that exact shrink/restore diagnostic
+  all pass. Every run reports episodes `0/1/2`, exactly one barrier present at each resized extent,
+  two complete/current/contained/VIEW_3D-bound plans, and zero rejection or device loss:
+  `ledger/buildlogs/20260827T113859-1968370.log`. This is lifecycle stress on SwiftShader, not the
+  conformant-hardware semantic-pixel acceptance run. Post-record REUSE 6.2.0 remains green at
+  `ledger/buildlogs/20260827T114413-1974446.log`.
 - The portable Apple acceptance producer remains fail closed at ten attempts and passes its
   31-positive/17-negative self-check; the profile producer remains 21-positive/23-negative:
   `ledger/buildlogs/20260827T112428-1956857.log` and

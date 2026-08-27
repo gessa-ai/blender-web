@@ -3024,6 +3024,10 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   plans, and zero rejection/loss (`20260827T112204-1953387`). **RELINKED windowed-opt @ `86d2ef6`:**
   `.wasm.orig` is 119,152,777 bytes at SHA-256
   `2f45a8ed62ebeee3a9a80587ceca7e6918cb5c79c59f5a8fcd8219bb4934ffc6`.
+  Ten further fresh-browser/fresh-X-server fallback shrink/restore cycles pass against those exact
+  bytes with episodes `0/1/2`, one barrier present per resized extent, complete/current/contained/
+  VIEW_3D-bound plans, and zero rejection/loss (`20260827T113859-1968370`). This is diagnostic
+  lifecycle stress only and does not bind the hardware pixel gate.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

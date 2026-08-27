@@ -1198,8 +1198,90 @@ bool resize_present_barrier_queue_contract()
     return false;
   }
 
-  std::puts("CONTRACT resize_present_barrier_queue PASS cases=6 "
-            "order=prior,barrier,present,release,later");
+  /* A failed frame submission ahead of the barrier must run its cancel callback, clear the
+   * barrier, and let a later epoch proceed. This is the resize form of a transient browser error
+   * storm: recovery must not leave swapBufferRelease() suppressing presentation forever. */
+  {
+    constexpr uint64_t failed_frame_episode = episode + 1;
+    bw::OrderedQueueScheduler failed_frame_scheduler;
+    gw::RedrawPresentBarrier failed_frame_barrier;
+    bw::OrderedQueueScheduler::Ticket failed_frame = failed_frame_scheduler.reserve();
+    bool later_epoch_ran = false;
+    if (!require(failed_frame_barrier.schedule(failed_frame_episode),
+                 "failed-frame case schedules its resize barrier"))
+    {
+      return false;
+    }
+    failed_frame_scheduler.enqueue(
+        [&](auto done) {
+          failed_frame_barrier.arrive(
+              failed_frame_episode,
+              [done = std::move(done)](const bool valid) mutable { done(valid); });
+        },
+        [&]() { failed_frame_barrier.cancel(failed_frame_episode); });
+    failed_frame_scheduler.begin_epoch();
+    failed_frame_scheduler.enqueue([&](auto done) {
+      later_epoch_ran = true;
+      done(true);
+    });
+    failed_frame.resolve([](auto done) { done(false); });
+    if (!require(!failed_frame_barrier.is_scheduled() && later_epoch_ran &&
+                     failed_frame_scheduler.pending_count() == 0,
+                 "failed prior frame cancels the barrier and drains the later epoch") ||
+        !require(failed_frame_barrier.schedule(failed_frame_episode),
+                 "canceled failed-frame barrier leaves the resize episode retryable") ||
+        !require(failed_frame_barrier.cancel(failed_frame_episode),
+                 "failed-frame retry barrier tears down cleanly"))
+    {
+      return false;
+    }
+  }
+
+  /* If the synchronous surface copy itself fails, complete(false) must release the ordered
+   * barrier entry, preserve later-epoch work, and allow this same resize episode to retry. */
+  {
+    constexpr uint64_t failed_present_episode = episode + 2;
+    bw::OrderedQueueScheduler failed_present_scheduler;
+    gw::RedrawPresentBarrier failed_present_barrier;
+    std::function<void(bool)> settle_prior;
+    bool later_epoch_ran = false;
+    failed_present_scheduler.enqueue(
+        [&](auto done) { settle_prior = std::move(done); });
+    if (!require(failed_present_barrier.schedule(failed_present_episode),
+                 "failed-present case schedules its resize barrier"))
+    {
+      return false;
+    }
+    failed_present_scheduler.enqueue(
+        [&](auto done) {
+          failed_present_barrier.arrive(
+              failed_present_episode,
+              [done = std::move(done)](const bool valid) mutable { done(valid); });
+        },
+        [&]() { failed_present_barrier.cancel(failed_present_episode); });
+    failed_present_scheduler.begin_epoch();
+    failed_present_scheduler.enqueue([&](auto done) {
+      later_epoch_ran = true;
+      done(true);
+    });
+    settle_prior(true);
+    if (!require(failed_present_barrier.is_ready(),
+                 "failed-present case reaches the synchronous GHOST boundary") ||
+        !require(failed_present_barrier.complete(failed_present_episode, false) &&
+                     later_epoch_ran && failed_present_scheduler.pending_count() == 0,
+                 "failed synchronous present releases the later epoch") ||
+        !require(failed_present_barrier.schedule(failed_present_episode),
+                 "failed synchronous present leaves the resize episode retryable") ||
+        !require(failed_present_barrier.cancel(failed_present_episode),
+                 "failed-present retry barrier tears down cleanly"))
+    {
+      return false;
+    }
+  }
+
+  std::puts("CONTRACT resize_present_barrier_queue PASS cases=15 "
+            "order=prior,barrier,present,release,later "
+            "recovery=failed-frame,failed-present,retry");
   return true;
 }
 
@@ -4198,7 +4280,7 @@ int main()
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
-      "resize_present_barrier_cases=6 "
+      "resize_present_barrier_cases=15 "
       "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

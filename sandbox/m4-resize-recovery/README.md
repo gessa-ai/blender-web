@@ -21,7 +21,10 @@ process ceilings. The browser backend also appends one ordered-queue barrier aft
 frame. GHOST withholds interim surface copies until every earlier scoped submission has settled,
 then performs exactly one synchronous present while the barrier holds later queue work. The actual
 surface acquire/encode/submit remains inside `swapBufferRelease()`; it is never deferred across a
-WM frame or browser turn.
+WM frame or browser turn. The native/Wasm integration also drives both rejection boundaries: a
+failed prior-frame submission must cancel the waiting barrier and drain the next epoch, while a
+failed synchronous surface present must release later-epoch work and leave the same resize episode
+retryable. Neither transient failure may strand GHOST in permanent present suppression.
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped

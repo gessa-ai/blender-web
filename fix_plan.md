@@ -3028,6 +3028,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   bytes with episodes `0/1/2`, one barrier present per resized extent, complete/current/contained/
   VIEW_3D-bound plans, and zero rejection/loss (`20260827T113859-1968370`). This is diagnostic
   lifecycle stress only and does not bind the hardware pixel gate.
+  **Post-handoff safe-boundary audit 2026-08-27:** the focused source/trace contracts, 44-case
+  native/Wasm queue suite, and 31-positive/17-negative hardware-producer self-check remain green;
+  CAPTURE preflight and locked no-work retain exact `.wasm.orig` SHA-256 `2f45a8ed62eb...` while
+  forbidding patch 0288's deferred GHOST present seam. This changes no artifact and supplies no
+  Apple pixel evidence.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

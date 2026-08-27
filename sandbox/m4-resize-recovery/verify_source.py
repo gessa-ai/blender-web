@@ -69,6 +69,7 @@ def validate(
     context_source: str,
     context_header: str,
     wm_source: str,
+    wm_window_source: str,
     ghost_source: str,
     ghost_header: str,
 ) -> list[str]:
@@ -135,6 +136,37 @@ def validate(
     window_loop_at = wm_source.find("  for (wmWindow &win : wm->windows)", update_at)
     if not (update_at >= 0 and update_at < reactivate_at < window_loop_at):
         errors.append("window-context reactivation is not ordered before the draw loop")
+
+    # The barrier's ready transition requests one synthetic WindowUpdate so GHOST can present the
+    # frame which drained ahead of it. That event must invalidate the complete Blender screen on
+    # Emscripten, not only window chrome: otherwise the barrier can truthfully order and present a
+    # new-extent frame whose VIEW_3D regions were never redrawn into the replacement backbuffer.
+    ghost_event = method(wm_window_source, "static bool ghost_event_proc(")
+    update_case_at = ghost_event.find("case GHOST_kEventWindowUpdate:")
+    update_decor_case_at = ghost_event.find(
+        "case GHOST_kEventWindowUpdateDecor:", update_case_at
+    )
+    window_update = (
+        ghost_event[update_case_at:update_decor_case_at]
+        if update_case_at >= 0 and update_decor_case_at > update_case_at
+        else ""
+    )
+    window_update_tokens = (
+        "wm_window_make_drawable(wm, win);",
+        "#ifdef __EMSCRIPTEN__",
+        "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);",
+        "#endif",
+        "WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);",
+    )
+    if not window_update:
+        errors.append("GHOST window-update event boundary differs")
+    for token in window_update_tokens:
+        if window_update.count(token) != 1:
+            errors.append(f"web full-screen WindowUpdate invalidation differs: {token}")
+    if window_update and all(token in window_update for token in window_update_tokens):
+        positions = tuple(window_update.index(token) for token in window_update_tokens)
+        if positions != tuple(sorted(positions)):
+            errors.append("web full-screen invalidation is outside the drawable WindowUpdate")
 
     # WGPUContext::end_frame() is the queue-tail hook used by the resize barrier. Blender's
     # similarly named GPU_render_end() is backend-wide and runs later; it does not call the
@@ -315,6 +347,11 @@ def main() -> int:
         default=Path("upstream/source/blender/windowmanager/intern/wm_draw.cc"),
     )
     parser.add_argument(
+        "--wm-window-source",
+        type=Path,
+        default=Path("upstream/source/blender/windowmanager/intern/wm_window.cc"),
+    )
+    parser.add_argument(
         "--header",
         type=Path,
         default=Path("upstream/source/blender/gpu/webgpu/wgpu_context.hh"),
@@ -333,9 +370,17 @@ def main() -> int:
     context_source = args.source.read_text(encoding="utf-8")
     context_header = args.header.read_text(encoding="utf-8")
     wm_source = args.wm_source.read_text(encoding="utf-8")
+    wm_window_source = args.wm_window_source.read_text(encoding="utf-8")
     ghost_source = args.ghost_source.read_text(encoding="utf-8")
     ghost_header = args.ghost_header.read_text(encoding="utf-8")
-    errors = validate(context_source, context_header, wm_source, ghost_source, ghost_header)
+    errors = validate(
+        context_source,
+        context_header,
+        wm_source,
+        wm_window_source,
+        ghost_source,
+        ghost_header,
+    )
     if errors:
         for error in errors:
             print(f"BW_M4_RESIZE_SOURCE_FAIL {error}")
@@ -437,6 +482,29 @@ def main() -> int:
             1,
         ),
     }
+    wm_window_mutations = {
+        "web_window_screen_invalidation": wm_window_source.replace(
+            "      WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);",
+            "",
+            1,
+        ),
+        "web_window_screen_scope": wm_window_source.replace(
+            "#ifdef __EMSCRIPTEN__\n"
+            "      /* A web surface may publish its cleared frame before regions receive their",
+            "#ifdef __linux__\n"
+            "      /* A web surface may publish its cleared frame before regions receive their",
+            1,
+        ),
+        "web_window_screen_order": wm_window_source.replace(
+            "      WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);\n"
+            "#endif\n"
+            "      WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);",
+            "      WM_event_add_notifier_ex(wm, win, NC_WINDOW, nullptr);\n"
+            "#endif\n"
+            "      WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);",
+            1,
+        ),
+    }
     ghost_source_mutations = {
         "present_bypass": ghost_source.replace(
             "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;",
@@ -493,33 +561,50 @@ def main() -> int:
     escaped = [
         name
         for name, mutant in context_mutations.items()
-        if not validate(mutant, context_header, wm_source, ghost_source, ghost_header)
+        if not validate(
+            mutant, context_header, wm_source, wm_window_source, ghost_source, ghost_header
+        )
     ]
     escaped.extend(
         name
         for name, mutant in context_header_mutations.items()
-        if not validate(context_source, mutant, wm_source, ghost_source, ghost_header)
+        if not validate(
+            context_source, mutant, wm_source, wm_window_source, ghost_source, ghost_header
+        )
     )
     escaped.extend(
         name
         for name, mutant in wm_mutations.items()
-        if not validate(context_source, context_header, mutant, ghost_source, ghost_header)
+        if not validate(
+            context_source, context_header, mutant, wm_window_source, ghost_source, ghost_header
+        )
+    )
+    escaped.extend(
+        name
+        for name, mutant in wm_window_mutations.items()
+        if not validate(
+            context_source, context_header, wm_source, mutant, ghost_source, ghost_header
+        )
     )
     escaped.extend(
         name
         for name, mutant in ghost_source_mutations.items()
-        if not validate(context_source, context_header, wm_source, mutant, ghost_header)
+        if not validate(
+            context_source, context_header, wm_source, wm_window_source, mutant, ghost_header
+        )
     )
     escaped.extend(
         name
         for name, mutant in ghost_header_mutations.items()
-        if not validate(context_source, context_header, wm_source, ghost_source, mutant)
+        if not validate(
+            context_source, context_header, wm_source, wm_window_source, ghost_source, mutant
+        )
     )
     if escaped:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=5 checks=58 mutations=33")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=6 checks=65 mutations=36")
     return 0
 
 

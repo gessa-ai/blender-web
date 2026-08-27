@@ -22,6 +22,10 @@ The source verifier distinguishes Blender's per-window `GPU_context_end_frame()`
 later backend-wide `GPU_render_end()`: it requires complete offscreen/onscreen encoding, then the
 context queue-tail hook, then GHOST's synchronous `swapBufferRelease()`. This call order is what
 makes the completed-frame barrier a real frame tail rather than an empty or post-present marker.
+It also binds the synthetic `GHOST_kEventWindowUpdate` used by the ready barrier to Emscripten's
+`NC_SCREEN | NA_EDITED` notifier before the ordinary window notifier. A present-only or
+chrome-only update cannot therefore satisfy the source contract while leaving the replacement
+backbuffer's `VIEW_3D` regions untouched.
 `verify_resize_trace.py` binds that episode to a diagnostic which records the exact resolved target,
 viewport, and scissor for every successfully encoded draw, retains dedicated `overlay_background`
 and `OCIO_Display` snapshots, and prints one line per successful present under hard per-episode and

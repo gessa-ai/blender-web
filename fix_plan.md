@@ -2971,6 +2971,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   current, contained, VIEW_3D-bound traces and zero rejection/loss
   (`20260827T091755-1848021`). This executable boundary rejects the proposed full-window
   substitution for the correct 900x547 region and changes no runtime byte or pending candidate.
+  **Candidate-preservation audit 2026-08-27:** the source/trace/hardware-producer self-checks and
+  43-case native/Wasm ordered-queue suite remain green
+  (`20260827T093320-1859811`/`1859812`/`1859815`, `20260827T093324-1859898`). A mandatory locked
+  `blender_browser` invocation is a true no-op (`20260827T093347-1861874`), and all five CAPTURE
+  identities still exactly match the documented `e3d284c7da0e` generation. No full-window extent
+  substitution or relink was made while that exact candidate awaits Apple acceptance.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

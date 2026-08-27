@@ -23,16 +23,106 @@ const counters = {
   wmResizeProcessed: 0,
 };
 
-function parseResizeTrace(line) {
-  const match = line.match(/episode=(\d+) sample=(\d+) present=(\d+) draws=(\d+) window_draws=(\d+) surface=(\d+)x(\d+) configured=(\d+)x(\d+) requested=(\d+)x(\d+) backbuffer=(\d+)x(\d+)/);
+function parseDrawPlan(token) {
+  const match = token.match(
+    /^(\d+)\/([01])\/(-?\d+)x(-?\d+)\/vp(-?\d+),(-?\d+),(\d+)x(\d+)\/sc([01]),(\d+),(\d+),(\d+)x(\d+)$/,
+  );
   if (!match) return null;
   const values = match.slice(1).map(Number);
+  return {
+    sequence: values[0],
+    windowTarget: values[1] === 1,
+    target: values.slice(2, 4),
+    viewport: values.slice(4, 8),
+    scissor: {enabled: values[8] === 1, rect: values.slice(9, 13)},
+  };
+}
+
+function parseResizeTrace(line) {
+  const match = line.match(/episode=(\d+) sample=(\d+) present=(\d+) draws=(\d+) window_draws=(\d+) surface=(\d+)x(\d+) configured=(\d+)x(\d+) requested=(\d+)x(\d+) backbuffer=(\d+)x(\d+) any=(\S+) background=(\S+) display=(\S+)/);
+  if (!match) return null;
+  const values = match.slice(1, 14).map(Number);
+  const plans = {
+    any: parseDrawPlan(match[14]),
+    background: parseDrawPlan(match[15]),
+    display: parseDrawPlan(match[16]),
+  };
+  if (Object.values(plans).some((plan) => plan === null)) return null;
   return {
     episode: values[0], sample: values[1], present: values[2],
     draws: values[3], windowDraws: values[4],
     surface: values.slice(5, 7), configured: values.slice(7, 9),
     requested: values.slice(9, 11), backbuffer: values.slice(11, 13),
+    ...plans,
   };
+}
+
+function validateResizeTraceEpoch(traces, episode, extent, label) {
+  const failures = [];
+  const epoch = traces.filter((trace) => trace.episode === episode);
+  if (epoch.length === 0 || epoch.length > 24) {
+    failures.push(`${label} trace sample count=${epoch.length}`);
+    return failures;
+  }
+  for (let index = 0; index < epoch.length; index++) {
+    const trace = epoch[index];
+    if (trace.sample !== index) failures.push(`${label} trace sample=${trace.sample}/${index}`);
+    if (index > 0 && trace.present <= epoch[index - 1].present) {
+      failures.push(`${label} trace presents not increasing`);
+    }
+    if (index > 0 &&
+        (trace.draws < epoch[index - 1].draws ||
+         trace.windowDraws < epoch[index - 1].windowDraws)) {
+      failures.push(`${label} trace draw counts regressed`);
+    }
+    for (const field of ["surface", "configured", "requested", "backbuffer"]) {
+      if (trace[field][0] !== extent[0] || trace[field][1] !== extent[1]) {
+        failures.push(`${label} trace ${field}=${trace[field].join("x")}`);
+      }
+    }
+    if (trace.any.sequence !== trace.draws) {
+      failures.push(`${label} latest draw sequence=${trace.any.sequence}/${trace.draws}`);
+    }
+    if (trace.windowDraws > trace.draws) {
+      failures.push(`${label} window draws exceed all draws`);
+    }
+    for (const planName of ["any", "background", "display"]) {
+      const plan = trace[planName];
+      if (plan.sequence > trace.draws) {
+        failures.push(`${label} ${planName} sequence exceeds all draws`);
+      }
+      if (plan.sequence === 0) continue;
+      const [targetWidth, targetHeight] = plan.target;
+      const [viewportX, viewportY, viewportWidth, viewportHeight] = plan.viewport;
+      if (targetWidth <= 0 || targetHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
+        failures.push(`${label} ${planName} has empty target/viewport`);
+      }
+      if (plan.windowTarget &&
+          (targetWidth !== extent[0] || targetHeight !== extent[1])) {
+        failures.push(`${label} ${planName} window target=${targetWidth}x${targetHeight}`);
+      }
+      if (plan.scissor.enabled) {
+        const [x, y, width, height] = plan.scissor.rect;
+        if (x + width > targetWidth || y + height > targetHeight) {
+          failures.push(`${label} ${planName} scissor exceeds target`);
+        }
+      }
+      if (!Number.isInteger(viewportX) || !Number.isInteger(viewportY)) {
+        failures.push(`${label} ${planName} viewport origin is invalid`);
+      }
+    }
+  }
+  if (epoch.at(-1).draws <= epoch[0].draws) {
+    failures.push(`${label} draw counts did not advance`);
+  }
+  if (epoch.at(-1).windowDraws <= epoch[0].windowDraws) {
+    failures.push(`${label} window draw counts did not advance`);
+  }
+  for (const planName of ["background", "display"]) {
+    const sequences = new Set(epoch.map((trace) => trace[planName].sequence).filter(Boolean));
+    if (sequences.size < 2) failures.push(`${label} ${planName} did not advance`);
+  }
+  return failures;
 }
 
 const pythonTrace = String.raw`
@@ -146,18 +236,7 @@ try {
     {episode: restored.episodes, extent: [1280, 720], label: "restore"},
   ];
   for (const {episode, extent, label} of traceEpochs) {
-    const traces = resizeTraces.filter((trace) => trace.episode === episode);
-    if (traces.length === 0 || traces.length > 24) {
-      failures.push(`${label} trace sample count=${traces.length}`);
-      continue;
-    }
-    for (const trace of traces) {
-      for (const field of ["surface", "configured", "requested", "backbuffer"]) {
-        if (trace[field][0] !== extent[0] || trace[field][1] !== extent[1]) {
-          failures.push(`${label} trace ${field}=${trace[field].join("x")}`);
-        }
-      }
-    }
+    failures.push(...validateResizeTraceEpoch(resizeTraces, episode, extent, label));
   }
   if (counters.resizeTrace > 64 || resizeTraces.length !== counters.resizeTrace) {
     failures.push(`resize trace bound/parse mismatch=${resizeTraces.length}/${counters.resizeTrace}`);
@@ -175,7 +254,7 @@ try {
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
               `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
               `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
-              `trace=${resizeTraces.length}`);
+              `trace=${resizeTraces.length} plans=advancing,current,contained`);
 }
 finally {
   await browser.close();

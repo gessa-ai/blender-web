@@ -41,6 +41,7 @@ def validate(
     batch: str,
     immediate: str,
     series: str,
+    live: str,
 ) -> None:
     for token in (
         "enum class RedrawTracePass : uint8_t",
@@ -133,6 +134,19 @@ def validate(
     entry = "0286-gpu-webgpu-resize-draw-trace.patch"
     require_once(series, entry, "numbered trace patch")
 
+    for token in (
+        "function parseDrawPlan(token)",
+        "any: parseDrawPlan(match[14])",
+        "background: parseDrawPlan(match[15])",
+        "display: parseDrawPlan(match[16])",
+        "function validateResizeTraceEpoch(traces, episode, extent, label)",
+        "trace.any.sequence !== trace.draws",
+        'for (const planName of ["any", "background", "display"])',
+        'failures.push(`${label} draw counts did not advance`);',
+        'failures.push(`${label} window draw counts did not advance`);',
+    ):
+        require_once(live, token, "live trace consumer")
+
 
 def replace_once(source: str, old: str, new: str) -> str:
     if source.count(old) != 1:
@@ -167,6 +181,18 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         ("batch", "fb->debug_note_draw(shader->name_get().c_str());", "",),
         ("immediate", "fb->debug_note_draw(shader->name_get().c_str());", ""),
         ("series", "0286-gpu-webgpu-resize-draw-trace.patch", ""),
+        ("live", "function parseDrawPlan(token)", "function disabledDrawPlan(token)"),
+        ("live", "trace.any.sequence !== trace.draws", "false"),
+        (
+            "live",
+            'failures.push(`${label} draw counts did not advance`);',
+            'failures.push(`${label} ignored draw counts`);',
+        ),
+        (
+            "live",
+            'failures.push(`${label} window draw counts did not advance`);',
+            'failures.push(`${label} ignored window draw counts`);',
+        ),
     ]
     names = (
         "display",
@@ -176,6 +202,7 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         "batch",
         "immediate",
         "series",
+        "live",
     )
     for index, (name, old, new) in enumerate(mutations, start=1):
         changed = list(sources)
@@ -205,6 +232,7 @@ def main() -> int:
         root / "upstream/source/blender/gpu/webgpu/wgpu_batch.cc",
         root / "upstream/source/blender/gpu/webgpu/wgpu_immediate.cc",
         root / "patches/series",
+        root / "sandbox/m4-resize-recovery/live_resize_repro.mjs",
     )
     sources = tuple(path.read_text(encoding="utf-8") for path in paths)
     mutations = selfcheck(sources) if args.selfcheck else 0
@@ -212,7 +240,7 @@ def main() -> int:
     print(
         "BW_M4_RESIZE_TRACE_PASS "
         f"sources={len(sources)} mutations={mutations} episode=24 global=64 "
-        "passes=all,overlay_background,OCIO_Display"
+        "passes=all,overlay_background,OCIO_Display consumer=draw-plans"
     )
     return 0
 

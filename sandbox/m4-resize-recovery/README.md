@@ -18,7 +18,11 @@ encoding from repeated presentation of a retained backbuffer without inferring l
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped
-tick/presentation progress, and zero WebGPU encoding or submission rejection.
+tick/presentation progress, and zero WebGPU encoding or submission rejection. It parses every
+captured draw plan rather than accepting the log prefix alone: all/window draw sequences must
+advance within each episode, the latest-plan sequence must equal the all-draw count,
+`overlay_background` and `OCIO_Display` must each be freshly encoded more than once, every direct
+window target must use the committed extent, and every enabled scissor must fit its target.
 
 With a product server on port 8137:
 

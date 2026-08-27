@@ -34,6 +34,8 @@ INPUT_PATHS = (
     "ledger/deferred.json",
     "ledger/deps.json",
     "notes/gpu-gate-census.md",
+    "notes/m8-first-boot-shader-cache-seed-20260826.md",
+    "notes/m8-stage0-ui-font-bootstrap-20260826.md",
     "scripts/public-dashboard.py",
 )
 

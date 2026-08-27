@@ -3223,7 +3223,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   close the pointer-lock defect. Any later relink still requires fresh hash-bound profiles before
   APPLY, independently of P0-F. See
   `notes/p0-pointer-lock-promise-rejection-20260826.md`.
-- [x] **P0-G-M4-WIDGET-SHADOW-DEFINED-RGB [gpu-shader, patch 0284] (`6145c46`,
+- [~] **P0-G-M4-WIDGET-SHADOW-DEFINED-RGB [gpu-shader, patch 0284] (`6145c46`,
   hardware-verified 2026-08-27):** Pre-fix Apple hardware screenshots showed correctly
   shaped/faded transient-widget shadows with bright white RGB.
   Diagnostic interception of the exact CAPTURE artifact disproved a missing sampler, incomplete
@@ -3234,11 +3234,36 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   complete `float4(0,0,0,alpha)` value. Six negative source mutations, the 20,258-entry canonical
   freeze, locked CAPTURE relink/no-work, and live interception of the baked WGSL are green at
   `.wasm.orig` SHA-256 `5a9d0944007313bed75ac3deaf24d3c48e443a423c93918dbb561abb76d0d65b`.
-  **Hardware closed:** on the driver-operated Apple M4 Pro, a toolbar tooltip, the Shift+A Add-menu
-  flyout, and the F9 Adjust Last Operation panel all render soft dark shadows with no white fill.
-  Those cover the three filed acceptance surfaces. A future audit may broaden the spot-check to a
-  text tooltip and cascading submenu without keeping this launch defect open. See
+  **Original defect hardware-fixed; discovery reopened:** on the driver-operated Apple M4 Pro, a
+  toolbar tooltip, the Shift+A Add-menu flyout, and the F9 Adjust Last Operation panel all render
+  soft dark shadows with no white fill.
+  Those cover the three originally filed acceptance surfaces. The post-v0.1.1 modal-artifact audit
+  reopens final closure until a text tooltip and cascading submenu are checked. P0-I's instrumented
+  modal extrusion contains no widget-shadow pass and is tracked separately rather than weakening
+  the validated RGB fix. See
   `notes/p0-widget-shadow-defined-rgb-20260826.md`.
+- [~] **P0-I-M4-MODAL-TRANSIENT-FRAME-COHERENCE [gpu-webgpu, driver,
+  claimed_by: root, blocked-by: none]:** Apple v0.1.1 pixels show three thick retained
+  constraint-guide trails during `Tab -> E -> move` and three stable overlapping grey HUD bars
+  3-6 seconds after confirmation. The first live real-product diagnostic attests a genuine
+  8-to-16-vertex extrusion, then exercises constrained move/rotate/scale, and falsifies the initial
+  bind/extent hypotheses: all 35 six-vertex constraint draws use the live 1048x621 target/viewport,
+  line width 2, distinct immediate buffers, shader-cache HITs, and zero completeness warnings/page
+  errors. No widget-shadow pass occurs during extrusion (one appears later during move), separating
+  its spindle artifact from P0-G. Five logical extrusion redraw clusters reach persistent
+  attachments without an extrusion-phase surface copy; after confirmation, at least 160 widget
+  draws and 73 window-region composites drain before the captured settle surface copy. The
+  composites precede that copy in actual submit order, so a blanket "present overtakes all draws"
+  claim is also rejected. Later constrained move/rotate/scale reach 10/10/13 surface copies after
+  the backlog drains. **Current boundary:** first-use ordinary modal updates lack resize's
+  completed-frame admission protocol, allowing temporal versions of transient regions to
+  accumulate in persistent targets while per-draw browser scopes drain. Build the next candidate
+  around a synchronous-GHOST, frame-tail admission boundary; never revive `2c887da`/patch 0288's
+  async `presentBackbuffer()` callback,
+  which hard-aborted 10/10 Apple boots. **Not resolved:** Apple must show thin constraint guides
+  and clean six-second settles for extrude/move/rotate/scale, then retain boot/orbit and P0-E 10x
+  resize/stress. The fallback trace binds no pixels. See
+  `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

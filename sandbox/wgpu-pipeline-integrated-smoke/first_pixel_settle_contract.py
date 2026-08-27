@@ -71,6 +71,7 @@ def validate(
         "inline uint64_t redraw_episode_generation()",
         "inline void note_redraw_drop()",
         "inline uint64_t redraw_drop_generation()",
+        "inline bool redraw_present_frame_matches_episode(",
         "class RedrawPresentBarrier {",
         "inline RedrawPresentBarrier redraw_present_barrier;",
         "inline bool schedule_redraw_present_barrier(",
@@ -81,6 +82,12 @@ def validate(
         "inline uint64_t redraw_present_barrier_completion_generation()",
     ):
         require_once(display_header, token, "redraw recovery state")
+    frame_match = method(display_header, "inline bool redraw_present_frame_matches_episode(")
+    require_once(
+        frame_match,
+        "return frame_episode == current_episode;",
+        "resize frame episode binding",
+    )
     barrier = method(display_header, "class RedrawPresentBarrier")
     for token in (
         "bool schedule(const uint64_t episode)",
@@ -292,6 +299,7 @@ def selfcheck(
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_retry_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "return frame_episode == current_episode;", "return true;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "phase_ = Phase::Ready;", "phase_ = Phase::Scheduled;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "completion(valid);", "completion(false);"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "episode_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
@@ -394,7 +402,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=44 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,present-barrier")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=45 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier")
     return 0
 
 

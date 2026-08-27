@@ -209,6 +209,26 @@ function dimensionsMatch(sampleValue, width, height) {
     sampleValue.canvas?.[2] === width && sampleValue.canvas?.[3] === height;
 }
 
+const RESIZE_COMPLETION_TIMEOUT_MS = 24000;
+
+async function waitForResizeFrame(page, width, height, baseline) {
+  await page.waitForFunction(({width, height, baseline}) => {
+    const module = window.__bwModule;
+    const canvas = document.querySelector("#canvas");
+    const presents = Number(module?._bw_present_count?.());
+    const episodes = Number(module?._bw_redraw_episode_count?.());
+    return window.innerWidth === width && window.innerHeight === height &&
+      canvas?.width === width && canvas?.height === height &&
+      canvas?.clientWidth === width && canvas?.clientHeight === height &&
+      Number.isFinite(presents) && presents > baseline.presents &&
+      Number.isFinite(episodes) && episodes > baseline.episodes;
+  }, {width, height, baseline}, {timeout: RESIZE_COMPLETION_TIMEOUT_MS, polling: 100});
+  /* Console delivery follows the same completion callback that advances the counter. Give the
+   * bounded draw-plan line one message turn before freezing the evidence snapshot. */
+  await page.waitForTimeout(250);
+  return sample(page);
+}
+
 const browser = await chromium.launch({
   headless: false,
   args: ["--enable-unsafe-webgpu", "--use-webgpu-adapter=swiftshader", "--use-gpu-in-tests"],
@@ -255,11 +275,9 @@ try {
   await page.waitForTimeout(1000);
   const initial = await sample(page);
   await page.setViewportSize({width: 1100, height: 640});
-  await page.waitForTimeout(6000);
-  const shrunk = await sample(page);
+  const shrunk = await waitForResizeFrame(page, 1100, 640, initial);
   await page.setViewportSize({width: 1280, height: 720});
-  await page.waitForTimeout(6000);
-  const restored = await sample(page);
+  const restored = await waitForResizeFrame(page, 1280, 720, shrunk);
 
   const evidence = {initial, shrunk, restored, counters, resizeLayouts, resizeTraces, lines};
   const failures = [];

@@ -41,6 +41,8 @@ FORBIDDEN_DEFERRED_PRESENT_MARKERS = (
     "present_queue_enqueue_",
 )
 
+FRAME_EPISODE_MEMBER = "uint64_t redraw_present_frame_episode_ = 0;"
+
 
 def method(source: str, marker: str) -> str:
     start = source.find(marker)
@@ -62,6 +64,7 @@ def method(source: str, marker: str) -> str:
 
 def validate(
     context_source: str,
+    context_header: str,
     wm_source: str,
     ghost_source: str,
     ghost_header: str,
@@ -125,9 +128,27 @@ def validate(
         if positions != tuple(sorted(positions)):
             errors.append("context end-frame can no longer precede synchronous window swap")
 
+    if context_header.count(FRAME_EPISODE_MEMBER) != 1:
+        errors.append("window frame does not retain its resize episode")
+
+    begin_frame = method(context_source, "void WGPUContext::begin_frame()")
+    begin_frame_tokens = (
+        "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
+        "queue_scheduler_.begin_epoch();",
+    )
+    for token in begin_frame_tokens:
+        if begin_frame.count(token) != 1:
+            errors.append(f"resize frame-start binding differs: {token}")
+    if begin_frame and all(token in begin_frame for token in begin_frame_tokens):
+        if begin_frame.index(begin_frame_tokens[0]) > begin_frame.index(begin_frame_tokens[1]):
+            errors.append("resize episode is captured after the backend frame begins")
+
     end_frame = method(context_source, "void WGPUContext::end_frame()")
     end_frame_tokens = (
         "ghost_web::redraw_episode_generation()",
+        "ghost_window_ != nullptr",
+        "ghost_web::redraw_present_frame_matches_episode(",
+        "redraw_present_frame_episode_, episode",
         "ghost_web::redraw_trace_active(episode)",
         "ghost_web::schedule_redraw_present_barrier(episode)",
         "queue_scheduler_.enqueue(",
@@ -138,9 +159,9 @@ def validate(
         if end_frame.count(token) != 1:
             errors.append(f"resize present queue barrier differs: {token}")
     if end_frame and all(token in end_frame for token in end_frame_tokens):
-        positions = tuple(end_frame.index(token) for token in end_frame_tokens[2:5])
+        positions = tuple(end_frame.index(token) for token in end_frame_tokens[1:7])
         if positions != tuple(sorted(positions)):
-            errors.append("resize present barrier is not appended after frame encoding")
+            errors.append("resize present barrier is not bound to the current window frame tail")
 
     destructor = method(context_source, "WGPUContext::~WGPUContext()")
     for token in (
@@ -214,6 +235,11 @@ def main() -> int:
         default=Path("upstream/source/blender/windowmanager/intern/wm_draw.cc"),
     )
     parser.add_argument(
+        "--header",
+        type=Path,
+        default=Path("upstream/source/blender/gpu/webgpu/wgpu_context.hh"),
+    )
+    parser.add_argument(
         "--ghost-source",
         type=Path,
         default=Path("platform_web/ghost/GHOST_ContextWGPUWeb.cc"),
@@ -225,10 +251,11 @@ def main() -> int:
     )
     args = parser.parse_args()
     context_source = args.source.read_text(encoding="utf-8")
+    context_header = args.header.read_text(encoding="utf-8")
     wm_source = args.wm_source.read_text(encoding="utf-8")
     ghost_source = args.ghost_source.read_text(encoding="utf-8")
     ghost_header = args.ghost_header.read_text(encoding="utf-8")
-    errors = validate(context_source, wm_source, ghost_source, ghost_header)
+    errors = validate(context_source, context_header, wm_source, ghost_source, ghost_header)
     if errors:
         for error in errors:
             print(f"BW_M4_RESIZE_SOURCE_FAIL {error}")
@@ -267,6 +294,24 @@ def main() -> int:
             "",
             1,
         ),
+        "frame_episode_capture": context_source.replace(
+            "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
+            "",
+            1,
+        ),
+        "frame_episode_match": context_source.replace(
+            "redraw_present_frame_episode_, episode",
+            "episode, episode",
+            1,
+        ),
+        "window_context_guard": context_source.replace(
+            "ghost_window_ != nullptr",
+            "true",
+            1,
+        ),
+    }
+    context_header_mutations = {
+        "frame_episode_member": context_header.replace(FRAME_EPISODE_MEMBER, "", 1),
     }
     wm_mutations = {
         "webgpu_reactivation": wm_source.replace(
@@ -337,28 +382,33 @@ def main() -> int:
     escaped = [
         name
         for name, mutant in context_mutations.items()
-        if not validate(mutant, wm_source, ghost_source, ghost_header)
+        if not validate(mutant, context_header, wm_source, ghost_source, ghost_header)
     ]
     escaped.extend(
         name
+        for name, mutant in context_header_mutations.items()
+        if not validate(context_source, mutant, wm_source, ghost_source, ghost_header)
+    )
+    escaped.extend(
+        name
         for name, mutant in wm_mutations.items()
-        if not validate(context_source, mutant, ghost_source, ghost_header)
+        if not validate(context_source, context_header, mutant, ghost_source, ghost_header)
     )
     escaped.extend(
         name
         for name, mutant in ghost_source_mutations.items()
-        if not validate(context_source, wm_source, mutant, ghost_header)
+        if not validate(context_source, context_header, wm_source, mutant, ghost_header)
     )
     escaped.extend(
         name
         for name, mutant in ghost_header_mutations.items()
-        if not validate(context_source, wm_source, ghost_source, mutant)
+        if not validate(context_source, context_header, wm_source, ghost_source, mutant)
     )
     if escaped:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=35 mutations=20")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=5 checks=39 mutations=24")
     return 0
 
 

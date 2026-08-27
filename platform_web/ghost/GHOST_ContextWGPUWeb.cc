@@ -969,6 +969,14 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint64_t redraw_trace_episode = ghost_web::redraw_episode_generation();
   const bool redraw_trace_active = ghost_web::redraw_trace_active(redraw_trace_episode);
   const ghost_web::RedrawTraceSnapshot redraw_trace = ghost_web::redraw_trace_snapshot();
+  /* A correctly frame-bound barrier can outlive the 180-tick redraw heartbeat while a slow
+   * software adapter drains its complete frame. Retain the already-bounded snapshot for that
+   * barrier present even after capture has stopped, so a failing hardware run never loses the
+   * exact draw plan needed to distinguish an empty backbuffer from a missing presentation. */
+  const bool redraw_trace_available =
+      redraw_trace.episode_generation == redraw_trace_episode &&
+      (redraw_trace_active ||
+       ghost_web::redraw_present_barrier_ready_episode() == redraw_trace_episode);
   const uint32_t configured_width = width_;
   const uint32_t configured_height = height_;
   const uint32_t requested_width = requested_width_;
@@ -1027,7 +1035,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            surface_height,
            reconfigure_after_present,
            redraw_trace_episode,
-           redraw_trace_active,
+           redraw_trace_available,
            redraw_trace,
            configured_width,
            configured_height,
@@ -1067,7 +1075,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
               static uint64_t resize_trace_episode_seen = 0;
               static uint32_t resize_trace_episode_samples = 0;
               static uint32_t resize_trace_total_samples = 0;
-              if (redraw_trace_active && resize_trace_total_samples < 64) {
+              if (redraw_trace_available && resize_trace_total_samples < 64) {
                 if (redraw_trace_episode != resize_trace_episode_seen) {
                   resize_trace_episode_seen = redraw_trace_episode;
                   resize_trace_episode_samples = 0;

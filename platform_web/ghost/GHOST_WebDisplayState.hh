@@ -230,6 +230,18 @@ inline uint64_t redraw_drop_generation()
 }
 
 /**
+ * A resize barrier may represent only a frame that began after the same replacement drawable
+ * became current. Browser validation callbacks can publish a newer resize episode while an older
+ * frame is still encoding; accepting that frame would copy the untouched replacement backbuffer
+ * while the real new-extent submissions remain queued behind the barrier.
+ */
+inline bool redraw_present_frame_matches_episode(const uint64_t frame_episode,
+                                                 const uint64_t current_episode)
+{
+  return frame_episode == current_episode;
+}
+
+/**
  * One resize-frame submission barrier between Blender's asynchronously validated WebGPU queue and
  * GHOST's synchronous window present.
  *

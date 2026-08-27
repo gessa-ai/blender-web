@@ -1141,6 +1141,23 @@ bool ordered_queue_scheduler_failure_drain_contract()
 bool resize_present_barrier_queue_contract()
 {
   constexpr uint64_t episode = 17;
+  struct FrameEpisodeCase {
+    uint64_t frame_episode;
+    uint64_t current_episode;
+    bool expected;
+  };
+  constexpr std::array<FrameEpisodeCase, 3> frame_episode_cases = {{{episode, episode, true},
+                                                                    {episode - 1, episode, false},
+                                                                    {episode, episode + 1, false}}};
+  for (const FrameEpisodeCase &test : frame_episode_cases) {
+    if (!require(gw::redraw_present_frame_matches_episode(test.frame_episode,
+                                                          test.current_episode) == test.expected,
+                 "resize barrier binds only the drawable episode active at frame start"))
+    {
+      return false;
+    }
+  }
+
   bw::OrderedQueueScheduler scheduler;
   gw::RedrawPresentBarrier barrier;
   std::function<void(bool)> settle_prior_frame;
@@ -1449,7 +1466,7 @@ bool resize_present_barrier_queue_contract()
     }
   }
 
-  std::puts("CONTRACT resize_present_barrier_queue PASS cases=28 "
+  std::puts("CONTRACT resize_present_barrier_queue PASS cases=31 frame_binding=3 "
             "order=prior,barrier,present,release,later "
             "recovery=failed-frame,failed-present,retry "
             "supersession=queued,ready,stale-completion");
@@ -4451,7 +4468,7 @@ int main()
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
       "scheduler_failure_followers=100000 scheduler_failed_epochs=100000 "
-      "resize_present_barrier_cases=28 "
+      "resize_present_barrier_cases=31 "
       "ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 "
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "

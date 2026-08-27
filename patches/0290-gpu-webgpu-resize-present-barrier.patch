@@ -1,3 +1,18 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -329,4 +329,10 @@ class WGPUContext : public Context {
+   wgpu::Queue queue_ = nullptr;
+   /** Serializes async validation with queue writes/submissions without changing their order. */
+   webgpu::OrderedQueueScheduler queue_scheduler_;
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /** Resize episode observed when this window frame began. A replacement backbuffer can settle
++   * while the frame is encoding; only a frame that began in the current episode may place that
++   * episode's completed-frame barrier at its queue tail. */
++  uint64_t redraw_present_frame_episode_ = 0;
++#endif
+   /** Device-bound pipeline handles must not outlive this context or reach a later device. */
+
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 --- a/source/blender/gpu/webgpu/wgpu_context.cc
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
@@ -17,8 +32,14 @@ diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webg
    /* Drop the back-buffer wrapper first: the base Texture dtor detaches it from
     * back_left/front_left (which are still alive here), releasing the surface
     * texture ref without destroying the surface's own texture. */
-@@ -1296,6 +1296,26 @@ void WGPUContext::begin_frame()
+@@ -1296,6 +1296,36 @@ void WGPUContext::begin_frame()
  {
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* Bind the queue epoch to the drawable generation that was active at frame start. A browser
++   * resize commit can settle while this frame is still encoding; reading only at end_frame()
++   * would mislabel old-backbuffer work as the first complete frame of the replacement extent. */
++  redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();
++#endif
    queue_scheduler_.begin_epoch();
  }
 -void WGPUContext::end_frame() {}
@@ -28,9 +49,13 @@ diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webg
 +  /* Browser command validation settles after WM has finished encoding this frame. During a
 +   * coherent resize episode, reserve one tail barrier before GHOST reaches swapBufferRelease().
 +   * The barrier holds later queue work until GHOST has synchronously submitted a copy of this
-+   * completed frame, preventing an intermediate backbuffer pass from reaching the canvas. */
++   * completed frame, preventing an intermediate backbuffer pass from reaching the canvas. A
++   * frame which began before the replacement backbuffer committed is not eligible: its commands
++   * target the previous drawable even if the resize episode becomes current before this tail. */
 +  const uint64_t episode = ghost_web::redraw_episode_generation();
-+  if (ghost_web::redraw_trace_active(episode) &&
++  if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
++                                      redraw_present_frame_episode_, episode) &&
++      ghost_web::redraw_trace_active(episode) &&
 +      ghost_web::schedule_redraw_present_barrier(episode))
 +  {
 +    queue_scheduler_.enqueue(

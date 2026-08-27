@@ -78,6 +78,14 @@ consecutive non-flat samples, so one transient good frame followed by the stale 
 false-green the run. Every boot, baseline, and shrink image is retained so the semantic decision
 can be visually audited for the grid, Cube, and gizmo.
 
+Any failed attempt also writes an immutable `NN-diagnostics.json` sidecar. It snapshots the
+uncapped WM tick, presentation, and resize-episode counters immediately before and after the
+shrink, plus the already-bounded `WGPUWeb-resize`, `WGPUWeb-resize-trace`, and
+`WGPUWeb-resize-present-barrier` console lines. Passing runs emit no sidecars, so the independent
+accepted-receipt inventory stays unchanged. These failure-only records distinguish a missing
+barrier present from a successful present of stale or empty backbuffer content without another
+product relink.
+
 `verify_hardware_resize_receipt.mjs` is the independent post-capture consumer. It re-hashes the
 current CAPTURE product, producer source, and all 30 images; decodes every PNG and replays the
 calibrated ROI decision; requires the exact accepted hardware adapter and pinned browser stack;

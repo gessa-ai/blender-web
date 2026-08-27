@@ -58,6 +58,7 @@ const SHRINK_POLLS = 12;
 const SHRINK_POLL_MS = 2000;
 const DOMINANT_FRACTION_LIMIT = 0.95;
 const STABLE_PAINT_POLLS = 3;
+const DIAGNOSTIC_CONSOLE_LIMIT = 128;
 const REQUIRED_IMAGE_KEYS = Object.freeze(["boot", "baseline", "shrink"]);
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
@@ -82,6 +83,11 @@ const RELEVANT_ERROR_PATTERNS = Object.freeze([
   ["submissionRejected", /queue submission rejected/i],
   ["transactionRejected", /present transaction rejected/i],
   ["deviceLost", /\[bw\]\[GPU-LOST\]/],
+]);
+const RESIZE_DIAGNOSTIC_PATTERNS = Object.freeze([
+  /^WGPUWeb-resize:/,
+  /^WGPUWeb-resize-trace:/,
+  /^WGPUWeb-resize-present-barrier:/,
 ]);
 
 function isDescendant(parent, candidate) {
@@ -133,6 +139,28 @@ function writeEvidenceImage(runDir, filename, buffer) {
   const path = join(runDir, filename);
   writeFileSync(path, buffer, {flag: "wx"});
   return fileIdentity(path, runDir);
+}
+
+function writeFailureDiagnostics(
+  runDir,
+  attempt,
+  runtimeBeforeResize,
+  runtimeAfterResize,
+  consoleLines,
+  write = writeFileSync,
+) {
+  const prefix = String(attempt).padStart(2, "0");
+  write(
+    join(runDir, `${prefix}-diagnostics.json`),
+    `${JSON.stringify({
+      schema: "blender-web.p0e-resize-diagnostic.v1",
+      attempt,
+      runtimeBeforeResize,
+      runtimeAfterResize,
+      console: consoleLines,
+    }, null, 2)}\n`,
+    {flag: "wx"},
+  );
 }
 
 function requireNodeVersion(version = process.version) {
@@ -416,6 +444,29 @@ function classifyConsoleLine(line, counts) {
 
 function hasRelevantErrors(counts) {
   return Object.values(counts).some((count) => count !== 0);
+}
+
+function isResizeDiagnosticLine(line) {
+  return RESIZE_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+async function sampleRuntimeCounters(page) {
+  try {
+    return await page.evaluate(() => {
+      const module = globalThis.__bwModule;
+      const read = (name) => typeof module?.[name] === "function" ?
+        Math.trunc(Number(module[name]())) : null;
+      return {
+        ticks: read("_bw_wm_tick_count"),
+        presents: read("_bw_present_count"),
+        redrawEpisodes: read("_bw_redraw_episode_count"),
+      };
+    });
+  }
+  catch (error) {
+    return {ticks: null, presents: null, redrawEpisodes: null,
+      error: error.message || String(error)};
+  }
 }
 
 async function waitForSemanticPaint(
@@ -704,6 +755,38 @@ async function runSelfcheck() {
   check(classifyConsoleLine("WGPUWeb: present transaction rejected", errors) &&
     errors.transactionRejected === 1, "present rejection was not counted");
   check(!classifyConsoleLine("[bw] ordinary resize", errors), "ordinary log was rejected");
+  check([
+    "WGPUWeb-resize: backing -> 1100x640",
+    "WGPUWeb-resize-trace: episode=1 sample=0",
+    "WGPUWeb-resize-present-barrier: episode=1 synchronous-present=1",
+  ].every(isResizeDiagnosticLine), "resize diagnostics were not retained");
+  check(!isResizeDiagnosticLine("[bw] ordinary resize") && DIAGNOSTIC_CONSOLE_LIMIT === 128,
+    "resize diagnostic filtering or bound drifted");
+  const counterFixture = await sampleRuntimeCounters({
+    evaluate: async () => ({ticks: 11, presents: 7, redrawEpisodes: 2}),
+  });
+  check(counterFixture.ticks === 11 && counterFixture.presents === 7 &&
+    counterFixture.redrawEpisodes === 2, "runtime counter snapshot drifted");
+  const unavailableCounters = await sampleRuntimeCounters({
+    evaluate: async () => { throw new Error("fixture unavailable"); },
+  });
+  check(unavailableCounters.ticks === null && unavailableCounters.error === "fixture unavailable",
+    "unavailable runtime counters did not degrade diagnostically");
+  let diagnosticWrite = null;
+  writeFailureDiagnostics(
+    "/fixture",
+    7,
+    {ticks: 10, presents: 4, redrawEpisodes: 0},
+    {ticks: 30, presents: 5, redrawEpisodes: 1},
+    ["WGPUWeb-resize: fixture"],
+    (...args) => { diagnosticWrite = args; },
+  );
+  const diagnosticPayload = JSON.parse(diagnosticWrite?.[1] || "null");
+  check(diagnosticWrite?.[0] === join("/fixture", "07-diagnostics.json") &&
+    diagnosticWrite?.[2]?.flag === "wx" &&
+    diagnosticPayload?.schema === "blender-web.p0e-resize-diagnostic.v1" &&
+    diagnosticPayload?.attempt === 7 && diagnosticPayload?.runtimeAfterResize?.presents === 5 &&
+    diagnosticPayload?.console?.length === 1, "failure diagnostic sidecar drifted");
   const passingAttempt = (attempt) => ({
     attempt,
     ok: true,
@@ -824,11 +907,18 @@ async function runLive(options) {
       const startedAt = Date.now();
       const relevantErrors = emptyErrorCounts();
       const relevantConsole = [];
+      const resizeDiagnostics = [];
       const pageErrors = [];
       const images = {};
+      let runtimeBeforeResize = null;
+      let runtimeAfterResize = null;
       page.on("console", (message) => {
         const line = message.text();
         if (classifyConsoleLine(line, relevantErrors)) relevantConsole.push(line);
+        if (isResizeDiagnosticLine(line) &&
+            resizeDiagnostics.length < DIAGNOSTIC_CONSOLE_LIMIT) {
+          resizeDiagnostics.push(line);
+        }
       });
       page.on("pageerror", (error) => {
         pageErrors.push({name: error.name || "Error", message: error.message || String(error)});
@@ -858,6 +948,7 @@ async function runLive(options) {
           throw new Error("VIEW_3D baseline absent after splash dismissal");
         }
 
+        runtimeBeforeResize = await sampleRuntimeCounters(page);
         await page.setViewportSize({width: SHRUNK_EXTENT[0], height: SHRUNK_EXTENT[1]});
         /* Acceptance boundary: no keyboard or pointer operation may occur after this call. */
         const shrink = await waitForSemanticPaint(
@@ -868,6 +959,7 @@ async function runLive(options) {
           SHRINK_POLL_MS,
           STABLE_PAINT_POLLS,
         );
+        runtimeAfterResize = await sampleRuntimeCounters(page);
         images.shrink = writeEvidenceImage(
           runDir,
           `${String(attempt).padStart(2, "0")}-shrink.png`,
@@ -907,6 +999,15 @@ async function runLive(options) {
       }
       finally {
         await context.close();
+      }
+      if (!result.ok) {
+        writeFailureDiagnostics(
+          runDir,
+          attempt,
+          runtimeBeforeResize,
+          runtimeAfterResize,
+          resizeDiagnostics,
+        );
       }
       receipt.results.push(result);
       writeReceipt();

@@ -1,0 +1,451 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+index 9a87c774c8d1babd16a57a9179b3d21525223282..366433bc3df8ebae78a6eb6be6ced6639b4b3e93 100644
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -137,6 +137,7 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+                                      bool &r_have_bind_group)
+ {
+   std::vector<wgpu::BindGroupEntry> entries;
++  std::vector<uint32_t> pending_bindings;
+ 
+   if (shader->push_constants_survive_compilation()) {
+     shader->push_constants_flush();
+@@ -149,6 +150,9 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+       entry.size = pc.size();
+       entries.push_back(entry);
+     }
++    else if (pc.creation_pending_or_retryable()) {
++      pending_bindings.push_back(shader->push_constants_binding());
++    }
+   }
+ 
+   /* Every remaining group-0 resource the shader declares — storage buffers,
+@@ -156,10 +160,10 @@ static bool build_compute_bind_group(WGPUContext *ctx,
+    * context's shared builder (filtered by the shader interface). Same assembler the
+    * draw path uses, so a compute shader that samples a texture (Dawn "binding index
+    * N not present") now binds correctly. */
+-  ctx->append_resource_bind_entries(shader, entries);
++  ctx->append_resource_bind_entries(shader, entries, pending_bindings);
+ 
+   r_have_bind_group = false;
+-  if (!shader->bind_group_entries_complete(entries)) {
++  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
+     return false;
+   }
+   if (entries.empty()) {
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+index 895f034d54ef7267d253a072d936d2573fc9455d..86cfb44e7183e1c3cfddf6cb674707a16ec14920 100644
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -453,6 +453,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+     }
+ 
+     std::vector<wgpu::BindGroupEntry> entries;
++    std::vector<uint32_t> pending_bindings;
+     wgpu::BindGroupEntry mv_entry = {};
+     mv_entry.binding = shader->multi_viewport_binding();
+     mv_entry.buffer = mv_buf;
+@@ -469,11 +470,16 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+       pc.size = shader->push_constants_buffer().size();
+       entries.push_back(pc);
+     }
++    else if (shader->push_constants_survive_compilation() &&
++             shader->push_constants_buffer().creation_pending_or_retryable())
++    {
++      pending_bindings.push_back(shader->push_constants_binding());
++    }
+     /* A multi-viewport draw changes only the pass-state UBO; it still needs the shader's
+      * ordinary UBO/SSBO/texture/image resources. Validate the complete set before the first
+      * queue write, encoder, or render pass. */
+-    ctx->append_resource_bind_entries(shader, entries);
+-    if (!shader->bind_group_entries_complete(entries)) {
++    ctx->append_resource_bind_entries(shader, entries, pending_bindings);
++    if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
+       return;
+     }
+ 
+@@ -582,6 +588,7 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+   }
+ 
+   std::vector<wgpu::BindGroupEntry> entries;
++  std::vector<uint32_t> pending_bindings;
+   if (shader->push_constants_survive_compilation()) {
+     shader->push_constants_flush();
+     const webgpu::Buffer &pc = shader->push_constants_buffer();
+@@ -593,9 +600,12 @@ void WGPUBatch::draw(int vertex_first, int vertex_count, int instance_first, int
+       entry.size = pc.size();
+       entries.push_back(entry);
+     }
++    else if (pc.creation_pending_or_retryable()) {
++      pending_bindings.push_back(shader->push_constants_binding());
++    }
+   }
+-  ctx->append_resource_bind_entries(shader, entries);
+-  if (!shader->bind_group_entries_complete(entries)) {
++  ctx->append_resource_bind_entries(shader, entries, pending_bindings);
++  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
+     return;
+   }
+ 
+@@ -862,6 +872,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+     }
+ 
+     std::vector<wgpu::BindGroupEntry> entries;
++    std::vector<uint32_t> pending_bindings;
+     wgpu::BindGroupEntry mv_entry = {};
+     mv_entry.binding = shader->multi_viewport_binding();
+     mv_entry.buffer = mv_buf;
+@@ -878,8 +889,13 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       pc.size = shader->push_constants_buffer().size();
+       entries.push_back(pc);
+     }
+-    ctx->append_resource_bind_entries(shader, entries);
+-    if (!shader->bind_group_entries_complete(entries)) {
++    else if (shader->push_constants_survive_compilation() &&
++             shader->push_constants_buffer().creation_pending_or_retryable())
++    {
++      pending_bindings.push_back(shader->push_constants_binding());
++    }
++    ctx->append_resource_bind_entries(shader, entries, pending_bindings);
++    if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
+       return;
+     }
+ 
+@@ -965,6 +981,7 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+   }
+ 
+   std::vector<wgpu::BindGroupEntry> entries;
++  std::vector<uint32_t> pending_bindings;
+   if (shader->push_constants_survive_compilation()) {
+     shader->push_constants_flush();
+     const webgpu::Buffer &pc = shader->push_constants_buffer();
+@@ -976,9 +993,12 @@ void WGPUBatch::multi_draw_indirect(StorageBuf *indirect_buf,
+       entry.size = pc.size();
+       entries.push_back(entry);
+     }
++    else if (pc.creation_pending_or_retryable()) {
++      pending_bindings.push_back(shader->push_constants_binding());
++    }
+   }
+-  ctx->append_resource_bind_entries(shader, entries);
+-  if (!shader->bind_group_entries_complete(entries)) {
++  ctx->append_resource_bind_entries(shader, entries, pending_bindings);
++  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
+     return;
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index f2cb97f0add0dc4b13dc2287feb1a7c643987df8..b3c8d536618b6d379bd101a4e69817fd7b4099b2 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -21,8 +21,19 @@
+ #include <cstring>
+ #include <utility>
+ 
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ namespace blender::gpu::webgpu {
+ 
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
++}
++
+ Buffer::~Buffer()
+ {
+   readback::forget_source(readback::SourceKind::Buffer, this);
+@@ -214,6 +225,10 @@ bool Buffer::create_scoped(const wgpu::Instance &instance,
+               return Buffer::update_allocation(
+                   context, accepted, offset, data, size, std::move(complete));
+             });
++        /* A draw may already have returned while browser scopes validated this persistent
++         * allocation. Publish one readiness edge only after the handle is live; repeated pending
++         * draws remain ordinary bounded drops and cannot re-arm the recovery ceiling forever. */
++        request_webgpu_redraw_retry();
+       });
+   return allocation != nullptr;
+ }
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index bf68e679d1834bdbf87a2fe864976c83a7d4a99e..5b8a025052f09fc8645bc20cdeb353db807cb7c1 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -27,6 +27,7 @@
+ #include <cstring>
+ #include <deque>
+ #include <functional>
++#include <iterator>
+ #include <limits>
+ #include <memory>
+ #include <mutex>
+@@ -194,17 +195,65 @@ inline bool transient_handle_publish_if_valid(HandleT candidate, HandleT &result
+   return true;
+ }
+ 
++enum class BindGroupBindingStatus : uint8_t {
++  Complete,
++  Pending,
++  Incomplete,
++};
++
++/** Classify one group-0 assembly against the shader's surviving WGSL bindings.
++ *
++ * A missing binding is transient only when a bound resource owns that exact binding and its
++ * browser validation is still pending. Pending metadata may never hide an undeclared live or
++ * pending binding, nor a different missing binding. */
++inline BindGroupBindingStatus bind_group_binding_ids_status(
++    std::vector<uint32_t> expected_bindings,
++    std::vector<uint32_t> assembled_bindings,
++    std::vector<uint32_t> pending_bindings)
++{
++  const auto normalize = [](std::vector<uint32_t> &bindings) {
++    std::sort(bindings.begin(), bindings.end());
++    bindings.erase(std::unique(bindings.begin(), bindings.end()), bindings.end());
++  };
++  normalize(expected_bindings);
++  normalize(assembled_bindings);
++  normalize(pending_bindings);
++  if (!std::includes(expected_bindings.begin(),
++                     expected_bindings.end(),
++                     assembled_bindings.begin(),
++                     assembled_bindings.end()) ||
++      !std::includes(expected_bindings.begin(),
++                     expected_bindings.end(),
++                     pending_bindings.begin(),
++                     pending_bindings.end()))
++  {
++    return BindGroupBindingStatus::Incomplete;
++  }
++  if (assembled_bindings == expected_bindings) {
++    return BindGroupBindingStatus::Complete;
++  }
++  std::vector<uint32_t> missing_bindings;
++  std::set_difference(expected_bindings.begin(),
++                      expected_bindings.end(),
++                      assembled_bindings.begin(),
++                      assembled_bindings.end(),
++                      std::back_inserter(missing_bindings));
++  return std::includes(pending_bindings.begin(),
++                       pending_bindings.end(),
++                       missing_bindings.begin(),
++                       missing_bindings.end()) ?
++             BindGroupBindingStatus::Pending :
++             BindGroupBindingStatus::Incomplete;
++}
++
+ /** Compare the unique group-0 bindings assembled from live resources with the shader's exact
+  * sorted surviving WGSL binding set. An empty assembled set is valid only for a genuinely empty
+  * shader layout; missing, partial, and extra resource sets fail before command encoding begins. */
+ inline bool bind_group_binding_ids_complete(const std::vector<uint32_t> &expected_bindings,
+                                             std::vector<uint32_t> assembled_bindings)
+ {
+-  std::sort(assembled_bindings.begin(), assembled_bindings.end());
+-  assembled_bindings.erase(
+-      std::unique(assembled_bindings.begin(), assembled_bindings.end()),
+-      assembled_bindings.end());
+-  return assembled_bindings == expected_bindings;
++  return bind_group_binding_ids_status(expected_bindings, std::move(assembled_bindings), {}) ==
++         BindGroupBindingStatus::Complete;
+ }
+ 
+ /** Resolve every buffer required by a vertex plan before command encoding begins. A missing
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index b1b4d15a145f776696c54761e57e993e340791bd..8727028394f710157c71ff90736cc9e94fa87edb 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -908,7 +908,8 @@ void WGPUContext::apply_stencil_reference(const wgpu::RenderPassEncoder &pass) c
+ /* --- Draw/dispatch bind-group resource assembly ---------------------------- */
+ 
+ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+-                                               std::vector<wgpu::BindGroupEntry> &entries)
++                                               std::vector<wgpu::BindGroupEntry> &entries,
++                                               std::vector<uint32_t> &r_pending_bindings)
+ {
+   if (shader == nullptr) {
+     return;
+@@ -1022,6 +1023,10 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+     }
+     const webgpu::Buffer &buf = ubo->buffer();
+     if (!buf.valid()) {
++      if (pass == 0 && buf.creation_pending_or_retryable()) {
++        claimed.insert(b);
++        r_pending_bindings.push_back(b);
++      }
+       continue;
+     }
+     claimed.insert(b);
+@@ -1058,7 +1063,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+             shader->remap_sampler_binding(slot) :
+             shader->remap_ssbo_binding(slot));
+     if ((pass == 1 && claimed.count(b)) || is_pc(b) || !is_storage_binding(b) ||
+-        buffer == nullptr || !buffer->valid())
++        buffer == nullptr)
+     {
+       return;
+     }
+@@ -1090,6 +1095,19 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+   for (const auto &item : storage_candidates) {
+     const uint32_t b = item.first;
+     const webgpu::Buffer &buffer = *item.second.buffer;
++    if (!buffer.valid()) {
++      if (pass == 0) {
++        /* A mapped frontend bind owns this dense binding even before browser validation
++         * publishes its handle. Preserve that intent so a stale identity-fallback buffer cannot
++         * displace it; the shader guard will distinguish this exact pending ID from a genuinely
++         * missing resource. */
++        claimed.insert(b);
++        if (buffer.creation_pending_or_retryable()) {
++          r_pending_bindings.push_back(b);
++        }
++      }
++      continue;
++    }
+     const wgpu::BindGroupLayoutEntry *layout_entry = entry_of(b);
+     const wgpu::BufferBindingType access = layout_entry != nullptr ? layout_entry->buffer.type :
+                                                                      wgpu::BufferBindingType{};
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index 999ff99ff78ff4d329317abc5908ab2e510b9c0c..5b79353d2219b515edb3dede530266e8f84fb6ec 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -217,7 +217,8 @@ class WGPUContext : public Context {
+    * the push-constant UBO (+ multi-viewport UBO) itself. Shared by the draw,
+    * immediate and compute bind-group builders. */
+   void append_resource_bind_entries(WGPUShader *shader,
+-                                     std::vector<wgpu::BindGroupEntry> &entries);
++                                     std::vector<wgpu::BindGroupEntry> &entries,
++                                     std::vector<uint32_t> &r_pending_bindings);
+ 
+   /* Apply the dynamic stencil reference to an open render pass, from the frontend's mutable
+    * state, mirroring vk_context.cc's dynamic stencil state. The pipeline carries only the
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+index 6f70e315309567c4d305299d6138a5f6b4405890..efd7dbf7d1d84b1136ec5bdbf1ef27753197392d 100644
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -199,6 +199,7 @@ void WGPUImmediate::end()
+   }
+ 
+   std::vector<wgpu::BindGroupEntry> entries;
++  std::vector<uint32_t> pending_bindings;
+   if (shader->push_constants_survive_compilation()) {
+     shader->push_constants_flush();
+     const webgpu::Buffer &pc = shader->push_constants_buffer();
+@@ -210,9 +211,12 @@ void WGPUImmediate::end()
+       entry.size = pc.size();
+       entries.push_back(entry);
+     }
++    else if (pc.creation_pending_or_retryable()) {
++      pending_bindings.push_back(shader->push_constants_binding());
++    }
+   }
+-  ctx->append_resource_bind_entries(shader, entries);
+-  if (!shader->bind_group_entries_complete(entries)) {
++  ctx->append_resource_bind_entries(shader, entries, pending_bindings);
++  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
+     return;
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 29ab424633516b28231808ae01e304aef0a4261c..57164a1c3cd698a2acb507a86b28713547a9561d 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -2675,7 +2675,8 @@ wgpu::ComputePipeline WGPUShader::compute_pipeline(const wgpu::Instance &instanc
+  * \{ */
+ 
+ bool WGPUShader::bind_group_entries_complete(
+-    const std::vector<wgpu::BindGroupEntry> &entries) const
++    const std::vector<wgpu::BindGroupEntry> &entries,
++    const std::vector<uint32_t> &pending_bindings) const
+ {
+   std::vector<uint32_t> assembled_bindings;
+   assembled_bindings.reserve(entries.size());
+@@ -2688,12 +2689,21 @@ bool WGPUShader::bind_group_entries_complete(
+   assembled_bindings.erase(
+       std::unique(assembled_bindings.begin(), assembled_bindings.end()),
+       assembled_bindings.end());
+-  if (webgpu::bind_group_binding_ids_complete(surviving_bindings_,
+-                                               assembled_bindings))
+-  {
++  const webgpu::BindGroupBindingStatus status = webgpu::bind_group_binding_ids_status(
++      surviving_bindings_, assembled_bindings, pending_bindings);
++  if (status == webgpu::BindGroupBindingStatus::Complete) {
+     return true;
+   }
+ 
++  note_webgpu_draw_drop();
++  if (status == webgpu::BindGroupBindingStatus::Pending) {
++    /* Browser validation has not published one or more buffers that are already bound to these
++     * exact surviving IDs. This is a deferred draw, not a malformed resource set. The buffer's
++     * successful publication emits the one readiness edge that retries it; the drop itself stays
++     * bounded and does not poison the receipt's hard incomplete-group census. */
++    return false;
++  }
++
+   std::vector<uint32_t> missing_bindings;
+   std::vector<uint32_t> extra_bindings;
+   for (const uint32_t binding : surviving_bindings_) {
+@@ -2722,7 +2732,6 @@ bool WGPUShader::bind_group_entries_complete(
+   const std::string assembled_string = binding_ids_string(assembled_bindings);
+   const std::string missing_string = binding_ids_string(missing_bindings);
+   const std::string extra_string = binding_ids_string(extra_bindings);
+-  note_webgpu_draw_drop();
+   CLOG_WARN(&LOG,
+             "WGPUShader '%s': assembled group-0 resources do not match surviving WGSL bindings: "
+             "surviving=%s assembled=%s missing=%s extra=%s",
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.hh b/source/blender/gpu/webgpu/wgpu_shader.hh
+index c5207548316b86616198d126c6e4b45e44cca97a..d30bbd1fc2a6c01a4aab541acc48b357d5f45ef5 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.hh
++++ b/source/blender/gpu/webgpu/wgpu_shader.hh
+@@ -136,8 +136,10 @@ class WGPUShader : public Shader {
+     return std::binary_search(surviving_bindings_.begin(), surviving_bindings_.end(), binding);
+   }
+   /** Require the unique live-resource binding IDs to equal the exact bindings retained by final
+-   * WGSL. This distinguishes a genuinely empty layout from an empty or partial resource set. */
+-  bool bind_group_entries_complete(const std::vector<wgpu::BindGroupEntry> &entries) const;
++   * WGSL. A missing ID accounted for by an asynchronously publishing bound resource is retried;
++   * every unaccounted missing or extra ID remains a hard incomplete-group diagnostic. */
++  bool bind_group_entries_complete(const std::vector<wgpu::BindGroupEntry> &entries,
++                                   const std::vector<uint32_t> &pending_bindings) const;
+   /* ---- Explicit pipeline layout (M4.T17) ----------------------------------
+    * Dawn's auto layout infers a WGSL resource's binding type purely from the WGSL
+    * (e.g. `texture_2d<f32>` -> filterable Float), which is WRONG for the depth
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+index f63b804779f297d126a761681a384c13b0c98619..55aae5d0ac2e9042d1ede985414a4683754cae31 100644
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -307,7 +307,8 @@ GPUReadback *WGPUStorageBuffer::read_async()
+  * create the SSBO DEVICE_ONLY with no initial upload, so nothing else would. */
+ void WGPUStorageBuffer::bind(int slot)
+ {
+-  if (!ensure()) {
++  const bool allocation_ready = ensure();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+   WGPUContext *ctx = active_context();
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+index 9b59b24745c7cf89d948989f7d2b0e910645ff49..c5a64388dd9455a328ae624a7c0a4acb968bbdc4 100644
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -169,7 +169,8 @@ void WGPUUniformBuffer::clear_to_zero()
+  * builder translates it to the dense WGSL @binding at emit via remap_ubo_binding. */
+ void WGPUUniformBuffer::bind(int slot)
+ {
+-  if (!ensure_updated()) {
++  const bool allocation_ready = ensure_updated();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+   WGPUContext *ctx = active_context();
+@@ -179,7 +180,8 @@ void WGPUUniformBuffer::bind(int slot)
+ }
+ void WGPUUniformBuffer::bind_as_ssbo(int slot)
+ {
+-  if (!ensure_updated()) {
++  const bool allocation_ready = ensure_updated();
++  if (!(allocation_ready || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+   WGPUContext *ctx = active_context();

@@ -627,19 +627,25 @@ require_fixed_count 1 \
   'inline bool bind_group_binding_ids_complete(' \
   "$WEBGPU_SOURCE/wgpu_common.hh"
 require_fixed_count 1 \
+  'inline BindGroupBindingStatus bind_group_binding_ids_status(' \
+  "$WEBGPU_SOURCE/wgpu_common.hh"
+require_fixed_count 1 \
+  'request_webgpu_redraw_retry();' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
   'bool bind_group_entries_complete(' \
   "$WEBGPU_SOURCE/wgpu_shader.hh"
 require_fixed_count 1 \
-  'if (webgpu::bind_group_binding_ids_complete(surviving_bindings_,' \
+  'const webgpu::BindGroupBindingStatus status = webgpu::bind_group_binding_ids_status(' \
   "$WEBGPU_SOURCE/wgpu_shader.cc"
 require_fixed_count 1 \
-  'if (!shader->bind_group_entries_complete(entries)) {' \
+  'if (!shader->bind_group_entries_complete(entries, pending_bindings)) {' \
   "$WEBGPU_SOURCE/wgpu_backend.cc"
 require_fixed_count 4 \
-  'if (!shader->bind_group_entries_complete(entries)) {' \
+  'if (!shader->bind_group_entries_complete(entries, pending_bindings)) {' \
   "$WEBGPU_SOURCE/wgpu_batch.cc"
 require_fixed_count 1 \
-  'if (!shader->bind_group_entries_complete(entries)) {' \
+  'if (!shader->bind_group_entries_complete(entries, pending_bindings)) {' \
   "$WEBGPU_SOURCE/wgpu_immediate.cc"
 require_fixed_count 2 \
   'mv_entry.binding = shader->multi_viewport_binding();' \
@@ -667,8 +673,8 @@ def method(source: str, marker: str) -> str:
 backend = Path(sys.argv[1]).read_text(encoding="utf-8")
 batch = Path(sys.argv[2]).read_text(encoding="utf-8")
 immediate = Path(sys.argv[3]).read_text(encoding="utf-8")
-guard = "if (!shader->bind_group_entries_complete(entries)) {"
-append = "ctx->append_resource_bind_entries(shader, entries);"
+guard = "if (!shader->bind_group_entries_complete(entries, pending_bindings)) {"
+append = "ctx->append_resource_bind_entries(shader, entries, pending_bindings);"
 command = "webgpu::command_encode_submit_scoped("
 
 compute = method(backend, "static bool build_compute_bind_group(")
@@ -2429,7 +2435,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT transient_handle_publication PASS attempts=2 failure=atomic success=published' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT bind_group_completeness PASS cases=6 accepted=3 rejected=3 internal=2 unique=deduplicated' \
+       'CONTRACT bind_group_completeness PASS cases=13 complete=4 pending=2 incomplete=7 internal=2 unique=deduplicated' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT framebuffer_load_action_commit PASS cases=2 failure=pending retry=committed' \

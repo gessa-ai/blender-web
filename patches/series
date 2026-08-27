@@ -1191,3 +1191,6 @@
 # 0295: issue browser command submissions and direct queue writes in JavaScript call order;
 # asynchronous error-scope settlement remains diagnostic and never delays the surface copy.
 0295-gpu-webgpu-browser-same-turn-submission.patch
+# 0296: retain a bound buffer's exact group-0 ID while browser allocation validation is pending;
+# retry that transient draw without weakening hard missing/extra binding diagnostics.
+0296-gpu-webgpu-pending-bind-intent.patch

@@ -307,12 +307,17 @@ bool transient_handle_publication_contract()
 
 bool bind_group_completeness_contract()
 {
+  using BindingStatus = bw::BindGroupBindingStatus;
   const std::vector<uint32_t> empty;
   const std::vector<uint32_t> complete_expected = {3, 12, 13, 257};
   const std::vector<uint32_t> complete_assembled = {257, 13, 3, 12};
   const std::vector<uint32_t> duplicate_assembled = {13, 3, 257, 12, 13};
   const std::vector<uint32_t> partial_assembled = {3, 12, 257};
   const std::vector<uint32_t> extra_assembled = {3, 12, 13, 42, 257};
+  const std::vector<uint32_t> missing_pending = {13};
+  const std::vector<uint32_t> all_pending = {257, 3, 13, 12, 13};
+  const std::vector<uint32_t> wrong_pending = {12};
+  const std::vector<uint32_t> unexpected_pending = {13, 99};
 
   if (!require(bw::bind_group_binding_ids_complete(empty, empty),
                "genuinely empty bind-group layout is complete") ||
@@ -325,13 +330,40 @@ bool bind_group_completeness_contract()
       !require(!bw::bind_group_binding_ids_complete(complete_expected, partial_assembled),
                "partial bind group is rejected") ||
       !require(!bw::bind_group_binding_ids_complete(complete_expected, extra_assembled),
-               "bind group with an undeclared extra binding is rejected"))
+               "bind group with an undeclared extra binding is rejected") ||
+      !require(bw::bind_group_binding_ids_status(
+                   complete_expected, complete_assembled, missing_pending) ==
+                   BindingStatus::Complete,
+               "a complete live set wins over stale pending metadata") ||
+      !require(bw::bind_group_binding_ids_status(
+                   complete_expected, partial_assembled, missing_pending) ==
+                   BindingStatus::Pending,
+               "an exactly accounted missing live binding is pending") ||
+      !require(bw::bind_group_binding_ids_status(complete_expected, empty, all_pending) ==
+                   BindingStatus::Pending,
+               "an entirely pending resource set is not a hard mismatch") ||
+      !require(bw::bind_group_binding_ids_status(
+                   complete_expected, partial_assembled, wrong_pending) ==
+                   BindingStatus::Incomplete,
+               "pending metadata cannot hide another missing binding") ||
+      !require(bw::bind_group_binding_ids_status(
+                   complete_expected, extra_assembled, missing_pending) ==
+                   BindingStatus::Incomplete,
+               "pending metadata cannot hide an undeclared extra binding") ||
+      !require(bw::bind_group_binding_ids_status(
+                   complete_expected, partial_assembled, unexpected_pending) ==
+                   BindingStatus::Incomplete,
+               "unexpected pending bindings fail closed") ||
+      !require(bw::bind_group_binding_ids_status(
+                   complete_expected, complete_assembled, unexpected_pending) ==
+                   BindingStatus::Incomplete,
+               "a complete live set cannot hide an undeclared pending binding"))
   {
     return false;
   }
 
   std::puts(
-      "CONTRACT bind_group_completeness PASS cases=6 accepted=3 rejected=3 internal=2 unique=deduplicated");
+      "CONTRACT bind_group_completeness PASS cases=13 complete=4 pending=2 incomplete=7 internal=2 unique=deduplicated");
   return true;
 }
 

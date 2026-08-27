@@ -254,6 +254,12 @@ require_fixed_count 1 \
   'if (!webgpu::buffer_update_payload(' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
 require_fixed_count 1 \
+  '#  include "GHOST_WebDisplayState.hh"' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
+  'request_webgpu_redraw_retry();' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
   'payload.data(data),' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
 if grep -Fq 'align_up(usage_size_in_bytes_, webgpu::kCopyAlignment)' \
@@ -330,9 +336,9 @@ then
 fi
 require_fixed_count 1 'pending_updates_->retain(' "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'pending_updates->replay(' "$WEBGPU_SOURCE/wgpu_buffer.cc"
-require_fixed_count 2 'allocation_ready || buffer_.creation_pending_or_retryable()' \
+require_fixed_count 3 'allocation_ready || buffer_.creation_pending_or_retryable()' \
   "$WEBGPU_SOURCE/wgpu_storage_buffer.cc"
-require_fixed_count 4 'allocation_ready || buffer_.creation_pending_or_retryable()' \
+require_fixed_count 6 'allocation_ready || buffer_.creation_pending_or_retryable()' \
   "$WEBGPU_SOURCE/wgpu_uniform_buffer.cc"
 require_fixed_count 1 'push_constants_buffer_.create_scoped(ctx->instance_get(),' \
   "$WEBGPU_SOURCE/wgpu_shader.cc"
@@ -621,6 +627,30 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
+if [ "${BW_PENDING_BIND_ONLY:-0}" = "1" ]; then
+  echo "== [3/3] pending bind-intent native/Wasm parity =="
+  PENDING_NATIVE_STDOUT="$OUT/pending-bind-native.stdout"
+  PENDING_WASM_STDOUT="$OUT/pending-bind-wasm.stdout"
+  "$NATIVE_BUILD/wgpu_buffer_integrated_test" --pending-buffer-payload-only \
+    >"$PENDING_NATIVE_STDOUT"
+  "$NODE" "$WASM_BUILD/integrated_buffer.js" --pending-buffer-payload-only \
+    >"$PENDING_WASM_STDOUT"
+  if ! cmp -s "$PENDING_NATIVE_STDOUT" "$PENDING_WASM_STDOUT"; then
+    echo "ERROR: pending bind-intent native and Wasm evidence differs" >&2
+    diff -u "$PENDING_NATIVE_STDOUT" "$PENDING_WASM_STDOUT" | head -n 40 >&2
+    exit 1
+  fi
+  if ! grep -qx \
+    'CONTRACT pending-buffer-payload PASS cases=6 creates=6 payloads=12 order=fifo retry=retained bind_intent=pending concurrent_drainer=one final=E3' \
+    "$PENDING_NATIVE_STDOUT"
+  then
+    echo "ERROR: pending bind-intent PASS verdict missing" >&2
+    exit 1
+  fi
+  echo "PASS pending-bind-intent native/wasm source_sha256=$SOURCE_PROOF"
+  exit 0
+fi
+
 echo "== [3/3] exact native/Wasm parity =="
 NATIVE_STDOUT="$OUT/native.stdout"
 NATIVE_STDERR="$OUT/native.stderr"
@@ -645,7 +675,7 @@ then
 fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=5 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
+    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -657,10 +687,10 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT index-upload-commit PASS cases=7 creates=5 failure=retain pending=retain retry=commit bytes=6' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT persistent-buffer-publication PASS cases=6 creates=4 pending=deduplicated failure=retry bytes=6 allocation=8' \
+    'CONTRACT persistent-buffer-publication PASS cases=6 creates=4 pending=deduplicated failure=retry readiness=one bytes=6 allocation=8' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT pending-buffer-payload PASS cases=5 creates=5 payloads=12 order=fifo retry=retained frontend_calls=one-shot concurrent_drainer=one final=E3' \
+    'CONTRACT pending-buffer-payload PASS cases=6 creates=6 payloads=12 order=fifo retry=retained bind_intent=pending concurrent_drainer=one final=E3' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT buffer-staging-map PASS cases=13 large_bytes=65540 map_failure=reject error_object=blocked uncaptured=0 canceled=1 writes=validated submits=validated retry=owned' \

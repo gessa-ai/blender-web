@@ -40,6 +40,16 @@ METHODS = (
         ),
     ),
     (
+        "storage bind",
+        "void WGPUStorageBuffer::bind(int slot)",
+        "\nvoid WGPUStorageBuffer::unbind()",
+        (
+            "const bool allocation_ready = ensure();",
+            "allocation_ready || buffer_.creation_pending_or_retryable()",
+            "ctx->storage_buffer_bind(slot, this);",
+        ),
+    ),
+    (
         "uniform ensure",
         "bool WGPUUniformBuffer::ensure()",
         "\n\nbool WGPUUniformBuffer::ensure_updated()",
@@ -104,7 +114,7 @@ def main() -> int:
     uniform = args.uniform_source.read_text(encoding="utf-8")
     methods: list[str] = []
     for index, spec in enumerate(METHODS):
-        source = storage if index < 3 else uniform
+        source = storage if index < 4 else uniform
         methods.append(extract(source, *spec))
 
     payload = (

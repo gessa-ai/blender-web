@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <limits>
 #include <utility>
@@ -965,8 +966,11 @@ bool failed_ticket_capacity_contract()
 
 }  // namespace
 
-int main()
+int main(const int argc, char **argv)
 {
+  if (argc == 2 && std::strcmp(argv[1], "--pending-buffer-payload-only") == 0) {
+    return blender::gpu::webgpu::run_pending_buffer_payload_contracts() ? 0 : 1;
+  }
   if (!common_contract() || !checked_arithmetic_contract() ||
       !readback_command_transaction_contract() || !mapped_buffer_write_contract() ||
       !allocation_limit_contract() || !update_payload_contract() || !copy_range_contract() ||
@@ -984,7 +988,7 @@ int main()
   }
   std::printf(
       "INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 "
-      "buffer_create_cases=6 pending_payload_cases=5 buffer_update_cases=13 index_cases=4 "
+      "buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 "
       "index_upload_cases=7 vertex_generation_cases=2\n");
   return 0;
 }

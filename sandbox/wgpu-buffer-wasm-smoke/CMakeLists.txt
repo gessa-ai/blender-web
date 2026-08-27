@@ -167,6 +167,7 @@ target_include_directories(wgpu_buffer_integrated_smoke PRIVATE
   "${BW_UPSTREAM_DIR}/intern/clog"
   "${BW_UPSTREAM_DIR}/intern/ghost"
   "${BW_UPSTREAM_DIR}/intern/profile"
+  "${BW_UPSTREAM_DIR}/../platform_web/ghost"
   "${BW_WASM_INCLUDE_DIR}"
 )
 target_compile_options(wgpu_buffer_integrated_smoke PRIVATE

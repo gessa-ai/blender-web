@@ -333,6 +333,13 @@ class BufferCreateHarness {
       std::make_shared<PendingBufferPayloadQueue<PendingUpdateContext>>();
 };
 
+static size_t buffer_redraw_retry_count = 0;
+
+static void request_webgpu_redraw_retry()
+{
+  buffer_redraw_retry_count++;
+}
+
 /* Execute the exact shipping method with deterministic handles and deferred scope status. */
 #define wgpu create_mock
 #define usage_flags create_usage_flags
@@ -355,6 +362,7 @@ bool require(const bool condition, const char *message)
 
 bool run_integrated_buffer_create_contracts()
 {
+  buffer_redraw_retry_count = 0;
   const std::array<uint8_t, 6> payload = {0x10, 0x21, 0x32, 0x43, 0x54, 0x65};
   size_t cases = 0;
   size_t creates = 0;
@@ -491,7 +499,9 @@ bool run_integrated_buffer_create_contracts()
 
     buffer.settle(false);
     if (!require(!buffer.pending() && !buffer.valid(),
-                 "scope rejection discards the non-null candidate"))
+                 "scope rejection discards the non-null candidate") ||
+        !require(buffer_redraw_retry_count == 0,
+                 "rejected allocation publishes no redraw readiness"))
     {
       return false;
     }
@@ -514,6 +524,8 @@ bool run_integrated_buffer_create_contracts()
     const BufferCreateHarness::Allocation allocation = buffer.allocation();
     const auto expected_usage = create_usage_flags(BufferKind::Index, UsageType::Static, true);
     if (!require(buffer.valid() && !buffer.pending(), "clean retry publishes") ||
+        !require(buffer_redraw_retry_count == 1,
+                 "accepted allocation publishes one redraw readiness edge") ||
         !require(allocation.size == 8 && allocation.requested == payload.size() &&
                      allocation.kind == BufferKind::Index && allocation.readable,
                  "resource metadata publishes atomically") ||
@@ -534,11 +546,11 @@ bool run_integrated_buffer_create_contracts()
   }
 
   std::printf(
-      "CONTRACT persistent-buffer-publication PASS cases=%zu creates=%zu pending=deduplicated failure=retry bytes=%zu allocation=8\n",
+      "CONTRACT persistent-buffer-publication PASS cases=%zu creates=%zu pending=deduplicated failure=retry readiness=one bytes=%zu allocation=8\n",
       cases,
       creates,
       payload.size());
-  return cases == 6 && creates == 4;
+  return cases == 6 && creates == 4 && buffer_redraw_retry_count == 1;
 }
 
 }  // namespace blender::gpu::webgpu
@@ -743,6 +755,17 @@ class PendingFrontendContext {
     return scheduler_;
   }
 
+  template<typename BufferT> void storage_buffer_bind(const int slot, BufferT *buffer)
+  {
+    storage_bind_slot = slot;
+    storage_bind_pointer = buffer;
+    storage_bind_count++;
+  }
+
+  int storage_bind_slot = -1;
+  const void *storage_bind_pointer = nullptr;
+  size_t storage_bind_count = 0;
+
  private:
   pending_frontend_mock::Scheduler scheduler_;
 };
@@ -770,6 +793,7 @@ class StorageFrontendHarness {
   bool ensure();
   void update(const void *data);
   void clear(uint32_t clear_value);
+  void bind(int slot);
 
   void settle(const bool accepted)
   {
@@ -778,6 +802,10 @@ class StorageFrontendHarness {
   size_t retained() const
   {
     return buffer_.retained();
+  }
+  bool valid() const
+  {
+    return buffer_.valid();
   }
 
  private:
@@ -908,6 +936,28 @@ bool run_pending_buffer_payload_contracts()
       return false;
     }
     payloads += trace->writes.size();
+    creates += trace->creates;
+    cases++;
+  }
+
+  {
+    auto trace = std::make_shared<Trace>();
+    StorageFrontendHarness storage(storage_a.size(), GPU_USAGE_STATIC, trace);
+    storage.bind(7);
+    if (!require(trace->creates == 1 && !storage.valid() &&
+                     context.storage_bind_count == 1 && context.storage_bind_slot == 7 &&
+                     context.storage_bind_pointer == &storage,
+                 "storage bind intent survives pending browser allocation"))
+    {
+      return false;
+    }
+    storage.settle(true);
+    if (!require(storage.valid() && context.storage_bind_count == 1 &&
+                     context.storage_bind_pointer == &storage,
+                 "accepted allocation publishes behind the retained bind intent"))
+    {
+      return false;
+    }
     creates += trace->creates;
     cases++;
   }
@@ -1102,11 +1152,11 @@ bool run_pending_buffer_payload_contracts()
   pending_frontend_context = nullptr;
   std::printf(
       "CONTRACT pending-buffer-payload PASS cases=%zu creates=%zu payloads=%zu order=fifo "
-      "retry=retained frontend_calls=one-shot concurrent_drainer=one final=E3\n",
+      "retry=retained bind_intent=pending concurrent_drainer=one final=E3\n",
       cases,
       creates,
       payloads);
-  return cases == 5 && creates == 5 && payloads == 12;
+  return cases == 6 && creates == 6 && payloads == 12;
 }
 
 }  // namespace blender::gpu::webgpu

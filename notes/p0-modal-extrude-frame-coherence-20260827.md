@@ -7,10 +7,13 @@
 
 P0-I remains open pending Apple pixels. The first instrumentation pass rejected the filed
 binding/shadow hypothesis and narrowed both hardware symptoms to temporal accumulation of
-transient region draws. Patch 0295 now provides a testable runtime candidate: browser queue writes
-and command-buffer submissions happen in their JavaScript calling turn, while error-scope results
-remain asynchronous diagnostics. The fallback product is locally clean, but it binds no hardware
-pixel claim, receipt, profile, APPLY bundle, or release tag.
+transient region draws. Patch 0295 provides the first runtime candidate: browser queue writes and
+command-buffer submissions happen in their JavaScript calling turn, while error-scope results
+remain asynchronous diagnostics. Patch 0296 adds the independently observed missing-compute-draw
+candidate: exact buffer binding intent survives asynchronous allocation, and only successful
+publication emits one bounded redraw-readiness edge. The fallback diagnostic completes with no
+page error or hard incomplete-group warning, but it binds no hardware pixel claim, receipt,
+profile, APPLY bundle, or release tag.
 
 The driver-operated Apple M4 Pro remains the pixel authority. Its accepted v0.1.1 candidate
 (`.wasm.orig` SHA-256 prefix `505702dbf41c`) shows multiple constraint-guide trails during modal
@@ -97,6 +100,38 @@ arbitrary future names, duplicated signatures, and malformed diagnostics. Under 
 contract the old success-r2 run would correctly fail; fresh current-generation Apple receipts must
 report an empty census before APPLY or release promotion.
 
+## Pending buffer binding intent
+
+The three Apple signatures share a narrower state than an arbitrary missing resource. In the
+accepted success-r2 timeline, `draw_resource_finalize`, `draw_visibility_compute`, and
+`draw_command_generate` all miss dense binding 1 during one roughly 26 ms interaction window.
+Their draw-manager call sites bind lazily allocated bounds/visibility storage buffers immediately
+before dispatch. `WGPUStorageBuffer::bind()` previously called `ensure()` and returned before
+recording the frontend slot whenever browser allocation validation was still pending. Uniform
+buffer bind and storage-rebind had the same ordering. Consequently, resource assembly could not
+distinguish a bound-but-pending resource from a buffer that Blender never bound at all, and the
+strict completeness gate emitted the hard warning and abandoned the dispatch.
+
+Patch 0296 preserves the frontend slot while `Buffer::create_scoped()` is pending. Resource
+assembly carries pending dense IDs separately from live `BindGroupEntry` objects, prevents an
+identity-fallback resource from stealing that mapped slot, and classifies the result with three
+fail-closed states:
+
+- `Complete` still requires the exact live surviving set;
+- `Pending` requires every missing ID to be owned by an exact pending binding, with no undeclared
+  live or pending ID;
+- `Incomplete` retains the existing shader/set diagnostic for every unaccounted missing or extra
+  ID.
+
+A pending result records the dropped draw but does not enter the hard receipt census. Crucially,
+it also does not publish readiness on every retry: that would let a permanently pending allocation
+re-arm the 180-tick ceiling indefinitely. The persistent buffer's successful publication callback
+emits exactly one readiness generation, which re-tags the window only after the real handle is
+available; rejection emits none. Native and Wasm fixtures prove pending slot retention, rejected
+publication, accepted publication, one readiness edge, exact/missing/extra classification, and
+native/Wasm parity. This repairs the observed resource-state distinction without weakening the
+all-shader receipt gate.
+
 ## Evidence and acceptance
 
 - Apple screenshots: `~/bw-logs/mac-capture-evidence-20260827-extrude-artifact/`.
@@ -125,6 +160,22 @@ report an empty census before APPLY or release promotion.
   `ledger/buildlogs/20260827T225613-2531382.log`,
   `ledger/buildlogs/20260827T225833-2532789.log`, and
   `ledger/buildlogs/20260827T225836-2532827.log`.
+- Pending-binding fail-first, final focused buffer parity, and full pipeline parity:
+  `ledger/buildlogs/20260827T231350-2544092.log`,
+  `ledger/buildlogs/20260827T233739-2566105.log`, and
+  `ledger/buildlogs/20260827T233625-2563882.log`.
+- Final canonical replay and capture-profile self-check:
+  `ledger/buildlogs/20260827T233612-2563747.log` and
+  `ledger/buildlogs/20260827T233158-2560718.log`.
+- Final CAPTURE relink, unchanged pinned-Node modal rerun/analysis, and committed-state no-work:
+  `ledger/buildlogs/20260827T233803-2567595.log`,
+  `ledger/buildlogs/20260827T233933-2568490.log`,
+  `ledger/buildlogs/20260827T234005-2568972.log`, and
+  `ledger/buildlogs/20260827T234211-2570387.log`.
+
+The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
+`67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data
+`095d0ba748c3`, and split manifest `b6f4b5ff558c`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

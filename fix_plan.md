@@ -3272,8 +3272,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   ignored 18 real failures: `draw_resource_finalize` (1), `draw_visibility_compute` (9), and
   `draw_command_generate` (8), each missing binding 1. Both capture scenarios now aggregate and
   fail on every incomplete shader signature, including arbitrary future names and malformed
-  diagnostics. This makes the receipt honest; it does not fix or hardware-close those missing
-  resources. Current-generation acceptance additionally requires `incompleteBindGroups=[]`. See
+  diagnostics. **Pending-resource candidate implemented (`af0ebe3`, patch 0296):** the three
+  signatures bind lazily allocated draw-manager buffers, but storage/uniform bind previously
+  returned before recording the slot while browser allocation validation was pending. Bind intent
+  now survives that window; assembly carries exact pending IDs separately and accepts `Pending`
+  only when they account for every missing surviving ID with no live/pending extra. Every genuine
+  missing/extra set retains the hard warning. Pending draws remain bounded drops, while successful
+  buffer publication emits exactly one redraw-readiness edge (rejection emits none), avoiding an
+  indefinitely rearmed recovery ceiling. Focused native/Wasm buffer and full pipeline parity,
+  canonical replay, final CAPTURE relink, and a zero-page-error/zero-hard-warning fallback modal
+  run are green. This makes the receipt honest and provides a hardware candidate; it does not
+  hardware-close P0-I. Current-generation acceptance additionally requires
+  `incompleteBindGroups=[]`. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

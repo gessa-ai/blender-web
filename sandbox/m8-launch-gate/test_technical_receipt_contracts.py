@@ -26,6 +26,7 @@ DEFERRED = {
 }
 CONTRACT = {"shipped_wasm": [PRIMARY, DEFERRED]}
 WORKER_IDENTITY = {"bytes": 1234, "sha256": "c" * 64}
+MAIN_URL = f"/bin/blender_browser.js?sha256={WORKER_IDENTITY['sha256']}"
 
 
 def request(url: str, at_ms: int) -> dict[str, object]:
@@ -54,8 +55,9 @@ def pthread_blob_fields() -> dict[str, object]:
     return {
         "page_origin": origin,
         "pthread_blob_proof": {
-            "contract": "pthread-main-script-blob-v1",
-            "sourcePath": "/bin/blender_browser.worker.js",
+            "contract": "pthread-main-script-cache-v2",
+            "sourcePath": "/bin/blender_browser.js",
+            "sourceUrl": MAIN_URL,
             "phase": "ready",
             **WORKER_IDENTITY,
             "factoryCalls": 1,
@@ -68,6 +70,20 @@ def pthread_blob_fields() -> dict[str, object]:
         ],
         "pthread_blob_transport_valid": True,
         "pthread_blob_transport_failures": [],
+        "pthread_source_cache": {
+            "contract": "pthread-page-glue-http-cache-v1",
+            "source_url": MAIN_URL,
+            "source_path": "/bin/blender_browser.js",
+            "origin_request_count": 1,
+            "resource_entries": [
+                {"name": MAIN_URL, "initiator_type": "script", "transfer_size": 123,
+                 "decoded_body_size": WORKER_IDENTITY["bytes"]},
+                {"name": MAIN_URL, "initiator_type": "fetch", "transfer_size": 0,
+                 "decoded_body_size": WORKER_IDENTITY["bytes"]},
+            ],
+        },
+        "pthread_source_cache_valid": True,
+        "pthread_source_cache_failures": [],
     }
 
 
@@ -111,7 +127,6 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "/service-worker.js",
         "/fonts/bw-interface-sans.woff2",
         "/bin/blender_browser.js",
-        "/bin/blender_browser.worker.js",
         "/bin/blender_browser.data",
         "/bin/blender_browser.wasm",
     ))
@@ -123,11 +138,16 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "bin/blender_browser.deferred.wasm.br",
     })
     bundle_artifacts = {
-        name: (WORKER_IDENTITY if name == "bin/blender_browser.worker.js" else
+        name: (WORKER_IDENTITY if name == "bin/blender_browser.js" else
                {"bytes": 1, "sha256": "e" * 64})
         for name in bundle_files
     }
-    requests = [transport_request(path, 10 + index) for index, path in enumerate(mandatory)]
+    requests = [transport_request(
+        MAIN_URL if path == "/bin/blender_browser.js" else path,
+        10 + index, path=path) for index, path in enumerate(mandatory)]
+    requests.append(transport_request(
+        MAIN_URL, 30, path="/bin/blender_browser.js",
+        bundle_artifact="bin/blender_browser.js"))
     requests.append(transport_request(
         f"/bin/blender_browser.deferred.wasm?sha256={'b' * 64}", 101,
         path="/bin/blender_browser.deferred.wasm",
@@ -173,7 +193,10 @@ def critical_path_selfcheck() -> tuple[int, int]:
     query_request = transport_request("/extra.js?v=1", 90, path="/extra.js")
     negatives = (
         (dynamic, bundle_files),
-        ({**positive, "same_origin_requests": [*requests, requests[0]]}, bundle_files),
+        ({**positive, "same_origin_requests": [*requests,
+                                                next(row for row in requests if
+                                                     row["path"] != "/bin/blender_browser.js")]},
+         bundle_files),
         ({**positive, "same_origin_requests": [*requests, query_request]}, dynamic_bundle),
         ({**dynamic, "same_origin_requests": [*requests,
                                                transport_request(extra_path, 90,
@@ -190,9 +213,15 @@ def critical_path_selfcheck() -> tuple[int, int]:
             *positive["pthread_blob_workers"][:-1],
             {**positive["pthread_blob_workers"][-1], "kind": "shared-worker"}]},
          bundle_files),
+        ({**positive, "pthread_source_cache": {
+            **positive["pthread_source_cache"], "origin_request_count": 2}}, bundle_files),
+        ({**positive, "pthread_source_cache": {
+            **positive["pthread_source_cache"],
+            "resource_entries": positive["pthread_source_cache"]["resource_entries"][:1]}},
+         bundle_files),
     )
     for row, files in negatives:
-        artifacts = {name: (WORKER_IDENTITY if name == "bin/blender_browser.worker.js" else
+        artifacts = {name: (WORKER_IDENTITY if name == "bin/blender_browser.js" else
                             {"bytes": 1, "sha256": "e" * 64}) for name in files}
         _, failures = make_staged_receipt.observed_critical_paths(
             row, CONTRACT, files, artifacts)

@@ -299,10 +299,10 @@ function(blender_web_browser_binary src_target)
   # mounts in preRun (the browser equivalent of the node recipe's env triad). FS is
   # exported too so the shell / node verifier can sanity-check the preloaded tree.
   # Keep Emscripten's default incoming Module surface and add mainScriptUrlOrBlob.
-  # The public bundle downloads one dedicated worker-script response into a Blob;
-  # every pthread then executes that in-memory Blob instead of re-requesting the
-  # complete link glue from the origin.  This is the pinned runtime's supported
-  # libpthread seam (src/lib/libpthread.js), not a generated-glue rewrite.
+  # The public bundle reuses the content-addressed page-glue response as a Blob;
+  # every pthread then executes those verified in-memory bytes instead of
+  # transferring the complete link glue again. This is the pinned runtime's
+  # supported libpthread seam (src/lib/libpthread.js), not a generated-glue rewrite.
   set(_bw_browser_flags
     "-pthread -fexceptions -sMALLOC=dlmalloc -sWASM_BIGINT -sALLOW_MEMORY_GROWTH \
 -sINITIAL_MEMORY=536870912 -sPROXY_TO_PTHREAD -sEXIT_RUNTIME=1 -sSTACK_SIZE=8388608 \

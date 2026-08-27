@@ -28,7 +28,6 @@ from transport_contract import (  # noqa: E402
 PROOF_PATH = "/.well-known/bw-transport-proof"
 TRANSFORMED_PUBLIC_FILES = frozenset({
     "bin/blender_browser.js",
-    "bin/blender_browser.worker.js",
     "bin/blender_browser.data",
 })
 CTYPE = {
@@ -211,7 +210,10 @@ def make_handler(state: ExactTreeServer) -> type[http.server.SimpleHTTPRequestHa
                 self.send_header("Cache-Control", "no-store")
             else:
                 path = self._logical_path
-                if path.startswith("/bin/"):
+                if path == "/bin/blender_browser.js":
+                    self.send_header(
+                        "Cache-Control", "public, max-age=31536000, immutable")
+                elif path.startswith("/bin/"):
                     self.send_header("Cache-Control", "no-cache, must-revalidate")
                 elif path == "/service-worker.js":
                     self.send_header("Cache-Control", "no-cache")

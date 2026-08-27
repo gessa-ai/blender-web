@@ -1,5 +1,11 @@
 # M8 pthread single-transfer transport — 2026-08-27
 
+> Superseded for current planning by
+> `notes/m8-pthread-shared-main-cache-20260827.md`: the page and bootstrap now share one
+> content-addressed page-glue URL, so the separate worker-source artifact and its 61,066-byte
+> Brotli cost are no longer present. The measurements below remain the historical proof that
+> `mainScriptUrlOrBlob` removed repeated per-worker origin requests.
+
 <!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 

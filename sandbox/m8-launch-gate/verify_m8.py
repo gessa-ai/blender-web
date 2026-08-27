@@ -117,13 +117,11 @@ STATIC_BUNDLE_FILES = (
     "legal/OpenUSD-26.03/LICENSE.txt",
     "legal/OpenUSD-26.03/NOTICE.txt",
     "bin/blender_browser.js",
-    "bin/blender_browser.worker.js",
     "bin/blender_browser.data",
     "bin/stage1.data",
     "bin/stage1-manifest.json",
     BUNDLE_SPLIT_MANIFEST,
     "bin/blender_browser.js.br",
-    "bin/blender_browser.worker.js.br",
     "bin/blender_browser.data.br",
     "bin/stage1.data.br",
     "index.html.br",
@@ -148,7 +146,6 @@ BOOT_CRITICAL_PATHS = (
     "/service-worker.js",
     "/fonts/bw-interface-sans.woff2",
     "/bin/blender_browser.js",
-    "/bin/blender_browser.worker.js",
     "/bin/blender_browser.data",
 )
 
@@ -342,9 +339,12 @@ def artifact_contract(build: Path = BUILD) -> dict[str, object]:
             for row in shipped
         ],
     }
+    main_glue_url = (f"/bin/blender_browser.js?sha256={sha256(BUNDLE / 'bin/blender_browser.js')}"
+                     if (BUNDLE / "bin/blender_browser.js").is_file() else None)
     return {"manifest": manifest, "inventory": inventory, "shipped_wasm": shipped,
             "build_files": build_files, "bundle_files": bundle_files,
-            "public_split_manifest": public_split_manifest}
+            "public_split_manifest": public_split_manifest,
+            "main_glue_url": main_glue_url}
 
 
 def build_files() -> tuple[str, ...]:
@@ -977,8 +977,13 @@ def check_service_worker_contract(failures: list[str]) -> None:
         f"/bin/{row['filename']}": f"/bin/{row['filename']}?sha256={row['sha256']}"
         for row in contract["shipped_wasm"] if row["role"] == "deferred"
     }
+    main_url = contract.get("main_glue_url")
+    require(isinstance(main_url, str), "content-addressed page-glue URL is absent", failures)
+    versioned = {**deferred}
+    if isinstance(main_url, str):
+        versioned["/bin/blender_browser.js"] = main_url
     expected_precache = ["/"] + sorted([
-        deferred.get(f"/{name}", f"/{name}") for name in STATIC_BUNDLE_FILES
+        versioned.get(f"/{name}", f"/{name}") for name in STATIC_BUNDLE_FILES
         if name not in {"_headers", "service-worker.js"} and not name.endswith(".br")
     ] + list(deferred.values()) + [
         f"/bin/{row['filename']}" for row in contract["shipped_wasm"]
@@ -991,7 +996,7 @@ def check_service_worker_contract(failures: list[str]) -> None:
     for name in STATIC_BUNDLE_FILES:
         if name in {"_headers", "service-worker.js"} or name.endswith(".br"):
             continue
-        url = deferred.get(f"/{name}", f"/{name}")
+        url = versioned.get(f"/{name}", f"/{name}")
         expected_digests[url] = sha256(BUNDLE / name)
     for row in contract["shipped_wasm"]:
         name = f"bin/{row['filename']}"
@@ -2159,12 +2164,15 @@ def runtime_consumer_selfcheck() -> None:
         (PUBLIC_MINIFIER, "BW_PUBLIC_SHELL_MINIFIER_SELFCHECK_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/test_pthread_main_loader.mjs",
          "M8_PTHREAD_MAIN_LOADER_CONTRACT_PASS"),
+        (ROOT / "sandbox/m8-staged-deploy/test_pthread_shared_main_cache.mjs",
+         "M8_PTHREAD_SHARED_MAIN_CACHE_SELFCHECK_PASS"),
         (ROOT / "sandbox/m8-staged-deploy/stage_provenance.py",
          "M8_STAGE_PROVENANCE_SELFCHECK_PASS"),
     ):
         command = [str(node), str(script), *(
             ["--selfcheck"] if script.name in {
-                "browser_matrix.mjs", "brotli_q11.mjs", "public_shell_minify.mjs"
+                "browser_matrix.mjs", "brotli_q11.mjs", "public_shell_minify.mjs",
+                "test_pthread_shared_main_cache.mjs",
             } else [])] \
             if script.suffix == ".mjs" else \
             [sys.executable, str(script), "--selfcheck"]

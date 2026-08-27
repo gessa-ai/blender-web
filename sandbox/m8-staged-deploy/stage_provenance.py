@@ -178,6 +178,9 @@ def render_controls(bundle: Path, worker_template: Path, register_template: Path
     precache = ["/"] + sorted("/" + name for name in cache_files if name != "_headers")
     cache_first: list[str] = []
     deferred: dict[str, str] = {}
+    main_name = "bin/blender_browser.js"
+    main_url = (f"/{main_name}?sha256={sha256(bundle / main_name)}"
+                if main_name in cache_files else None)
     for row in rows:
         if row["role"] == "deferred":
             filename = str(row["filename"])
@@ -185,13 +188,16 @@ def render_controls(bundle: Path, worker_template: Path, register_template: Path
             cache_first.append(query_url)
             precache[precache.index(f"/bin/{filename}")] = query_url
             deferred[f"/bin/{filename}"] = query_url
+    if main_url is not None:
+        precache[precache.index(f"/{main_name}")] = main_url
     precache = [precache[0]] + sorted(precache[1:])
     cache_first = [url for url in precache if url != "/service-worker-register.js"]
     digests: dict[str, str] = {}
     for name in cache_files:
         if name == "_headers":
             continue
-        url = deferred.get(f"/{name}", f"/{name}")
+        url = main_url if name == main_name and main_url is not None else \
+            deferred.get(f"/{name}", f"/{name}")
         digests[url] = sha256(bundle / name)
     digests["/"] = digests["/index.html"]
     worker_text = worker_template.read_text(encoding="utf-8")
@@ -252,7 +258,6 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
     minified_copy_map = {
         "diagnostics-bootstrap.js": shell / "diagnostics-bootstrap.js",
         "file-bridge.js": shell / "file-bridge.js",
-        "pthread-main-loader.js": staged_root / "pthread-main-loader.js",
         "stage1-loader.js": staged_root / "stage1-loader.js",
     }
     for name, source in minified_copy_map.items():
@@ -279,15 +284,27 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         else:
             _compare_bytes(bundle / "boot-windowed.js", minified_boot,
                            "deterministic boot-windowed hardening and minification", failures)
-    worker_source = bundle / "bin/blender_browser.worker.js"
     public_main = bundle / "bin/blender_browser.js"
     if public_main.is_file():
-        _compare_bytes(worker_source, public_main.read_bytes(),
-                       "public Stage-0 main glue", failures)
+        main_digest = sha256(public_main)
+        loader_template = (staged_root / "pthread-main-loader.js").read_text(encoding="utf-8")
+        token = "__BW_PAGE_GLUE_SHA256__"
+        if loader_template.count(token) != 1:
+            failures.append("pthread page-glue identity token is absent/ambiguous")
+        else:
+            try:
+                expected_loader = minify_bytes(
+                    loader_template.replace(token, main_digest).encode("utf-8"))
+            except ValueError as error:
+                failures.append(f"cannot derive minified pthread-main-loader.js: {error}")
+            else:
+                _compare_bytes(bundle / "pthread-main-loader.js", expected_loader,
+                               "content-bound pthread main loader", failures)
+                if (bundle / "pthread-main-loader.js").is_file():
+                    derived["pthread-main-loader.js"] = identity(
+                        bundle / "pthread-main-loader.js")
     else:
         failures.append("public Stage-0 main glue is absent for pthread derivation")
-    if worker_source.is_file():
-        derived["bin/blender_browser.worker.js"] = identity(worker_source)
 
     index = (shell / "windowed.html").read_text(encoding="utf-8")
     boot_tag = '<script src="/boot-windowed.js"></script>'
@@ -295,8 +312,11 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         '  <script src="/stage1-loader.js"></script>\n' \
         '  <script src="/service-worker-register.js"></script>'
     main_tag = '<script src="/bin/blender_browser.js"></script>'
-    pthread_injected = main_tag + \
-        '\n  <!-- PUBLIC: one origin fetch supplies every in-memory pthread worker. -->\n' \
+    versioned_main_tag = \
+        f'<script src="/bin/blender_browser.js?sha256={sha256(public_main)}"></script>' \
+        if public_main.is_file() else main_tag
+    pthread_injected = versioned_main_tag + \
+        '\n  <!-- PUBLIC: one immutable page-glue body also supplies every pthread Blob. -->\n' \
         '  <script src="/pthread-main-loader.js"></script>'
     if index.count(boot_tag) != 1:
         failures.append("windowed stage-loader injection seam is absent/ambiguous")
@@ -335,14 +355,12 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
         "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
         "legal/OpenUSD-26.03/LICENSE.txt", "legal/OpenUSD-26.03/NOTICE.txt",
-        "bin/blender_browser.js", "bin/blender_browser.worker.js",
-        "bin/blender_browser.data", "bin/split-build.json",
+        "bin/blender_browser.js", "bin/blender_browser.data", "bin/split-build.json",
         "bin/stage1-manifest.json", "bin/stage1.data",
         *(f"bin/{row['filename']}" for row in shipped_rows),
     ]
     payload_br_names = [
-        "bin/blender_browser.js.br", "bin/blender_browser.worker.js.br",
-        "bin/blender_browser.data.br", "bin/stage1.data.br",
+        "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
         *(f"bin/{row['filename']}.br" for row in shipped_rows),
     ]
     shell_br_names = [
@@ -462,7 +480,7 @@ def selfcheck() -> None:
                 else:
                     minified_wire += encoded.stat().st_size
     wire_tuple = (raw_wire, minified_wire, raw_wire - minified_wire)
-    assert wire_tuple == (27555, 13944, 13611), wire_tuple
+    assert wire_tuple == (27751, 14071, 13680), wire_tuple
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -565,7 +583,7 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "minifier=5/6 minified_stage=23 pthread=10/10 wire=27555->13944(-13611) "
+          "minifier=5/6 minified_stage=23 pthread=11/10 wire=27751->14071(-13680) "
           "packer=572/5/9/13 "
           "coherent=diagnostics+worker+register")
 

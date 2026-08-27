@@ -23,7 +23,6 @@ export const BOOT_CRITICAL_URLS = Object.freeze([
   "/service-worker.js",
   "/fonts/bw-interface-sans.woff2",
   "/bin/blender_browser.js",
-  "/bin/blender_browser.worker.js",
   "/bin/blender_browser.data",
 ]);
 
@@ -43,10 +42,9 @@ export const STATIC_BUNDLE_NAMES = [
   "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
   "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
   "legal/OpenUSD-26.03/LICENSE.txt", "legal/OpenUSD-26.03/NOTICE.txt",
-  "bin/blender_browser.js", "bin/blender_browser.worker.js", "bin/blender_browser.data",
+  "bin/blender_browser.js", "bin/blender_browser.data",
   "bin/stage1.data", "bin/stage1-manifest.json", BUNDLE_SPLIT_MANIFEST,
-  "bin/blender_browser.js.br", "bin/blender_browser.worker.js.br",
-  "bin/blender_browser.data.br", "bin/stage1.data.br",
+  "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
   "index.html.br", "diagnostics-bootstrap.js.br", "file-bridge.js.br",
   "boot-windowed.js.br", "pthread-main-loader.js.br", "stage1-loader.js.br",
   "service-worker-register.js.br",
@@ -180,6 +178,8 @@ export function loadArtifactContract(root = "/Users/paws/blender-web") {
   return {
     manifest, inventory, shippedWasm, sourceNames, bundleNames, buildBase, bundleBase,
     publicSplitManifest,
+    mainGlueUrl: `/bin/blender_browser.js?sha256=${fileIdentity(
+      `${bundleBase}/bin/blender_browser.js`).sha256}`,
     shippedWasmUrls: shippedWasm.map((row) => `/bin/${row.filename}`),
     criticalWasmUrls: shippedWasm.filter((row) => row.critical).map((row) => `/bin/${row.filename}`),
   };

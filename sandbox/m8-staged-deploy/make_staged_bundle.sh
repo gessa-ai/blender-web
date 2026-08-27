@@ -77,6 +77,7 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     sandbox/m8-staged-deploy/public_shell_minify.mjs \
     sandbox/m8-staged-deploy/pthread-main-loader.js \
     sandbox/m8-staged-deploy/test_pthread_main_loader.mjs \
+    sandbox/m8-staged-deploy/test_pthread_shared_main_cache.mjs \
     sandbox/m8-staged-deploy/service-worker.js \
     sandbox/m8-staged-deploy/service-worker-register.js; do
     [ -f "${REPO}/${f}" ] || die "self-check source missing: ${f}"
@@ -183,27 +184,6 @@ share_sha="$(shasum -a 256 "${OUT}/scenes/stress-mixed.blend" | cut -d' ' -f1)"
 # shared deterministic transformer fails if the literal seam moves.
 python3 "${SELF_DIR}/public_shell_hardening.py" \
   --input "${OUT}/boot-windowed.js" --output "${OUT}/boot-windowed.js"
-# inject the stage-1 loader AFTER boot-windowed.js (bundle-only edit)
-python3 - "$OUT/index.html" <<'PY'
-import sys
-p=sys.argv[1]; t=open(p).read()
-needle='<script src="/boot-windowed.js"></script>'
-add='<script src="/boot-windowed.js"></script>\n  <!-- STAGED DEPLOY: stream the deferred payload after first pixels, then cache it -->\n  <script src="/stage1-loader.js"></script>\n  <script src="/service-worker-register.js"></script>'
-assert needle in t, "boot-windowed.js script tag not found in index.html"
-main='<script src="/bin/blender_browser.js"></script>'
-pthread=main+'\n  <!-- PUBLIC: one origin fetch supplies every in-memory pthread worker. -->\n  <script src="/pthread-main-loader.js"></script>'
-assert t.count(main) == 1, "blender_browser.js script tag missing/ambiguous in index.html"
-open(p,"w").write(t.replace(main,pthread,1).replace(needle,add,1))
-PY
-# Public bundle JavaScript is derived from the reviewed source with one pinned,
-# deterministic compressor. This stays bundle-only: CAPTURE/APPLY Wasm bytes and
-# their profile generation are untouched.
-for f in diagnostics-bootstrap.js file-bridge.js boot-windowed.js pthread-main-loader.js \
-         stage1-loader.js; do
-  "${PINNED_NODE}" "${PUBLIC_MINIFIER}" \
-    --input "${OUT}/${f}" --output "${OUT}/${f}"
-done
-
 # --- _headers: copy template, add a .json rule for stage1-manifest.json -----------
 TEMPLATE="${SELF_DIR}/_headers"; [ -f "$TEMPLATE" ] || TEMPLATE="${REPO}/sandbox/m8-deploy/_headers"
 cp "$TEMPLATE" "${OUT}/_headers"
@@ -228,11 +208,52 @@ EOF
 
 # --- payload: stage_pack.py re-slices the monolith into stage-0 + stage-1 ----------
 python3 "${SELF_DIR}/stage_pack.py" --bin "${BIN}" --out "${OUT}/bin" ${DEFER_DF}
-# `mainScriptUrlOrBlob` must execute the same public, Stage-0-manifest glue as
-# the page factory.  Keep it as a separately inventoried URL so the one fetch is
-# visible and counted by the 15 MB receipt; all later Blob worker starts are
-# explicitly proven as in-memory execution rather than hidden transport.
-cp "${OUT}/bin/blender_browser.js" "${OUT}/bin/blender_browser.worker.js"
+main_glue_sha="$(shasum -a 256 "${OUT}/bin/blender_browser.js" | cut -d' ' -f1)"
+# Bind both consumers to one immutable, content-addressed response. The ordinary
+# same-origin script remains CSP-compliant; pthread-main-loader fetches the exact
+# same URL from Chromium's HTTP cache and verifies the decoded SHA-256 before
+# handing the Blob to Emscripten.
+python3 - "${OUT}/index.html" "${OUT}/pthread-main-loader.js" "${main_glue_sha}" <<'PY'
+import pathlib, re, sys
+index_path = pathlib.Path(sys.argv[1])
+loader_path = pathlib.Path(sys.argv[2])
+digest = sys.argv[3]
+if not re.fullmatch(r"[0-9a-f]{64}", digest):
+    raise SystemExit("page-glue SHA-256 is not canonical")
+loader = loader_path.read_text(encoding="utf-8")
+token = "__BW_PAGE_GLUE_SHA256__"
+if loader.count(token) != 1:
+    raise SystemExit("pthread page-glue identity token is absent/ambiguous")
+loader_path.write_text(loader.replace(token, digest), encoding="utf-8")
+
+index = index_path.read_text(encoding="utf-8")
+boot_tag = '<script src="/boot-windowed.js"></script>'
+boot_injected = boot_tag + \
+    '\n  <!-- STAGED DEPLOY: stream the deferred payload after first pixels, then cache it -->' + \
+    '\n  <script src="/stage1-loader.js"></script>' + \
+    '\n  <script src="/service-worker-register.js"></script>'
+main_tag = '<script src="/bin/blender_browser.js"></script>'
+main_url = f"/bin/blender_browser.js?sha256={digest}"
+main_injected = f'<script src="{main_url}"></script>' + \
+    '\n  <!-- PUBLIC: one immutable page-glue body also supplies every pthread Blob. -->' + \
+    '\n  <script src="/pthread-main-loader.js"></script>'
+if index.count(boot_tag) != 1 or index.count(main_tag) != 1:
+    raise SystemExit("public loader injection seam is absent/ambiguous")
+index_path.write_text(
+    index.replace(main_tag, main_injected, 1).replace(boot_tag, boot_injected, 1),
+    encoding="utf-8")
+PY
+# Public bundle JavaScript is derived from the reviewed source with one pinned,
+# deterministic compressor. This stays bundle-only: CAPTURE/APPLY Wasm bytes and
+# their profile generation are untouched.
+for f in diagnostics-bootstrap.js file-bridge.js boot-windowed.js pthread-main-loader.js \
+         stage1-loader.js; do
+  "${PINNED_NODE}" "${PUBLIC_MINIFIER}" \
+    --input "${OUT}/${f}" --output "${OUT}/${f}"
+done
+"${PINNED_NODE}" "${PTHREAD_LOADER_CONTRACT}" \
+  "${OUT}/pthread-main-loader.js" "${OUT}/bin/blender_browser.js" >/dev/null || \
+  die "assembled pthread shared-source loader contract failed"
 
 # --- exact split inventory: validate once, copy every shipping shard ---------------
 split_rows="$(mktemp "${TMPDIR:-/tmp}/bw-split-rows.XXXXXX")"
@@ -265,13 +286,13 @@ cache_files=(
            legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt \
            legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt \
            legal/OpenUSD-26.03/LICENSE.txt legal/OpenUSD-26.03/NOTICE.txt \
-           bin/blender_browser.js bin/blender_browser.worker.js bin/blender_browser.data bin/split-build.json \
+           bin/blender_browser.js bin/blender_browser.data bin/split-build.json \
            bin/stage1-manifest.json bin/stage1.data)
 for filename in "${shipped_wasm[@]}"; do cache_files+=("bin/${filename}"); done
 
 if [ "${DO_BROTLI}" = "1" ]; then
   echo "make_staged_bundle: writing mandatory production Brotli q11/lgwin=24 siblings (slow)..." >&2
-  for f in bin/blender_browser.js bin/blender_browser.worker.js bin/blender_browser.data bin/stage1.data; do
+  for f in bin/blender_browser.js bin/blender_browser.data bin/stage1.data; do
     "${PINNED_NODE}" "${BROTLI_CODEC}" encode "${OUT}/${f}" "${OUT}/${f}.br"
   done
   for filename in "${shipped_wasm[@]}"; do
@@ -284,7 +305,7 @@ cache_identity_files=()
 for f in "${cache_files[@]}"; do
   [ "${f}" = "service-worker-register.js" ] || cache_identity_files+=("${f}")
 done
-for f in bin/blender_browser.js bin/blender_browser.worker.js bin/blender_browser.data bin/stage1.data; do
+for f in bin/blender_browser.js bin/blender_browser.data bin/stage1.data; do
   cache_identity_files+=("${f}.br")
 done
 for filename in "${shipped_wasm[@]}"; do
@@ -322,6 +343,8 @@ template, output, version, rows, *cache_files = sys.argv[1:]
 precache = ["/"] + sorted("/" + name for name in cache_files if name != "_headers")
 cache_first = []
 deferred = {}
+main_url = "/bin/blender_browser.js?sha256=" + hashlib.sha256(
+    (pathlib.Path(output).parent / "bin/blender_browser.js").read_bytes()).hexdigest()
 for line in pathlib.Path(rows).read_text(encoding="utf-8").splitlines():
     filename, role, _bytes, sha, _critical, _phase = line.split("\t")
     if role == "deferred":
@@ -329,6 +352,8 @@ for line in pathlib.Path(rows).read_text(encoding="utf-8").splitlines():
         cache_first.append(query_url)
         precache[precache.index(f"/bin/{filename}")] = query_url
         deferred[f"/bin/{filename}"] = query_url
+precache[precache.index("/bin/blender_browser.js")] = main_url
+cache_first.append(main_url)
 precache = [precache[0]] + sorted(precache[1:])
 # Once this exact worker controls a page, every generated precache URL except the
 # version-discovery registration script is cache-first within its content-versioned
@@ -341,7 +366,7 @@ root = pathlib.Path(output).parent
 for name in cache_files:
     if name == "_headers":
         continue
-    url = deferred.get(f"/{name}", f"/{name}")
+    url = main_url if name == "bin/blender_browser.js" else deferred.get(f"/{name}", f"/{name}")
     digests[url] = hashlib.sha256((root / name).read_bytes()).hexdigest()
 digests["/"] = digests["/index.html"]
 text = pathlib.Path(template).read_text(encoding="utf-8")

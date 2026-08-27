@@ -72,7 +72,7 @@ def pthread_blob_transport_failures(row: dict, bundle_files: object,
                                     bundle_artifacts: object) -> list[str]:
     """Validate in-memory pthread starts without miscounting Blob URLs as wire."""
     failures: list[str] = []
-    source_path = "/bin/blender_browser.worker.js"
+    source_path = "/bin/blender_browser.js"
     source_name = source_path.removeprefix("/")
     if not isinstance(bundle_files, (list, tuple, set)) or source_name not in bundle_files:
         failures.append("pthread Blob source is absent from the public bundle inventory")
@@ -85,8 +85,10 @@ def pthread_blob_transport_failures(row: dict, bundle_files: object,
     proof = row.get("pthread_blob_proof")
     if not isinstance(proof, dict):
         return [*failures, "pthread Blob bootstrap proof is absent"]
-    if (proof.get("contract") != "pthread-main-script-blob-v1" or
-            proof.get("sourcePath") != source_path or proof.get("phase") != "ready"):
+    source_url = f"{source_path}?sha256={expected.get('sha256')}"
+    if (proof.get("contract") != "pthread-main-script-cache-v2" or
+            proof.get("sourcePath") != source_path or
+            proof.get("sourceUrl") != source_url or proof.get("phase") != "ready"):
         failures.append("pthread Blob bootstrap contract is invalid")
     if proof.get("bytes") != expected.get("bytes") or proof.get("sha256") != expected.get("sha256"):
         failures.append("pthread Blob source identity differs from the public bundle artifact")
@@ -138,6 +140,56 @@ def pthread_blob_transport_failures(row: dict, bundle_files: object,
     return failures
 
 
+def pthread_source_cache_failures(row: dict, bundle_artifacts: object) -> list[str]:
+    """Prove that page execution and the pthread Blob share one origin body."""
+    failures: list[str] = []
+    source_name = "bin/blender_browser.js"
+    expected = bundle_artifacts.get(source_name) if isinstance(bundle_artifacts, dict) else None
+    if not isinstance(expected, dict):
+        return ["page-glue identity is absent from the public bundle"]
+    source_url = f"/{source_name}?sha256={expected.get('sha256')}"
+    proof = row.get("pthread_source_cache")
+    if not isinstance(proof, dict):
+        return ["pthread page-glue cache proof is absent"]
+    if (proof.get("contract") != "pthread-page-glue-http-cache-v1" or
+            proof.get("source_url") != source_url or
+            proof.get("source_path") != f"/{source_name}"):
+        failures.append("pthread page-glue cache contract is invalid")
+    if proof.get("origin_request_count") != 1:
+        failures.append("page glue did not transfer exactly one origin body")
+    entries = proof.get("resource_entries")
+    if not isinstance(entries, list) or len(entries) != 2:
+        return [*failures, "page glue does not have exactly two resource timing entries"]
+    if sorted(entry.get("initiator_type") for entry in entries if isinstance(entry, dict)) != [
+            "fetch", "script"]:
+        failures.append("page glue consumers are not exactly one script plus one fetch")
+    transferred = 0
+    cached = 0
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            failures.append(f"page glue resource timing entry {index} is invalid")
+            continue
+        transfer = entry.get("transfer_size")
+        decoded = entry.get("decoded_body_size")
+        if (entry.get("name") != source_url or
+                not isinstance(transfer, (int, float)) or isinstance(transfer, bool) or
+                not math.isfinite(transfer) or transfer < 0 or
+                decoded != expected.get("bytes")):
+            failures.append(f"page glue resource timing entry {index} is invalid")
+            continue
+        if transfer == 0:
+            cached += 1
+        else:
+            transferred += 1
+    if transferred != 1 or cached != 1:
+        failures.append("page glue cache reuse is not one transfer plus one hit")
+    if row.get("pthread_source_cache_valid") is not True:
+        failures.append("producer did not accept the pthread page-glue cache")
+    if row.get("pthread_source_cache_failures") != []:
+        failures.append("producer reported pthread page-glue cache failures")
+    return failures
+
+
 def observed_critical_paths(row: dict, contract: dict[str, object],
                             bundle_files: object, bundle_artifacts: object) -> tuple[list[str], list[str]]:
     """Derive and independently validate every pre-semantic same-origin response."""
@@ -163,7 +215,7 @@ def observed_critical_paths(row: dict, contract: dict[str, object],
             critical.append(request_row)
 
     paths: list[str] = []
-    seen: set[str] = set()
+    seen: dict[str, int] = {}
     encodings = row.get("content_encoding")
     if not isinstance(encodings, dict):
         failures.append("critical content-encoding evidence is absent")
@@ -174,12 +226,22 @@ def observed_critical_paths(row: dict, contract: dict[str, object],
         if not isinstance(path, str):
             failures.append(f"critical request {index} has no URL path")
             continue
-        paths.append(path)
-        if path in seen:
-            failures.append(f"critical request path was fetched more than once: {path}")
-        seen.add(path)
-        if url != path:
-            failures.append(f"critical request has a query or noncanonical URL: {url!r}")
+        seen[path] = seen.get(path, 0) + 1
+        if seen[path] == 1:
+            paths.append(path)
+        if path == "/bin/blender_browser.js":
+            expected_main = bundle_artifacts.get("bin/blender_browser.js", {}) \
+                if isinstance(bundle_artifacts, dict) else {}
+            expected_url = f"{path}?sha256={expected_main.get('sha256')}"
+            if seen[path] > 2:
+                failures.append("page glue has more than its script+fetch consumers")
+            if url != expected_url:
+                failures.append("page glue request is not the exact content-addressed URL")
+        else:
+            if seen[path] > 1:
+                failures.append(f"critical request path was fetched more than once: {path}")
+            if url != path:
+                failures.append(f"critical request has a query or noncanonical URL: {url!r}")
         if request_row.get("method") != "GET":
             failures.append(f"critical request is not GET: {path}")
         artifact = path.removeprefix("/")
@@ -196,6 +258,8 @@ def observed_critical_paths(row: dict, contract: dict[str, object],
             failures.append(f"critical response is not Brotli encoded: {path}")
 
     paths.sort()
+    if seen.get("/bin/blender_browser.js") != 2:
+        failures.append("page glue did not have exactly one script and one cached fetch consumer")
     failures.extend(verify_m8.critical_path_failures(paths, contract, bundle_files))
     if row.get("critical_paths") != paths:
         failures.append("declared critical paths differ from observed request evidence")
@@ -206,6 +270,7 @@ def observed_critical_paths(row: dict, contract: dict[str, object],
     if row.get("wire_brotli") is not True:
         failures.append("producer did not accept complete Brotli transport")
     failures.extend(pthread_blob_transport_failures(row, bundle_files, bundle_artifacts))
+    failures.extend(pthread_source_cache_failures(row, bundle_artifacts))
     return paths, failures
 
 

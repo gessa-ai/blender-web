@@ -98,7 +98,9 @@ function bundleArtifactForPath(path, bundleNames) {
   return bundleNames.includes(artifact) ? artifact : null;
 }
 
-function analyzeCriticalTransport(requests, semanticInteractionMs, mandatoryPaths, bundleNames) {
+function analyzeCriticalTransport(
+  requests, semanticInteractionMs, mandatoryPaths, bundleNames, mainGlueUrl,
+) {
   const failures = [];
   if (!Number.isFinite(semanticInteractionMs)) {
     return {criticalPaths: [], failures: ["semantic interaction timestamp is absent or invalid"]};
@@ -121,7 +123,7 @@ function analyzeCriticalTransport(requests, semanticInteractionMs, mandatoryPath
   }
 
   const criticalPaths = [];
-  const seen = new Set();
+  const seen = new Map();
   const bundle = new Set(bundleNames);
   for (let index = 0; index < critical.length; index++) {
     const row = critical[index];
@@ -130,10 +132,19 @@ function analyzeCriticalTransport(requests, semanticInteractionMs, mandatoryPath
       failures.push(`critical request ${index} has no URL path`);
       continue;
     }
-    criticalPaths.push(path);
-    if (seen.has(path)) failures.push(`critical request path was fetched more than once: ${path}`);
-    seen.add(path);
-    if (row.url !== path) failures.push(`critical request has a query or noncanonical URL: ${row.url}`);
+    const count = (seen.get(path) || 0) + 1;
+    seen.set(path, count);
+    if (count === 1) criticalPaths.push(path);
+    if (path === "/bin/blender_browser.js") {
+      if (count > 2) failures.push(`page glue has more than its script+fetch consumers: ${count}`);
+      if (row.url !== mainGlueUrl) {
+        failures.push(`page glue request is not the exact content-addressed URL: ${row.url}`);
+      }
+    }
+    else {
+      if (count > 1) failures.push(`critical request path was fetched more than once: ${path}`);
+      if (row.url !== path) failures.push(`critical request has a query or noncanonical URL: ${row.url}`);
+    }
     if (row.method !== "GET") failures.push(`critical request is not GET: ${path}`);
     const parts = path.replace(/^\//, "").split("/");
     const canonical = path.startsWith("/") && !path.endsWith("/") &&
@@ -159,18 +170,24 @@ function analyzeCriticalTransport(requests, semanticInteractionMs, mandatoryPath
     if (row.content_encoding !== "br") failures.push(`critical response is not Brotli encoded: ${path}`);
   }
   criticalPaths.sort();
+  if (seen.get("/bin/blender_browser.js") !== 2) {
+    failures.push("page glue did not have exactly one script and one cached fetch consumer");
+  }
   const missing = [...new Set(mandatoryPaths)].filter((path) => !seen.has(path)).sort();
   if (missing.length) failures.push(`mandatory critical paths are absent: ${JSON.stringify(missing)}`);
   return {criticalPaths, failures};
 }
 
-function analyzePthreadBlobTransport(workers, proof, semanticInteractionMs, expected, baseOrigin) {
+function analyzePthreadBlobTransport(
+  workers, proof, semanticInteractionMs, expected, sourceUrl, baseOrigin,
+) {
   const failures = [];
   if (!proof || typeof proof !== "object" || Array.isArray(proof)) {
     return ["pthread Blob bootstrap proof is absent"];
   }
-  if (proof.contract !== "pthread-main-script-blob-v1" ||
-      proof.sourcePath !== "/bin/blender_browser.worker.js" || proof.phase !== "ready") {
+  if (proof.contract !== "pthread-main-script-cache-v2" ||
+      proof.sourcePath !== "/bin/blender_browser.js" || proof.sourceUrl !== sourceUrl ||
+      proof.phase !== "ready") {
     failures.push("pthread Blob bootstrap contract is invalid");
   }
   if (!expected || proof.bytes !== expected.bytes || proof.sha256 !== expected.sha256) {
@@ -212,6 +229,68 @@ function analyzePthreadBlobTransport(workers, proof, semanticInteractionMs, expe
   return failures;
 }
 
+function analyzePthreadSourceCache(proof, expectedUrl, expectedIdentity) {
+  const failures = [];
+  if (!proof || typeof proof !== "object" || Array.isArray(proof)) {
+    return ["pthread page-glue cache proof is absent"];
+  }
+  if (proof.contract !== "pthread-page-glue-http-cache-v1" ||
+      proof.source_url !== expectedUrl || proof.source_path !== "/bin/blender_browser.js") {
+    failures.push("pthread page-glue cache contract is invalid");
+  }
+  if (proof.origin_request_count !== 1) {
+    failures.push(`page glue transferred ${proof.origin_request_count} origin bodies instead of one`);
+  }
+  const entries = proof.resource_entries;
+  if (!Array.isArray(entries) || entries.length !== 2) {
+    return [...failures, "page glue does not have exactly two resource timing entries"];
+  }
+  const initiators = entries.map((entry) => entry?.initiator_type).sort();
+  if (JSON.stringify(initiators) !== JSON.stringify(["fetch", "script"])) {
+    failures.push("page glue consumers are not exactly one script plus one fetch");
+  }
+  let transferred = 0;
+  let cached = 0;
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    if (!entry || entry.name !== expectedUrl ||
+        !Number.isFinite(entry.transfer_size) || entry.transfer_size < 0 ||
+        !Number.isFinite(entry.decoded_body_size) ||
+        entry.decoded_body_size !== expectedIdentity?.bytes) {
+      failures.push(`page glue resource timing entry ${index} is invalid`);
+      continue;
+    }
+    if (entry.transfer_size === 0) cached++;
+    else transferred++;
+  }
+  if (transferred !== 1 || cached !== 1) {
+    failures.push(`page glue cache reuse is not one transfer plus one hit: ${transferred}/${cached}`);
+  }
+  return failures;
+}
+
+function originRequestDelta(cumulative, baseline) {
+  if (!Number.isSafeInteger(cumulative) || cumulative < 0 ||
+      !Number.isSafeInteger(baseline) || baseline < 0 || cumulative < baseline) {
+    return {count: null, next: baseline};
+  }
+  return {count: cumulative - baseline, next: cumulative};
+}
+
+async function readMainOriginCount(base, expectedBundleDigest, fetcher = fetch) {
+  const response = await fetcher(`${base}/.well-known/bw-transport-proof`, {cache: "no-store"});
+  if (!response.ok) throw new Error(`transport proof fetch failed with ${response.status}`);
+  const proof = await response.json();
+  if (proof?.schema !== 1 || proof?.served_bundle_sha256 !== expectedBundleDigest) {
+    throw new Error("transport proof is not bound to the measured public bundle");
+  }
+  const count = proof?.asset_get_counts?.["/bin/blender_browser.js"] ?? 0;
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new Error("transport proof has an invalid page-glue origin count");
+  }
+  return count;
+}
+
 async function officialChromeVersion(platform, fetcher = fetch) {
   const apiPlatform = platform === "darwin" ? "mac" : platform === "linux" ? "linux" : null;
   if (!apiPlatform) throw new Error(`unsupported Chrome release platform: ${platform}`);
@@ -245,7 +324,7 @@ async function runSelfcheck() {
     "module roots are not absolute and unique");
   check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root) && isRepositoryDescendant(root)),
     "repository-local module fallbacks are incomplete or escaped");
-  check(BOOT_CRITICAL_URLS.length === 12 && new Set(BOOT_CRITICAL_URLS).size === 12 &&
+  check(BOOT_CRITICAL_URLS.length === 11 && new Set(BOOT_CRITICAL_URLS).size === 11 &&
     BOOT_CRITICAL_URLS.every((path) => path.startsWith("/")),
   "boot-critical transport inventory is incomplete or ambiguous");
   requireNodeVersion();
@@ -314,6 +393,7 @@ async function runSelfcheck() {
 
   const mandatoryTransport = [...BOOT_CRITICAL_URLS, "/bin/blender_browser.wasm"].sort();
   const transportBundle = mandatoryTransport.flatMap((path) => [path.slice(1), `${path.slice(1)}.br`]);
+  const mainGlueUrl = `/bin/blender_browser.js?sha256=${"c".repeat(64)}`;
   const transportRow = (url, at_ms, overrides = {}) => {
     const path = overrides.path || url.split("?", 1)[0];
     return {url, path, method: "GET", at_ms,
@@ -321,47 +401,51 @@ async function runSelfcheck() {
       response_count: 1, response_url: url, response_status: 200, content_encoding: "br",
       ...overrides};
   };
-  const observedTransport = mandatoryTransport.map((path, index) => transportRow(path, 10 + index));
+  const observedTransport = mandatoryTransport.map((path, index) =>
+    transportRow(path === "/bin/blender_browser.js" ? mainGlueUrl : path, 10 + index,
+      {path}));
+  observedTransport.push(transportRow(mainGlueUrl, 30, {path: "/bin/blender_browser.js"}));
   observedTransport.push(transportRow(
     `/bin/blender_browser.deferred.wasm?sha256=${"b".repeat(64)}`, 101,
     {path: "/bin/blender_browser.deferred.wasm",
       bundleNames: ["bin/blender_browser.deferred.wasm"]}));
   const transportPositive = analyzeCriticalTransport(
-    observedTransport, 100, mandatoryTransport, transportBundle);
+    observedTransport, 100, mandatoryTransport, transportBundle, mainGlueUrl);
   check(transportPositive.failures.length === 0 &&
     JSON.stringify(transportPositive.criticalPaths) === JSON.stringify(mandatoryTransport),
   "observed critical transport does not preserve the mandatory request set");
   const extra = transportRow("/extra.js", 90, {bundleNames: ["extra.js"]});
   const dynamicTransport = analyzeCriticalTransport(
     [...observedTransport, extra], 100, mandatoryTransport,
-    [...transportBundle, "extra.js", "extra.js.br"]);
+    [...transportBundle, "extra.js", "extra.js.br"], mainGlueUrl);
   check(dynamicTransport.failures.length === 0 && dynamicTransport.criticalPaths.includes("/extra.js"),
     "an observed early bundle response is not counted dynamically");
   for (const [name, rows, bundle] of [
     ["unknown_early_response", [...observedTransport, extra], transportBundle],
-    ["duplicate_early_response", [...observedTransport, observedTransport[0]], transportBundle],
+    ["duplicate_early_response", [...observedTransport,
+      observedTransport.find((row) => row.path !== "/bin/blender_browser.js")], transportBundle],
     ["queried_early_response", [...observedTransport,
       transportRow("/extra.js?v=1", 90, {path: "/extra.js", bundleNames: ["extra.js"]})],
      [...transportBundle, "extra.js", "extra.js.br"]],
     ["missing_early_response", [...observedTransport, {...extra, response_count: 0}],
      [...transportBundle, "extra.js", "extra.js.br"]],
   ]) {
-    const result = analyzeCriticalTransport(rows, 100, mandatoryTransport, bundle);
+    const result = analyzeCriticalTransport(rows, 100, mandatoryTransport, bundle, mainGlueUrl);
     if (result.failures.length) negative++;
     else throw new Error(`M8 performance self-check false green: ${name}`);
   }
 
   const blobOrigin = "https://fixture.invalid";
   const blobExpected = {bytes: 1234, sha256: "c".repeat(64)};
-  const blobProof = {contract: "pthread-main-script-blob-v1",
-    sourcePath: "/bin/blender_browser.worker.js", phase: "ready",
+  const blobProof = {contract: "pthread-main-script-cache-v2",
+    sourcePath: "/bin/blender_browser.js", sourceUrl: mainGlueUrl, phase: "ready",
     bytes: blobExpected.bytes, sha256: blobExpected.sha256, factoryCalls: 1, error: null};
   const blobWorkers = Array.from({length: 9}, (_, index) => ({
     url: `blob:${blobOrigin}/${index}`, protocol: "blob:", origin: blobOrigin,
     kind: "dedicated-worker", at_ms: 20 + index,
   }));
   check(analyzePthreadBlobTransport(
-    blobWorkers, blobProof, 100, blobExpected, blobOrigin).length === 0,
+    blobWorkers, blobProof, 100, blobExpected, mainGlueUrl, blobOrigin).length === 0,
   "pthread Blob transport rejected the exact in-memory worker closure");
   for (const [name, rows, proof] of [
     ["blob_missing_worker", blobWorkers.slice(1), blobProof],
@@ -375,7 +459,51 @@ async function runSelfcheck() {
     ["blob_wrong_hash", blobWorkers, {...blobProof, sha256: "d".repeat(64)}],
     ["blob_factory_twice", blobWorkers, {...blobProof, factoryCalls: 2}],
   ]) {
-    if (analyzePthreadBlobTransport(rows, proof, 100, blobExpected, blobOrigin).length) negative++;
+    if (analyzePthreadBlobTransport(
+      rows, proof, 100, blobExpected, mainGlueUrl, blobOrigin).length) negative++;
+    else throw new Error(`M8 performance self-check false green: ${name}`);
+  }
+  const cacheProof = {contract: "pthread-page-glue-http-cache-v1",
+    source_url: mainGlueUrl, source_path: "/bin/blender_browser.js", origin_request_count: 1,
+    resource_entries: [
+      {name: mainGlueUrl, initiator_type: "script", transfer_size: 123,
+        decoded_body_size: blobExpected.bytes},
+      {name: mainGlueUrl, initiator_type: "fetch", transfer_size: 0,
+        decoded_body_size: blobExpected.bytes},
+    ]};
+  check(analyzePthreadSourceCache(cacheProof, mainGlueUrl, blobExpected).length === 0,
+    "content-addressed page glue did not prove one origin body plus one cache hit");
+  let cacheCountBaseline = 0;
+  for (const cumulative of [1, 2, 3]) {
+    const delta = originRequestDelta(cumulative, cacheCountBaseline);
+    check(delta.count === 1 && delta.next === cumulative,
+      "per-run origin request count was not isolated from cumulative server state");
+    cacheCountBaseline = delta.next;
+  }
+  check(originRequestDelta(2, 3).count === null && originRequestDelta(-1, 0).count === null,
+    "invalid cumulative origin request state did not fail closed");
+  const transportProofDigest = "d".repeat(64);
+  let transportProofCalls = 0;
+  const transportProofCount = await readMainOriginCount(
+    "https://fixture.invalid", transportProofDigest, async (url, options) => {
+      transportProofCalls++;
+      check(url === "https://fixture.invalid/.well-known/bw-transport-proof" &&
+        options.cache === "no-store", "transport proof request is not exact/no-store");
+      return {ok: true, status: 200, json: async () => ({schema: 1,
+        served_bundle_sha256: transportProofDigest,
+        asset_get_counts: {"/bin/blender_browser.js": 7}})};
+    });
+  check(transportProofCalls === 1 && transportProofCount === 7,
+    "transport proof counter snapshot is not exact");
+  for (const [name, proof] of [
+    ["cache_two_origin_bodies", {...cacheProof, origin_request_count: 2}],
+    ["cache_missing_entry", {...cacheProof, resource_entries: cacheProof.resource_entries.slice(1)}],
+    ["cache_two_transfers", {...cacheProof, resource_entries:
+      cacheProof.resource_entries.map((entry) => ({...entry, transfer_size: 123}))}],
+    ["cache_wrong_identity", {...cacheProof, resource_entries:
+      cacheProof.resource_entries.map((entry) => ({...entry, decoded_body_size: 99}))}],
+  ]) {
+    if (analyzePthreadSourceCache(proof, mainGlueUrl, blobExpected).length) negative++;
     else throw new Error(`M8 performance self-check false green: ${name}`);
   }
 
@@ -506,6 +634,7 @@ const baseOrigin = new URL(BASE).origin;
 const mandatoryCriticalPaths = [
   ...BOOT_CRITICAL_URLS, ...artifactContract.criticalWasmUrls,
 ].sort();
+const mainGlueUrl = artifactContract.mainGlueUrl;
 for (let run = 0; run < RUNS; run++) {
   const context = await browser.newContext({viewport: {width: 1280, height: 720}, deviceScaleFactor: 1});
   const page = await context.newPage();
@@ -529,6 +658,7 @@ for (let run = 0; run < RUNS; run++) {
   const externalRequests = [];
   const pageErrors = [];
   const start = Date.now();
+  const mainOriginRequestBaseline = await readMainOriginCount(BASE, expectedBundleDigest);
   context.on("request", (request) => {
     const url = new URL(request.url());
     const path = url.pathname;
@@ -618,6 +748,32 @@ for (let run = 0; run < RUNS; run++) {
          !expectedShardRequests.every((url) => wasmRequests.some((request) => request.url === url))) {
     await page.waitForTimeout(25);
   }
+  const pthreadSourceCache = await page.evaluate(async (sourceUrl) => {
+    const absolute = new URL(sourceUrl, location.href).href;
+    const resourceEntries = performance.getEntriesByName(absolute).map((entry) => {
+      const parsed = new URL(entry.name);
+      return {
+        name: parsed.pathname + parsed.search,
+        initiator_type: entry.initiatorType,
+        transfer_size: entry.transferSize,
+        encoded_body_size: entry.encodedBodySize,
+        decoded_body_size: entry.decodedBodySize,
+      };
+    });
+    const response = await fetch("/.well-known/bw-transport-proof", {cache: "no-store"});
+    if (!response.ok) throw new Error(`transport proof fetch failed with ${response.status}`);
+    const origin = await response.json();
+    return {
+      contract: "pthread-page-glue-http-cache-v1",
+      source_url: sourceUrl,
+      source_path: "/bin/blender_browser.js",
+      origin_request_count_total: origin?.asset_get_counts?.["/bin/blender_browser.js"] ?? null,
+      resource_entries: resourceEntries,
+    };
+  }, mainGlueUrl);
+  const originDelta = originRequestDelta(
+    pthreadSourceCache.origin_request_count_total, mainOriginRequestBaseline);
+  pthreadSourceCache.origin_request_count = originDelta.count;
   await Promise.all(responseHeaderPromises);
   const observedShardRequests = wasmRequests.map((request) => request.url).sort();
   const exactShardRequests = observedShardRequests.length === expectedShardRequests.length &&
@@ -626,7 +782,8 @@ for (let run = 0; run < RUNS; run++) {
     requestTimelineMs[path] !== undefined && semanticInteractionMs !== null &&
     requestTimelineMs[path] <= semanticInteractionMs);
   const criticalTransport = analyzeCriticalTransport(
-    sameOriginRequests, semanticInteractionMs, mandatoryCriticalPaths, artifactContract.bundleNames);
+    sameOriginRequests, semanticInteractionMs, mandatoryCriticalPaths,
+    artifactContract.bundleNames, mainGlueUrl);
   criticalTransport.failures.push(...responseCaptureFailures);
   const pthreadBlobProof = await page.evaluate(() => {
     const state = globalThis.__bwPthreadMainScript;
@@ -634,7 +791,9 @@ for (let run = 0; run < RUNS; run++) {
   });
   const pthreadBlobFailures = analyzePthreadBlobTransport(
     pthreadBlobWorkers, pthreadBlobProof, semanticInteractionMs,
-    bundleArtifacts["bin/blender_browser.worker.js"], baseOrigin);
+    bundleArtifacts["bin/blender_browser.js"], mainGlueUrl, baseOrigin);
+  const pthreadSourceCacheFailures = analyzePthreadSourceCache(
+    pthreadSourceCache, mainGlueUrl, bundleArtifacts["bin/blender_browser.js"]);
   const criticalPaths = criticalTransport.criticalPaths;
   const declaredCritical = [...artifactContract.criticalWasmUrls].sort();
   const observedCritical = [...observedCriticalWasm].sort();
@@ -661,6 +820,9 @@ for (let run = 0; run < RUNS; run++) {
     pthread_blob_proof: pthreadBlobProof,
     pthread_blob_transport_valid: pthreadBlobFailures.length === 0,
     pthread_blob_transport_failures: pthreadBlobFailures,
+    pthread_source_cache: pthreadSourceCache,
+    pthread_source_cache_valid: pthreadSourceCacheFailures.length === 0,
+    pthread_source_cache_failures: pthreadSourceCacheFailures,
     critical_paths: criticalPaths, manifest_phase_valid: manifestPhaseValid,
     critical_transport_valid: criticalTransport.failures.length === 0,
     critical_transport_failures: criticalTransport.failures,
@@ -713,7 +875,7 @@ const pass = signing.valid && browserVersion === official.version && rows.length
   rows.every((row) => row.fp !== null && row.pixel_proof?.pass === true && row.wire_brotli &&
     row.semantic_interaction?.pass === true && row.manifest_phase_valid === true &&
     row.critical_transport_valid === true &&
-    row.pthread_blob_transport_valid === true &&
+    row.pthread_blob_transport_valid === true && row.pthread_source_cache_valid === true &&
     row.external_request_count === 0 && row.page_error_count === 0 &&
     row.served_bundle_sha256 === expectedBundleDigest);
 console.log(`M8_PERF_MEASURE_${pass ? "PASS" : "FAIL"} median=${summary.scenarios["cold-1.5mbps"].fp_median}ms -> ${OUT}`);

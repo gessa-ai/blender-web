@@ -9,16 +9,23 @@ import vm from "node:vm";
 
 const HERE = resolve(import.meta.dirname);
 const loaderPath = resolve(process.argv[2] || `${HERE}/pthread-main-loader.js`);
-const loaderSource = readFileSync(loaderPath, "utf8");
 const settingsSource = readFileSync(
   resolve(HERE, "../../tools/emsdk/upstream/emscripten/src/settings.js"), "utf8");
 const pthreadSource = readFileSync(
   resolve(HERE, "../../tools/emsdk/upstream/emscripten/src/lib/libpthread.js"), "utf8");
 const cmakeSource = readFileSync(resolve(HERE, "../../patches/platform_wasm.cmake"), "utf8");
 const ORIGIN = "https://fixture.invalid";
-const SOURCE_PATH = "/bin/blender_browser.worker.js";
-const WORKER_SOURCE = new TextEncoder().encode("self.fixtureWorker = true;\n");
+const SOURCE_PATH = "/bin/blender_browser.js";
+const WORKER_SOURCE = process.argv[3] ? readFileSync(resolve(process.argv[3])) :
+  new TextEncoder().encode("self.fixtureWorker = true;\n");
 const WORKER_SHA256 = createHash("sha256").update(WORKER_SOURCE).digest("hex");
+const SOURCE_URL = `${SOURCE_PATH}?sha256=${WORKER_SHA256}`;
+const loaderTemplate = readFileSync(loaderPath, "utf8");
+const token = "__BW_PAGE_GLUE_SHA256__";
+const tokenCount = loaderTemplate.split(token).length - 1;
+assert(tokenCount === 0 || tokenCount === 1, "page-glue identity token is ambiguous");
+const loaderSource = tokenCount ? loaderTemplate.replace(token, WORKER_SHA256) : loaderTemplate;
+assert(loaderSource.includes(SOURCE_URL), "loader does not bind the exact page-glue identity");
 
 const defaultIncomingMatch = settingsSource.match(
   /var INCOMING_MODULE_JS_API = \[([\s\S]*?)\n\];/,
@@ -53,7 +60,7 @@ function makeFixture(options = {}) {
     fetch: async (path, init) => {
       fetchCalls++;
       if (options.fetchError) throw new Error(options.fetchError);
-      assert.equal(path, SOURCE_PATH);
+      assert.equal(path, SOURCE_URL);
       assert.equal(init.cache, "default");
       assert.equal(init.credentials, "same-origin");
       assert.equal(init.redirect, "error");
@@ -61,7 +68,7 @@ function makeFixture(options = {}) {
       return {
         ok: options.ok ?? true,
         status: options.status ?? 200,
-        url: options.url ?? `${ORIGIN}${SOURCE_PATH}`,
+        url: options.url ?? `${ORIGIN}${SOURCE_URL}`,
         blob: async () => options.emptyBlob ? new Blob([]) :
           new Blob([WORKER_SOURCE], {type: "text/javascript"}),
       };
@@ -106,8 +113,9 @@ assert.equal(positive.originalConfigs[0], config);
 assert(config.mainScriptUrlOrBlob instanceof Blob);
 assert.equal(config.mainScriptUrlOrBlob.size, WORKER_SOURCE.byteLength);
 assert.deepEqual(JSON.parse(JSON.stringify(positive.context.__bwPthreadMainScript)), {
-  contract: "pthread-main-script-blob-v1",
+  contract: "pthread-main-script-cache-v2",
   sourcePath: SOURCE_PATH,
+  sourceUrl: SOURCE_URL,
   phase: "ready",
   bytes: WORKER_SOURCE.byteLength,
   sha256: WORKER_SHA256,
@@ -135,7 +143,7 @@ assert.equal(preconfigured.originalCalls, 0);
 
 for (const [options, pattern] of [
   [{ok: false, status: 503}, /status 503/],
-  [{url: "https://other.invalid/bin/blender_browser.worker.js"}, /noncanonical URL/],
+  [{url: `https://other.invalid${SOURCE_URL}`}, /noncanonical URL/],
   [{emptyBlob: true}, /response is empty/],
   [{fetchError: "network fixture"}, /network fixture/],
 ]) {
@@ -151,6 +159,6 @@ for (const options of [{noFactory: true}, {existingState: true}]) {
 
 console.log(
   `M8_PTHREAD_MAIN_LOADER_CONTRACT_PASS source=${basename(loaderPath)} ` +
-  "positive=10 negative=10 fetches=one identity=sha256 factory=singleton " +
+  "positive=11 negative=10 fetches=cached-main identity=sha256 factory=singleton " +
   "link=emscripten-defaults+mainScriptUrlOrBlob",
 );

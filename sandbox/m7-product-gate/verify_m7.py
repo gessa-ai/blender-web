@@ -65,6 +65,7 @@ FALLBACK_FROZEN_PATHS = {
     "sandbox/m8-staged-deploy/brotli_q11.mjs",
     "sandbox/m8-staged-deploy/public_shell_minify.mjs",
     "sandbox/m8-staged-deploy/pthread-main-loader.js",
+    "sandbox/m8-staged-deploy/test_pthread_shared_main_cache.mjs",
     "sandbox/m8-staged-deploy/serve_measure.py",
     "sandbox/m8-staged-deploy/transport_contract.py",
 }

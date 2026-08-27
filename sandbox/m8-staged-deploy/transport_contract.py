@@ -48,7 +48,7 @@ EXACT_HEADER_BLOCKS = {
     },
     "/bin/*.js": {
         "Content-Type": "text/javascript; charset=utf-8",
-        "Cache-Control": "no-cache, must-revalidate",
+        "Cache-Control": "public, max-age=31536000, immutable",
     },
     "/bin/*.json": {
         "Content-Type": "application/json; charset=utf-8",
@@ -231,6 +231,13 @@ def _selfcheck() -> None:
             "  Cache-Control: no-cache, must-revalidate",
             "/service-worker-register.js\n  Content-Type: text/javascript; charset=utf-8\n"
             "  Cache-Control: public, max-age=3600",
+            1,
+        ),
+        rendered.replace(
+            "/bin/*.js\n  Content-Type: text/javascript; charset=utf-8\n"
+            "  Cache-Control: public, max-age=31536000, immutable",
+            "/bin/*.js\n  Content-Type: text/javascript; charset=utf-8\n"
+            "  Cache-Control: no-cache, must-revalidate",
             1,
         ),
         rendered + "\n/bin/*.json\n  Cache-Control: public\n",

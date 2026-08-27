@@ -444,15 +444,21 @@ def main() -> int:
         "hardware WebGPU adapter required before CAPTURE evidence allocation",
         "CAPTURE preflight failed before evidence allocation",
         "adapterReceipt?.status === 'ACCEPTED'",
-        "VIEWPORT_BIND_GROUP_CONTRACT_SHADERS",
-        "incompleteViewportBindGroups.length === 0",
-        "overlay_grid_next",
-        "overlay_outline_detect",
-        "overlay_antialiasing_pipeline",
-        "OCIO_Display",
+        "parseIncompleteBindGroup",
+        "recordIncompleteBindGroup",
+        "incompleteBindGroups.length === 0",
+        "all-shader-bind-group-completeness-census",
+        "surviving",
+        "assembled",
+        "missing",
+        "extra",
     ):
         if marker not in capture_driver:
             raise RuntimeError(f"capture portability/adapter contract {marker} absent")
+    if "VIEWPORT_BIND_GROUP_CONTRACT_SHADERS" in capture_driver:
+        raise RuntimeError("capture bind-group contract still carries a shader-name allowlist")
+    if "incompleteViewportBindGroups" in capture_driver:
+        raise RuntimeError("capture receipt still narrows incompleteness to viewport fixtures")
     if capture_driver.count("postApplyProbeCount !== 0") != 2:
         raise RuntimeError("capture must gate zero post-APPLY probes at PAGE_READY and RESUME")
     for marker in (

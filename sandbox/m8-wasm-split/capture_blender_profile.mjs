@@ -42,17 +42,48 @@ const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
 ]);
 const PROFILE_MARKER = 'BW_SPLIT_PROFILE_EXPORT_V1';
 const FINALIZER = join(REPO, 'scripts/finalize-wasm-split.py');
-const VIEWPORT_BIND_GROUP_CONTRACT_SHADERS = Object.freeze([
-  'overlay_grid_next',
-  'overlay_outline_detect',
-  'overlay_antialiasing_pipeline',
-  'OCIO_Display',
-]);
+const INCOMPLETE_BIND_GROUP_MARKER =
+  'assembled group-0 resources do not match surviving WGSL bindings';
 
-function isIncompleteViewportBindGroup(line) {
-  return line.includes('assembled group-0 resources do not match surviving WGSL bindings') &&
-    VIEWPORT_BIND_GROUP_CONTRACT_SHADERS.some((shader) =>
-      line.includes(`WGPUShader '${shader}'`));
+function parseIncompleteBindGroup(line) {
+  if (!line.includes(INCOMPLETE_BIND_GROUP_MARKER)) return null;
+  const match = line.match(
+    /WGPUShader '([^']+)': assembled group-0 resources do not match surviving WGSL bindings: surviving=(\[[^\]]*\]) assembled=(\[[^\]]*\]) missing=(\[[^\]]*\]) extra=(\[[^\]]*\])/,
+  );
+  if (!match) {
+    return { parsed: false, shader: null, surviving: null, assembled: null, missing: null,
+      extra: null, firstLine: line };
+  }
+  try {
+    const sets = match.slice(2).map((serialized) => JSON.parse(serialized));
+    if (!sets.every((bindings) => Array.isArray(bindings) && bindings.every((binding) =>
+      Number.isSafeInteger(binding) && binding >= 0))) {
+      throw new Error('binding set is not an array of non-negative integers');
+    }
+    return { parsed: true, shader: match[1], surviving: sets[0], assembled: sets[1],
+      missing: sets[2], extra: sets[3], firstLine: line };
+  }
+  catch (_) {
+    return { parsed: false, shader: match[1], surviving: null, assembled: null, missing: null,
+      extra: null, firstLine: line };
+  }
+}
+
+function recordIncompleteBindGroup(records, line) {
+  const parsed = parseIncompleteBindGroup(line);
+  if (!parsed) return null;
+  const key = parsed.parsed ? JSON.stringify([
+    parsed.shader, parsed.surviving, parsed.assembled, parsed.missing, parsed.extra,
+  ]) : `unparsed:${line}`;
+  const existing = records.get(key);
+  if (existing) existing.count++;
+  else records.set(key, { ...parsed, count: 1 });
+  return parsed;
+}
+
+function sortedIncompleteBindGroups(records) {
+  return [...records.values()].sort((left, right) =>
+    String(left.shader || left.firstLine).localeCompare(String(right.shader || right.firstLine)));
 }
 
 const PY_MONITOR = String.raw`
@@ -413,16 +444,40 @@ async function runSelfcheck() {
   check(BROWSER_ARGS.includes('--enable-unsafe-webgpu') &&
     (process.platform === 'darwin') === BROWSER_ARGS.includes('--use-angle=metal'),
   'platform WebGPU browser arguments drifted');
-  for (const shader of VIEWPORT_BIND_GROUP_CONTRACT_SHADERS) {
-    check(isIncompleteViewportBindGroup(
-      `WGPUShader '${shader}': assembled group-0 resources do not match surviving WGSL bindings`),
-    `incomplete bind-group warning was not recognized for ${shader}`);
+  const bindGroupRecords = new Map();
+  const bindGroupShaders = [
+    'overlay_grid_next', 'overlay_outline_detect', 'overlay_antialiasing_pipeline',
+    'OCIO_Display', 'gpu_shader_text', 'workbench_prepass_mesh',
+    'gpu_shader_3D_polyline_flat_color', 'draw_resource_finalize',
+    'draw_visibility_compute', 'draw_command_generate', 'future_unlisted_shader',
+  ];
+  for (const shader of bindGroupShaders) {
+    const consolePrefix = shader === 'draw_resource_finalize' ?
+      '03:21.502  gpu.webgpu       | WARNING ' : '';
+    const parsedWarning = recordIncompleteBindGroup(bindGroupRecords,
+      `${consolePrefix}WGPUShader '${shader}': ${INCOMPLETE_BIND_GROUP_MARKER}: ` +
+      'surviving=[0,2] assembled=[0,3] missing=[2] extra=[3]');
+    check(parsedWarning?.parsed === true && parsedWarning.shader === shader &&
+      JSON.stringify(parsedWarning.surviving) === '[0,2]' &&
+      JSON.stringify(parsedWarning.assembled) === '[0,3]' &&
+      JSON.stringify(parsedWarning.missing) === '[2]' &&
+      JSON.stringify(parsedWarning.extra) === '[3]',
+    `incomplete bind-group sets were not preserved for ${shader}`);
   }
-  check(!isIncompleteViewportBindGroup(
-    "WGPUShader 'unrelated': assembled group-0 resources do not match surviving WGSL bindings"),
-  'unrelated bind-group warning entered the viewport contract');
-  check(!isIncompleteViewportBindGroup("WGPUShader 'overlay_grid_next': healthy"),
-    'healthy viewport shader entered the incomplete bind-group contract');
+  recordIncompleteBindGroup(bindGroupRecords,
+    `WGPUShader '${bindGroupShaders[0]}': ${INCOMPLETE_BIND_GROUP_MARKER}: ` +
+    'surviving=[0,2] assembled=[0,3] missing=[2] extra=[3]');
+  const malformedWarning = recordIncompleteBindGroup(bindGroupRecords,
+    `WGPUShader 'malformed_future_shader': ${INCOMPLETE_BIND_GROUP_MARKER}`);
+  const bindGroupSummary = sortedIncompleteBindGroups(bindGroupRecords);
+  check(malformedWarning?.parsed === false,
+    'malformed incomplete bind-group warning was silently ignored');
+  check(bindGroupSummary.length === bindGroupShaders.length + 1 &&
+    bindGroupSummary.find((entry) => entry.shader === bindGroupShaders[0])?.count === 2 &&
+    bindGroupSummary.some((entry) => entry.shader === 'future_unlisted_shader'),
+  'incomplete bind-group aggregation lost an arbitrary shader or duplicate count');
+  check(parseIncompleteBindGroup("WGPUShader 'overlay_grid_next': healthy") === null,
+    'healthy shader entered the incomplete bind-group contract');
 
   let liveRoot = null;
   if (process.env.BW_NODE_MODULES || process.env.NODE_PATH) {
@@ -589,7 +644,7 @@ async function main(options) {
   const generatedProbeContract = validateCaptureProbeGeneratedSource(generatedJs);
 
   const consoleLines = [];
-  const incompleteViewportBindGroups = [];
+  const incompleteBindGroupRecords = new Map();
   const states = [];
   const pageErrors = [];
   const requests = [];
@@ -629,7 +684,7 @@ async function main(options) {
     page.on('console', (message) => {
       const line = message.text();
       consoleLines.push(line);
-      if (isIncompleteViewportBindGroup(line)) incompleteViewportBindGroups.push(line);
+      recordIncompleteBindGroup(incompleteBindGroupRecords, line);
       const match = /^BW_SPLIT_STATE (\{.*\})$/.exec(line);
       if (match) states.push(JSON.parse(match[1]));
       const ioMatch = /^BW_SPLIT_IO (\{.*\})$/.exec(line);
@@ -967,13 +1022,14 @@ async function main(options) {
   const changed = profileBefore && profileAfter && profileBefore.length === profileAfter.length ?
     profileAfter.reduce((count, byte, index) => count + (byte !== profileBefore[index] ? 1 : 0), 0) : 0;
   const external = requests.filter((url) => !['127.0.0.1', 'localhost'].includes(new URL(url).hostname));
+  const incompleteBindGroups = sortedIncompleteBindGroups(incompleteBindGroupRecords);
   const trustedPass = trustedInputs.length > 10 && trustedInputs.every((event) => event.isTrusted) &&
     trustedInputs.some((event) => event.type === 'keydown' && event.key === 'Tab') &&
     trustedInputs.some((event) => event.type === 'keydown' && event.key === 'e') &&
     trustedInputs.some((event) => event.type === 'mousedown' && event.button === 1);
   const gpuErrors = consoleLines.filter((line) => /\[bw\]\[GPU-(?:ERROR|LOST)\]/.test(line));
   const commonPass = !fatal && pageErrors.length === 0 && external.length === 0 && gpuErrors.length === 0 &&
-    incompleteViewportBindGroups.length === 0 &&
+    incompleteBindGroups.length === 0 &&
     profileAfter?.length > splitBuild.facts.total_functions &&
     profileAfter?.length <= splitBuild.reserve_bytes && trustedPass &&
     initialPixelReceipt?.pass === true && controller?.status === 'PASS' &&
@@ -1006,6 +1062,7 @@ async function main(options) {
     workload: ['boot-to-decoded-semantic-pixels', 'trusted-middle-mouse-orbit',
       'trusted-Tab-edit', 'trusted-E-extrude-confirm', 'trusted-Tab-object',
       'repeat-orbit-edit-extrude-across-worker-schedule', 'post-interaction-semantic-pixel-settle',
+      'all-shader-bind-group-completeness-census',
       'page-main-WasmFS-write-read-unlink',
       'pooled-evaluated-subsurf', 'blend-save', 'USD-export-import', 'OBJ-export-import',
       'glTF-export-import', 'PARK', options.scenario === 'success' ? 'PREPARED-APPLY-PAGE_READY-RESUME' :
@@ -1013,7 +1070,7 @@ async function main(options) {
     result: { profileLength: profileAfter?.length || 0, changedBytesHotInteraction: hotChanged,
       changedBytesAfterCoverageWorkload: changed,
       stateCount: states.length, trustedInputCount: trustedInputs.length, trustedPass,
-      pageErrors, externalRequestCount: external.length, gpuErrors, incompleteViewportBindGroups,
+      pageErrors, externalRequestCount: external.length, gpuErrors, incompleteBindGroups,
       canvas: canvasReceipt,
       initialSemanticPixels: initialPixelReceipt, settledHotPixels: settledPixelReceipt,
       bridgeHot: bridgeHotReceipt, runtimeArgv, threadsOverride: options.threads,

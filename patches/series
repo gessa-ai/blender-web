@@ -1173,3 +1173,6 @@
 # 0289: hardware rollback of 0288. Keep GHOST's acquire/blit/submit inside the
 # synchronous WM swap boundary; deferred cross-frame presentation hard-aborts boot.
 0289-gpu-webgpu-restore-synchronous-window-present.patch
+# 0290: hold one coherently resized frame at the backend queue tail until GHOST
+# synchronously submits its surface copy, suppressing intermediate-pass presents.
+0290-gpu-webgpu-resize-present-barrier.patch

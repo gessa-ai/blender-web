@@ -13,16 +13,19 @@ asynchronously validated replacement surface/backbuffer commit to start a fresh 
 `verify_resize_trace.py` binds that episode to a diagnostic which records the exact resolved target,
 viewport, and scissor for every successfully encoded draw, retains dedicated `overlay_background`
 and `OCIO_Display` snapshots, and prints one line per successful present under hard per-episode and
-process ceilings. Comparing its cumulative sequences across presents distinguishes fresh content
-encoding from repeated presentation of a retained backbuffer without inferring liveness from logs.
+process ceilings. The browser backend also appends one ordered-queue barrier after the resized
+frame. GHOST withholds interim surface copies until every earlier scoped submission has settled,
+then performs exactly one synchronous present while the barrier holds later queue work. The actual
+surface acquire/encode/submit remains inside `swapBufferRelease()`; it is never deferred across a
+WM frame or browser turn.
 `live_resize_repro.mjs` boots the real windowed product, waits past the initial 180-tick recovery
 episode, shrinks its canvas from 1280x720 to 1100x640, restores it, and requires both coherent
 commit generations, both new bounded redraw episodes, shell resize, WM event processing, uncapped
-tick/presentation progress, and zero WebGPU encoding or submission rejection. It parses every
-captured draw plan rather than accepting the log prefix alone: all/window draw sequences must
-advance within each episode, the latest-plan sequence must equal the all-draw count,
-`overlay_background` and `OCIO_Display` must each be freshly encoded more than once, every direct
-window target must use the committed extent, and every enabled scissor must fit its target. A
+tick/presentation progress, exactly one successful barrier per resize, and zero WebGPU encoding or
+submission rejection. It parses the captured completed-frame draw plan rather than accepting the
+log prefix alone: the latest-plan sequence must equal the all-draw count, `overlay_background` and
+`OCIO_Display` must both have encoded before the admitted present, every direct window target must
+use the committed extent, and every enabled scissor must fit its target. A
 focused Blender Python marker also publishes the live `VIEW_3D` area's `WINDOW` region after each
 WM relayout. Every `overlay_background` plan must remain offscreen and match that region's exact
 extent/viewport, while every `OCIO_Display` plan must remain a direct full-window draw.
@@ -32,9 +35,9 @@ layout introspection proves that 900x547 is the current `VIEW_3D` window region 
 that it returns to 1048x621 on restore); this pass intentionally targets an offscreen region while
 `OCIO_Display` targets the full window. A later experiment routed the surface blit through the
 backend's asynchronous ordered queue, but that generation hard-aborted during boot on 10/10 Apple
-hardware attempts. The rollback contract therefore keeps surface acquire, blit, and submit inside
-GHOST's synchronous `swapBufferRelease()` boundary. Submission-order work must preserve that
-boundary rather than deferring a window swap across WM frames.
+hardware attempts. The current barrier orders the already-completed backend frame before a
+still-synchronous GHOST surface copy, preserving the safe boundary without presenting an
+intermediate persistent-backbuffer state.
 
 With a product server on port 8137:
 

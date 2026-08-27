@@ -375,6 +375,25 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
   if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
     return GHOST_kSuccess;
   }
+  if (ghost_web::redraw_present_barrier_is_scheduled()) {
+    if (!ghost_web::redraw_present_barrier_is_ready()) {
+      /* The resized frame is still draining through browser error scopes. Reporting swap success
+       * keeps WM's synchronous contract intact while deliberately withholding an intermediate
+       * persistent-backbuffer pass from the canvas. */
+      return GHOST_kSuccess;
+    }
+    const uint64_t episode = ghost_web::redraw_present_barrier_ready_episode();
+    const bool presented = presentBackbuffer();
+    ghost_web::complete_redraw_present_barrier(episode, presented);
+    static uint32_t barrier_log_count = 0;
+    if (barrier_log_count < 8) {
+      std::printf("WGPUWeb-resize-present-barrier: episode=%llu synchronous-present=%d\n",
+                  static_cast<unsigned long long>(episode),
+                  presented ? 1 : 0);
+      barrier_log_count++;
+    }
+    return presented ? GHOST_kSuccess : GHOST_kFailure;
+  }
   return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;
 }
 

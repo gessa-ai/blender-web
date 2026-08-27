@@ -71,8 +71,29 @@ def validate(
         "inline uint64_t redraw_episode_generation()",
         "inline void note_redraw_drop()",
         "inline uint64_t redraw_drop_generation()",
+        "class RedrawPresentBarrier {",
+        "inline RedrawPresentBarrier redraw_present_barrier;",
+        "inline bool schedule_redraw_present_barrier(",
+        "inline bool arrive_redraw_present_barrier(",
+        "inline bool filter_redraw_present_barrier_update(",
+        "inline bool complete_redraw_present_barrier(",
+        "inline bool cancel_redraw_present_barrier(",
+        "inline uint64_t redraw_present_barrier_completion_generation()",
     ):
         require_once(display_header, token, "redraw recovery state")
+    barrier = method(display_header, "class RedrawPresentBarrier")
+    for token in (
+        "bool schedule(const uint64_t episode)",
+        "bool arrive(const uint64_t episode, Completion completion)",
+        "bool filter_update(const uint64_t episode, const bool requested)",
+        "bool complete(const uint64_t episode, const bool valid)",
+        "bool cancel(const uint64_t episode)",
+        "superseded(false);",
+        "phase_ = Phase::Ready;",
+        "completion(valid);",
+        "completion_generation_++;",
+    ):
+        require_once(barrier, token, "resize present barrier")
     for token in (
         "retry_generation != retry_generation_seen",
         "retry_generation_seen = retry_generation;",
@@ -107,6 +128,11 @@ def validate(
         "uint64_t redraw_drop_generation_seen_ = 0;",
         "per-window drop state",
     )
+    require_once(
+        system_header,
+        "uint64_t redraw_present_barrier_completion_seen_ = 0;",
+        "per-window present-barrier state",
+    )
     if "redraw_present_baseline_" in system_header:
         raise ValueError("obsolete two-present terminal state remains")
 
@@ -119,9 +145,18 @@ def validate(
         "redraw_episode_generation_seen_",
         "ghost_web::redraw_drop_generation()",
         "redraw_drop_generation_seen_",
+        "ghost_web::redraw_present_barrier_completion_generation()",
+        "ghost_web::redraw_present_barrier_completed_episode()",
+        "ghost_web::filter_redraw_present_barrier_update(",
         "GHOST_kEventWindowUpdate",
     ):
         require_once(process, token, "processEvents recovery wiring")
+    require_count(
+        process,
+        "redraw_present_barrier_completion_seen_",
+        2,
+        "processEvents recovery wiring",
+    )
     if "GHOST_kEventWindowActivate" in process:
         raise ValueError("redraw recovery injects synthetic activation")
 
@@ -146,6 +181,11 @@ def validate(
     require_once(creation, generation, "window publication")
     require_once(creation, episode_generation, "window publication")
     require_once(creation, drop_generation, "window publication")
+    barrier_completion = (
+        "redraw_present_barrier_completion_seen_ =\n"
+        "              ghost_web::redraw_present_barrier_completion_generation();"
+    )
+    require_once(creation, barrier_completion, "window publication")
     require_once(creation, heartbeat, "window publication")
     if max(
         creation.index(generation),
@@ -252,6 +292,8 @@ def selfcheck(
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_retry_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "phase_ = Phase::Ready;", "phase_ = Phase::Scheduled;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "completion(valid);", "completion(false);"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "episode_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "readiness_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "draw_dropped ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
@@ -262,10 +304,13 @@ def selfcheck(
         (display_header, replace_once(system_header, "uint64_t redraw_retry_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_episode_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_drop_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
+        (display_header, replace_once(system_header, "uint64_t redraw_present_barrier_completion_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_recovery_tick(", "ghost_web::redraw_recovery_disabled("), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_episode_generation()", "ghost_web::redraw_episode_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_drop_generation()", "ghost_web::redraw_drop_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "GHOST_kEventWindowUpdate", "GHOST_kEventWindowActivate"), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::filter_redraw_present_barrier_update(", "ghost_web::filter_redraw_present_barrier_update_disabled("), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_present_barrier_completion_generation()", "ghost_web::redraw_present_barrier_completion_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::request_redraw_retry();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();", ""), wm_window_source, shader_source, pipeline_source),
@@ -349,7 +394,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=39 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=44 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,present-barrier")
     return 0
 
 

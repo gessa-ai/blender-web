@@ -31,6 +31,9 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
+#include <mutex>
+#include <utility>
 
 namespace ghost_web {
 
@@ -224,6 +227,243 @@ inline void note_redraw_drop()
 inline uint64_t redraw_drop_generation()
 {
   return redraw_drop_counter.load(std::memory_order_acquire);
+}
+
+/**
+ * One resize-frame submission barrier between Blender's asynchronously validated WebGPU queue and
+ * GHOST's synchronous window present.
+ *
+ * Browser command scopes settle only after the current JavaScript turn. WM can therefore reach
+ * swapBufferRelease() while the frame it just encoded is still queued, and presenting the shared
+ * persistent backbuffer at that point exposes an arbitrary intermediate pass. The backend appends
+ * this barrier at end_frame(). Once all earlier queue entries have completed, the barrier admits
+ * exactly one synthetic WindowUpdate while holding later submissions. GHOST then copies the
+ * completed backbuffer synchronously and releases the queue after that copy has been submitted.
+ * A newer resize cancels an older waiter; a failed/canceled present leaves the same episode
+ * retryable. This state is process-global because GHOST-web publishes exactly one canvas window.
+ */
+class RedrawPresentBarrier {
+ public:
+  using Completion = std::function<void(bool)>;
+
+  bool schedule(const uint64_t episode)
+  {
+    Completion superseded;
+    {
+      std::lock_guard lock(mutex_);
+      if ((phase_ != Phase::Idle && scheduled_episode_ == episode) ||
+          (completed_valid_ && completed_episode_ == episode))
+      {
+        return false;
+      }
+      superseded = std::move(completion_);
+      scheduled_episode_ = episode;
+      phase_ = Phase::Scheduled;
+      update_requested_ = false;
+    }
+    if (superseded) {
+      superseded(false);
+    }
+    return true;
+  }
+
+  bool arrive(const uint64_t episode, Completion completion)
+  {
+    bool accepted = false;
+    {
+      std::lock_guard lock(mutex_);
+      if (phase_ == Phase::Scheduled && scheduled_episode_ == episode) {
+        completion_ = std::move(completion);
+        phase_ = Phase::Ready;
+        update_requested_ = false;
+        accepted = true;
+      }
+    }
+    if (!accepted && completion) {
+      completion(false);
+    }
+    return accepted;
+  }
+
+  /** Filter only the synthetic recovery update. Ordinary input remains owned by WM. */
+  bool filter_update(const uint64_t episode, const bool requested)
+  {
+    std::lock_guard lock(mutex_);
+    if (phase_ == Phase::Idle || scheduled_episode_ != episode) {
+      return requested;
+    }
+    if (phase_ == Phase::Scheduled || !requested || update_requested_) {
+      return false;
+    }
+    update_requested_ = true;
+    return true;
+  }
+
+  bool complete(const uint64_t episode, const bool valid)
+  {
+    Completion completion;
+    {
+      std::lock_guard lock(mutex_);
+      if (phase_ != Phase::Ready || scheduled_episode_ != episode) {
+        return false;
+      }
+      completion = std::move(completion_);
+      phase_ = Phase::Idle;
+      scheduled_episode_ = 0;
+      update_requested_ = false;
+      if (valid) {
+        completed_valid_ = true;
+        completed_episode_ = episode;
+        completion_generation_++;
+      }
+    }
+    if (completion) {
+      completion(valid);
+    }
+    return true;
+  }
+
+  bool cancel(const uint64_t episode)
+  {
+    Completion completion;
+    {
+      std::lock_guard lock(mutex_);
+      if (phase_ == Phase::Idle || scheduled_episode_ != episode) {
+        return false;
+      }
+      completion = std::move(completion_);
+      phase_ = Phase::Idle;
+      scheduled_episode_ = 0;
+      update_requested_ = false;
+    }
+    if (completion) {
+      completion(false);
+    }
+    return true;
+  }
+
+  bool is_scheduled() const
+  {
+    std::lock_guard lock(mutex_);
+    return phase_ != Phase::Idle;
+  }
+
+  bool is_ready() const
+  {
+    std::lock_guard lock(mutex_);
+    return phase_ == Phase::Ready;
+  }
+
+  uint64_t scheduled_episode() const
+  {
+    std::lock_guard lock(mutex_);
+    return scheduled_episode_;
+  }
+
+  uint64_t ready_episode() const
+  {
+    std::lock_guard lock(mutex_);
+    return phase_ == Phase::Ready ? scheduled_episode_ : 0;
+  }
+
+  uint64_t completed_episode() const
+  {
+    std::lock_guard lock(mutex_);
+    return completed_episode_;
+  }
+
+  uint64_t completion_generation() const
+  {
+    std::lock_guard lock(mutex_);
+    return completion_generation_;
+  }
+
+ private:
+  enum class Phase : uint8_t {
+    Idle,
+    Scheduled,
+    Ready,
+  };
+
+  mutable std::mutex mutex_;
+  Phase phase_ = Phase::Idle;
+  uint64_t scheduled_episode_ = 0;
+  bool update_requested_ = false;
+  Completion completion_;
+  bool completed_valid_ = false;
+  uint64_t completed_episode_ = 0;
+  uint64_t completion_generation_ = 0;
+};
+
+inline RedrawPresentBarrier redraw_present_barrier;
+
+inline bool schedule_redraw_present_barrier(const uint64_t episode)
+{
+  return redraw_present_barrier.schedule(episode);
+}
+
+inline bool arrive_redraw_present_barrier(const uint64_t episode,
+                                          RedrawPresentBarrier::Completion completion)
+{
+  const bool accepted = redraw_present_barrier.arrive(episode, std::move(completion));
+  if (accepted) {
+    request_redraw_retry();
+  }
+  return accepted;
+}
+
+inline bool filter_redraw_present_barrier_update(const uint64_t episode,
+                                                 const bool requested)
+{
+  return redraw_present_barrier.filter_update(episode, requested);
+}
+
+inline bool redraw_present_barrier_is_scheduled()
+{
+  return redraw_present_barrier.is_scheduled();
+}
+
+inline bool redraw_present_barrier_is_ready()
+{
+  return redraw_present_barrier.is_ready();
+}
+
+inline uint64_t redraw_present_barrier_scheduled_episode()
+{
+  return redraw_present_barrier.scheduled_episode();
+}
+
+inline uint64_t redraw_present_barrier_ready_episode()
+{
+  return redraw_present_barrier.ready_episode();
+}
+
+inline bool complete_redraw_present_barrier(const uint64_t episode, const bool valid)
+{
+  const bool completed = redraw_present_barrier.complete(episode, valid);
+  if (completed && !valid) {
+    request_redraw_retry();
+  }
+  return completed;
+}
+
+inline bool cancel_redraw_present_barrier(const uint64_t episode)
+{
+  const bool canceled = redraw_present_barrier.cancel(episode);
+  if (canceled) {
+    request_redraw_retry();
+  }
+  return canceled;
+}
+
+inline uint64_t redraw_present_barrier_completed_episode()
+{
+  return redraw_present_barrier.completed_episode();
+}
+
+inline uint64_t redraw_present_barrier_completion_generation()
+{
+  return redraw_present_barrier.completion_generation();
 }
 
 /**

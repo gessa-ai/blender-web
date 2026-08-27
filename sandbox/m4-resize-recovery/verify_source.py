@@ -42,6 +42,24 @@ FORBIDDEN_DEFERRED_PRESENT_MARKERS = (
 )
 
 
+def method(source: str, marker: str) -> str:
+    start = source.find(marker)
+    if start < 0:
+        return ""
+    opening = source.find("{", start)
+    if opening < 0:
+        return ""
+    depth = 0
+    for offset in range(opening, len(source)):
+        if source[offset] == "{":
+            depth += 1
+        elif source[offset] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : offset + 1]
+    return ""
+
+
 def validate(
     context_source: str,
     wm_source: str,
@@ -67,6 +85,32 @@ def validate(
     if not (update_at >= 0 and update_at < reactivate_at < window_loop_at):
         errors.append("window-context reactivation is not ordered before the draw loop")
 
+    end_frame = method(context_source, "void WGPUContext::end_frame()")
+    end_frame_tokens = (
+        "ghost_web::redraw_episode_generation()",
+        "ghost_web::redraw_trace_active(episode)",
+        "ghost_web::schedule_redraw_present_barrier(episode)",
+        "queue_scheduler_.enqueue(",
+        "ghost_web::arrive_redraw_present_barrier(episode, std::move(done));",
+        "ghost_web::cancel_redraw_present_barrier(episode);",
+    )
+    for token in end_frame_tokens:
+        if end_frame.count(token) != 1:
+            errors.append(f"resize present queue barrier differs: {token}")
+    if end_frame and all(token in end_frame for token in end_frame_tokens):
+        positions = tuple(end_frame.index(token) for token in end_frame_tokens[2:5])
+        if positions != tuple(sorted(positions)):
+            errors.append("resize present barrier is not appended after frame encoding")
+
+    destructor = method(context_source, "WGPUContext::~WGPUContext()")
+    for token in (
+        "ghost_web::redraw_present_barrier_is_scheduled()",
+        "ghost_web::cancel_redraw_present_barrier(",
+        "ghost_web::redraw_present_barrier_scheduled_episode()",
+    ):
+        if destructor.count(token) != 1:
+            errors.append(f"resize present barrier teardown differs: {token}")
+
     for marker in FORBIDDEN_DEFERRED_PRESENT_MARKERS:
         if marker in context_source or marker in ghost_source or marker in ghost_header:
             errors.append(f"deferred window-present seam remains reachable: {marker}")
@@ -81,12 +125,36 @@ def validate(
     immediate = "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;"
     if swap_release.count(immediate) != 1:
         errors.append("GHOST swap does not synchronously execute exactly one present")
+    for token in (
+        "if (ghost_web::redraw_present_barrier_is_scheduled())",
+        "if (!ghost_web::redraw_present_barrier_is_ready())",
+        "const uint64_t episode = ghost_web::redraw_present_barrier_ready_episode();",
+        "const bool presented = presentBackbuffer();",
+        "ghost_web::complete_redraw_present_barrier(episode, presented);",
+        "return presented ? GHOST_kSuccess : GHOST_kFailure;",
+    ):
+        if swap_release.count(token) != 1:
+            errors.append(f"resize present barrier differs: {token}")
     device_check = swap_release.find("if (!deviceIsUsable())")
     device_only = swap_release.find(
         "if (mode_ == ghost_web::DrawingContextMode::DeviceOnly)"
     )
+    barrier_scheduled = swap_release.find(
+        "if (ghost_web::redraw_present_barrier_is_scheduled())"
+    )
+    barrier_ready = swap_release.find(
+        "if (!ghost_web::redraw_present_barrier_is_ready())"
+    )
+    barrier_present = swap_release.find("const bool presented = presentBackbuffer();")
+    barrier_complete = swap_release.find(
+        "ghost_web::complete_redraw_present_barrier(episode, presented);"
+    )
     immediate_at = swap_release.find(immediate)
-    if not (device_check >= 0 and device_check < device_only < immediate_at):
+    if not (
+        device_check >= 0
+        and device_check < device_only < barrier_scheduled < barrier_ready
+        < barrier_present < barrier_complete < immediate_at
+    ):
         errors.append("GHOST synchronous present is outside the validated swap boundary")
     if ghost_source.count("bool GHOST_ContextWGPUWeb::presentBackbuffer()") != 1:
         errors.append("GHOST synchronous present implementation differs")
@@ -144,6 +212,21 @@ def main() -> int:
             "  instance_ = wgpu_ghost->getInstance();",
             1,
         ),
+        "barrier_schedule": context_source.replace(
+            "ghost_web::schedule_redraw_present_barrier(episode)",
+            "false",
+            1,
+        ),
+        "barrier_arrival": context_source.replace(
+            "ghost_web::arrive_redraw_present_barrier(episode, std::move(done));",
+            "done(true);",
+            1,
+        ),
+        "barrier_cancel": context_source.replace(
+            "ghost_web::cancel_redraw_present_barrier(episode);",
+            "",
+            1,
+        ),
     }
     wm_mutations = {
         "webgpu_reactivation": wm_source.replace(
@@ -163,6 +246,21 @@ def main() -> int:
         "deferred_present_signature": ghost_source.replace(
             "bool GHOST_ContextWGPUWeb::presentBackbuffer()",
             "bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)",
+            1,
+        ),
+        "barrier_bypass": ghost_source.replace(
+            "if (ghost_web::redraw_present_barrier_is_scheduled())",
+            "if (false)",
+            1,
+        ),
+        "barrier_readiness": ghost_source.replace(
+            "if (!ghost_web::redraw_present_barrier_is_ready())",
+            "if (ghost_web::redraw_present_barrier_is_ready())",
+            1,
+        ),
+        "barrier_completion": ghost_source.replace(
+            "ghost_web::complete_redraw_present_barrier(episode, presented);",
+            "",
             1,
         ),
     }
@@ -199,7 +297,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=12 mutations=11")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=27 mutations=17")
     return 0
 
 

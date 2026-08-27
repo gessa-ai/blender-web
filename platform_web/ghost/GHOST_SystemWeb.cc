@@ -1350,14 +1350,30 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * retried without user input. The boot burst discovers visible lazy variants; readiness can rearm
    * a completed burst but cannot extend an active one past the existing 180-tick hard ceiling;
    * repeated draw-drop signals are acknowledged without rearming at that ceiling. */
-  if (window_ != nullptr &&
+  const uint64_t redraw_episode_generation = ghost_web::redraw_episode_generation();
+  const uint64_t barrier_completion_generation =
+      ghost_web::redraw_present_barrier_completion_generation();
+  if (barrier_completion_generation != redraw_present_barrier_completion_seen_) {
+    redraw_present_barrier_completion_seen_ = barrier_completion_generation;
+    if (ghost_web::redraw_present_barrier_completed_episode() == redraw_episode_generation) {
+      /* The accepted resize frame is now on the surface. End this synthetic episode so later
+       * ticks cannot queue and present another intermediate frame behind it. A separately
+       * published shader-readiness generation may still start its own bounded recovery. */
+      redraw_heartbeat_ = ghost_web::FIRST_PIXEL_SETTLE_TICKS;
+      ghost_web::redraw_trace_finish(redraw_episode_generation);
+    }
+  }
+  const bool redraw_recovery_requested =
+      window_ != nullptr &&
       ghost_web::redraw_recovery_tick(ghost_web::redraw_retry_generation(),
                                       redraw_retry_generation_seen_,
-                                      ghost_web::redraw_episode_generation(),
+                                      redraw_episode_generation,
                                       redraw_episode_generation_seen_,
                                       ghost_web::redraw_drop_generation(),
                                       redraw_drop_generation_seen_,
-                                      redraw_heartbeat_))
+                                      redraw_heartbeat_);
+  if (window_ != nullptr && ghost_web::filter_redraw_present_barrier_update(
+                                 redraw_episode_generation, redraw_recovery_requested))
   {
     pushEvent(
         std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window_));
@@ -1787,6 +1803,8 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
           redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();
           redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();
           redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
+          redraw_present_barrier_completion_seen_ =
+              ghost_web::redraw_present_barrier_completion_generation();
           redraw_heartbeat_ = 0;
         }
         if (GHOST_WindowManager *wm = getWindowManager()) {

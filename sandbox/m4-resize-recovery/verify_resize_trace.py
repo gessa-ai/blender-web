@@ -152,9 +152,12 @@ def validate(
         "trace.background.target[0] !== layout.view3dWindow[0]",
         "!trace.display.windowTarget",
         'for (const planName of ["any", "background", "display"])',
-        'failures.push(`${label} draw counts did not advance`);',
-        'failures.push(`${label} window draw counts did not advance`);',
-        "plans=advancing,current,contained,view3d-bound",
+        "epoch.length !== 1",
+        "was not encoded before the barrier present",
+        'line.includes("WGPUWeb-resize-present-barrier:")',
+        "counters.resizeBarrier !== 2",
+        "single barrier presents differ",
+        "plans=complete,current,contained,view3d-bound",
     ):
         require_once(live, token, "live trace consumer")
 
@@ -220,18 +223,33 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         ("live", "!trace.display.windowTarget", "false"),
         (
             "live",
-            "plans=advancing,current,contained,view3d-bound",
-            "plans=advancing,current,contained",
+            "plans=complete,current,contained,view3d-bound",
+            "plans=complete,current,contained",
         ),
         (
             "live",
-            'failures.push(`${label} draw counts did not advance`);',
-            'failures.push(`${label} ignored draw counts`);',
+            "epoch.length !== 1",
+            "epoch.length === 0",
         ),
         (
             "live",
-            'failures.push(`${label} window draw counts did not advance`);',
-            'failures.push(`${label} ignored window draw counts`);',
+            "was not encoded before the barrier present",
+            "ignored missing plan",
+        ),
+        (
+            "live",
+            'line.includes("WGPUWeb-resize-present-barrier:")',
+            'line.includes("disabled-resize-present-barrier:")',
+        ),
+        (
+            "live",
+            "counters.resizeBarrier !== 2",
+            "false",
+        ),
+        (
+            "live",
+            "single barrier presents differ",
+            "ignored barrier present count",
         ),
     ]
     names = (

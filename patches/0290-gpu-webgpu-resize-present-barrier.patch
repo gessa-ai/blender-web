@@ -1,0 +1,47 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -58,3 +58,4 @@
+  * any native build keep the native branch below unchanged. */
+ #  include "GHOST_ContextWGPUWeb.hh"
++#  include "GHOST_WebDisplayState.hh"
+ using WGPUGhostContext = GHOST_ContextWGPUWeb;
+@@ -128,4 +128,10 @@ WGPUContext::~WGPUContext()
+ {
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  if (ghost_web::redraw_present_barrier_is_scheduled()) {
++    ghost_web::cancel_redraw_present_barrier(
++        ghost_web::redraw_present_barrier_scheduled_episode());
++  }
++#endif
+   /* Drop the back-buffer wrapper first: the base Texture dtor detaches it from
+    * back_left/front_left (which are still alive here), releasing the surface
+    * texture ref without destroying the surface's own texture. */
+@@ -1296,6 +1296,26 @@ void WGPUContext::begin_frame()
+ {
+   queue_scheduler_.begin_epoch();
+ }
+-void WGPUContext::end_frame() {}
++void WGPUContext::end_frame()
++{
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  /* Browser command validation settles after WM has finished encoding this frame. During a
++   * coherent resize episode, reserve one tail barrier before GHOST reaches swapBufferRelease().
++   * The barrier holds later queue work until GHOST has synchronously submitted a copy of this
++   * completed frame, preventing an intermediate backbuffer pass from reaching the canvas. */
++  const uint64_t episode = ghost_web::redraw_episode_generation();
++  if (ghost_web::redraw_trace_active(episode) &&
++      ghost_web::schedule_redraw_present_barrier(episode))
++  {
++    queue_scheduler_.enqueue(
++        [episode](std::function<void(bool)> done) {
++          ghost_web::arrive_redraw_present_barrier(episode, std::move(done));
++        },
++        [episode]() {
++          ghost_web::cancel_redraw_present_barrier(episode);
++        });
++  }
++#endif
++}
+ void WGPUContext::flush() {}
+ void WGPUContext::finish() {}

@@ -146,6 +146,85 @@ int main()
     return 1;
   }
 
+  /* Browser command validation can leave one complete frame behind the queue while GHOST reaches
+   * swapBufferRelease(). A resize-only barrier must suppress those intermediate presents, admit
+   * exactly one WindowUpdate when the queued frame is ready, and release the queue only after the
+   * synchronous GHOST present has been submitted. */
+  ghost_web::RedrawPresentBarrier barrier;
+  bool first_completion_called = false;
+  bool first_completion_valid = false;
+  if (!require(barrier.schedule(after_episode),
+               "a fresh resize episode schedules one present barrier") ||
+      !require(!barrier.schedule(after_episode),
+               "one resize episode cannot schedule duplicate barriers") ||
+      !require(barrier.scheduled_episode() == after_episode &&
+                   barrier.ready_episode() == 0,
+               "a scheduled barrier blocks presentation before queue arrival") ||
+      !require(!barrier.filter_update(after_episode, true),
+               "synthetic redraws pause while the completed frame is pending") ||
+      !require(barrier.arrive(after_episode, [&](const bool valid) {
+                 first_completion_called = true;
+                 first_completion_valid = valid;
+               }),
+               "the ordered queue publishes one completed resize frame") ||
+      !require(barrier.ready_episode() == after_episode,
+               "the arrived barrier exposes the exact ready episode") ||
+      !require(!barrier.filter_update(after_episode, false),
+               "a ready barrier does not invent a WindowUpdate") ||
+      !require(barrier.filter_update(after_episode, true) &&
+                   !barrier.filter_update(after_episode, true),
+               "a ready barrier admits exactly one presentation WindowUpdate") ||
+      !require(barrier.complete(after_episode, true) && first_completion_called &&
+                   first_completion_valid,
+               "a synchronous present releases the ordered queue successfully") ||
+      !require(barrier.completed_episode() == after_episode &&
+                   barrier.scheduled_episode() == 0 && barrier.ready_episode() == 0,
+               "successful presentation retires the resize barrier") ||
+      !require(barrier.filter_update(after_episode, true),
+               "ordinary redraw policy resumes after the completed barrier") ||
+      !require(!barrier.schedule(after_episode),
+               "an already presented episode cannot reopen its barrier"))
+  {
+    return 1;
+  }
+
+  const uint64_t superseded_episode = after_episode + 1u;
+  const uint64_t newest_episode = after_episode + 2u;
+  bool superseded_completion_called = false;
+  bool superseded_completion_valid = true;
+  if (!require(barrier.schedule(superseded_episode) &&
+                   barrier.arrive(superseded_episode, [&](const bool valid) {
+                     superseded_completion_called = true;
+                     superseded_completion_valid = valid;
+                   }),
+               "a later resize can reach its barrier") ||
+      !require(barrier.schedule(newest_episode) && superseded_completion_called &&
+                   !superseded_completion_valid,
+               "a newer resize cancels the older waiting barrier") ||
+      !require(barrier.cancel(newest_episode) &&
+                   barrier.scheduled_episode() == 0,
+               "a canceled queue entry makes the same episode retryable") ||
+      !require(barrier.schedule(newest_episode),
+               "a canceled resize barrier can be scheduled again"))
+  {
+    return 1;
+  }
+  bool rejected_completion_called = false;
+  bool rejected_completion_valid = true;
+  if (!require(barrier.arrive(newest_episode, [&](const bool valid) {
+                 rejected_completion_called = true;
+                 rejected_completion_valid = valid;
+               }) &&
+                   barrier.complete(newest_episode, false) && rejected_completion_called &&
+                   !rejected_completion_valid,
+               "a failed synchronous present rejects and clears its barrier") ||
+      !require(barrier.schedule(newest_episode),
+               "a failed present leaves the current resize episode retryable"))
+  {
+    return 1;
+  }
+  barrier.cancel(newest_episode);
+
   ghost_web::redraw_trace_note(ghost_web::RedrawTracePass::Other,
                                false,
                                640,
@@ -300,7 +379,7 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
-      "trace=bounded-exact wrap=rearmed\n",
+      "present_barrier=ordered-sync trace=bounded-exact wrap=rearmed\n",
       checks);
-  return checks == 26 ? 0 : 1;
+  return checks == 44 ? 0 : 1;
 }

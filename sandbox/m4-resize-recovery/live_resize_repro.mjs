@@ -21,6 +21,7 @@ const counters = {
   deviceLost: 0,
   resizeApplied: 0,
   resizeTrace: 0,
+  resizeBarrier: 0,
   wmResizeProcessed: 0,
 };
 
@@ -83,7 +84,7 @@ function latestResizeLayout(layouts, extent) {
 function validateResizeTraceEpoch(traces, episode, extent, layout, label) {
   const failures = [];
   const epoch = traces.filter((trace) => trace.episode === episode);
-  if (epoch.length === 0 || epoch.length > 24) {
+  if (epoch.length !== 1) {
     failures.push(`${label} trace sample count=${epoch.length}`);
     return failures;
   }
@@ -159,15 +160,10 @@ function validateResizeTraceEpoch(traces, episode, extent, layout, label) {
       }
     }
   }
-  if (epoch.at(-1).draws <= epoch[0].draws) {
-    failures.push(`${label} draw counts did not advance`);
-  }
-  if (epoch.at(-1).windowDraws <= epoch[0].windowDraws) {
-    failures.push(`${label} window draw counts did not advance`);
-  }
   for (const planName of ["background", "display"]) {
-    const sequences = new Set(epoch.map((trace) => trace[planName].sequence).filter(Boolean));
-    if (sequences.size < 2) failures.push(`${label} ${planName} did not advance`);
+    if (epoch[0][planName].sequence === 0) {
+      failures.push(`${label} ${planName} was not encoded before the barrier present`);
+    }
   }
   return failures;
 }
@@ -228,6 +224,7 @@ try {
     if (line.includes("present transaction rejected")) counters.transactionRejected++;
     if (line.includes("[bw][GPU-LOST]")) counters.deviceLost++;
     if (line.includes("WGPUWeb-resize: backing ->")) counters.resizeApplied++;
+    if (line.includes("WGPUWeb-resize-present-barrier:")) counters.resizeBarrier++;
     if (line.includes("WGPUWeb-resize-trace:")) {
       counters.resizeTrace++;
       const trace = parseResizeTrace(line);
@@ -240,7 +237,7 @@ try {
     if (line.includes("ghost_event_proc: window") && line.includes("state =")) {
       counters.wmResizeProcessed++;
     }
-    if (/WGPUWeb-resize:|WGPUWeb-resize-trace:|bw-resize-python|Scissor rect|draw encoding rejected|queue submission rejected|present transaction rejected|ghost_event_proc: window|GPU-LOST/.test(line)) {
+    if (/WGPUWeb-resize:|WGPUWeb-resize-trace:|WGPUWeb-resize-present-barrier:|bw-resize-python|Scissor rect|draw encoding rejected|queue submission rejected|present transaction rejected|ghost_event_proc: window|GPU-LOST/.test(line)) {
       lines.push(line);
     }
   });
@@ -280,10 +277,14 @@ try {
   }
   const shrinkRedrawPresents = shrunk.presents - initial.presents;
   const restoreRedrawPresents = restored.presents - shrunk.presents;
-  if (shrinkRedrawPresents < 8 || restoreRedrawPresents < 8) {
-    failures.push(`bounded redraw episodes absent: ${shrinkRedrawPresents}/${restoreRedrawPresents}`);
+  if (shrinkRedrawPresents < 1 || restoreRedrawPresents < 1 ||
+      shrinkRedrawPresents > 3 || restoreRedrawPresents > 3) {
+    failures.push(`single barrier presents differ: ${shrinkRedrawPresents}/${restoreRedrawPresents}`);
   }
   if (counters.resizeApplied < 3) failures.push("shell backing resize was not observed");
+  if (counters.resizeBarrier !== 2) {
+    failures.push(`resize barrier count=${counters.resizeBarrier}`);
+  }
   if (counters.wmResizeProcessed < 2) failures.push("WM resize processing was not observed");
   const traceEpochs = [
     {episode: shrunk.episodes, extent: [1100, 640], label: "shrink"},
@@ -308,8 +309,8 @@ try {
               `wm=${counters.wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
               `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
-              `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
-              `trace=${resizeTraces.length} plans=advancing,current,contained,view3d-bound`);
+              `barriers=${counters.resizeBarrier} redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
+              `trace=${resizeTraces.length} plans=complete,current,contained,view3d-bound`);
 }
 finally {
   await browser.close();

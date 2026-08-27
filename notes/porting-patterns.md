@@ -1887,3 +1887,18 @@ only repeated conformant-hardware pixels close visual recovery. See
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
 `platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and
 `sandbox/m4-resize-recovery/verify_source.py`.
+
+## Class 128 — drawable adoption must not relabel an in-progress frame
+
+Signature: a frame captures a coherent persistent backbuffer and resize episode, then a browser
+resize commits while that frame is encoding. A later GPU-context activation in the same WM frame
+atomically adopts the replacement drawable and overwrites the single episode member. `end_frame()`
+then misidentifies old- or mixed-drawable work as belonging to the replacement and can authorize
+its untouched backbuffer. Keep separate adopted-drawable and frame-bound episode values: every
+activation may refresh the former, but only the real `begin_frame()` copies it into the latter.
+Use the frame-bound value at the queue-tail admission check, and let the next full redraw capture
+the replacement. Exercise commit-between-begin-and-reactivation on native and wasm32, source-bind
+both members and their assignment order, and retain conformant-hardware semantic pixels as the
+closure bar. See `upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_context.hh`, and
+`sandbox/m4-resize-recovery/verify_source.py`.

@@ -36295,10 +36295,10 @@ index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc985
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f09703b5d926
+index 0000000000000000000000000000000000000000..6b541475359ec735e984b0bc1845dcac38491c38
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1369 @@
+@@ -0,0 +1,1371 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37567,7 +37567,7 @@ index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f097
 +   * it at the new extent), and re-adopting refreshes the wrapped texture + size in place
 +   * while the attachment keeps pointing at this same WGPUTexture wrapper. */
 +  back->adopt_external(backbuffer, fmt, w, h);
-+  redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;
++  redraw_present_adopted_episode_ = backbuffer_snapshot.redraw_episode;
 +
 +  if (first) {
 +    if (back_left != nullptr) {
@@ -37606,8 +37606,10 @@ index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f097
 +void WGPUContext::begin_frame()
 +{
 +#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
-+  /* Activation already adopted this frame's backbuffer episode. Reset its semantic trace once at
-+   * the real WM frame boundary; later context reactivations must not erase earlier region draws. */
++  /* Capture the drawable episode once at the real WM frame boundary. A resize can commit and a
++   * context can reactivate later in this same frame; neither may relabel work that began against
++   * the prior drawable. */
++  redraw_present_frame_episode_ = redraw_present_adopted_episode_;
 +  ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);
 +#endif
 +  queue_scheduler_.begin_epoch();
@@ -37670,10 +37672,10 @@ index 0000000000000000000000000000000000000000..7a0daa3cb3da526387d22d77c005f097
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..999ff99ff78ff4d329317abc5908ab2e510b9c0c
+index 0000000000000000000000000000000000000000..4743b043eb40e1abe165bb911795af8f1a7b7e61
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
-@@ -0,0 +1,383 @@
+@@ -0,0 +1,384 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -38007,9 +38009,10 @@ index 0000000000000000000000000000000000000000..999ff99ff78ff4d329317abc5908ab2e
 +  /** Serializes async validation with queue writes/submissions without changing their order. */
 +  webgpu::OrderedQueueScheduler queue_scheduler_;
 +#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
-+  /** Resize episode adopted atomically with this window frame's persistent backbuffer. A
-+   * replacement can settle while the frame is encoding; only an adopted frame from the current
-+   * episode may place that episode's completed-frame barrier at its queue tail. */
++  /** Resize episode most recently adopted atomically with the persistent backbuffer. */
++  uint64_t redraw_present_adopted_episode_ = 0;
++  /** Snapshot of the adopted episode at begin_frame(). Later context reactivation may adopt a
++   * replacement drawable, but it must not relabel the frame already being encoded. */
 +  uint64_t redraw_present_frame_episode_ = 0;
 +#endif
 +  /** Device-bound pipeline handles must not outlive this context or reach a later device. */

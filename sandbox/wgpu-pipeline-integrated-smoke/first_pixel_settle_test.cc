@@ -446,6 +446,27 @@ int main()
   {
     return 1;
   }
+
+  /* A replacement can commit after begin_frame() and a later context activation can adopt it
+   * before the old frame reaches end_frame(). Adoption must not relabel that in-progress frame;
+   * only the next begin_frame() may capture the replacement episode. */
+  constexpr uint64_t old_adopted_episode = 41u;
+  constexpr uint64_t replacement_adopted_episode = 42u;
+  uint64_t frame_bound_episode = old_adopted_episode;
+  uint64_t currently_adopted_episode = replacement_adopted_episode;
+  if (!require(!ghost_web::redraw_present_frame_matches_episode(
+                   frame_bound_episode, currently_adopted_episode),
+               "mid-frame reactivation cannot relabel the frame to a replacement episode"))
+  {
+    return 1;
+  }
+  frame_bound_episode = currently_adopted_episode;
+  if (!require(ghost_web::redraw_present_frame_matches_episode(
+                   frame_bound_episode, replacement_adopted_episode),
+               "the next frame captures the replacement episode"))
+  {
+    return 1;
+  }
   episode_generation_seen = frame_episode;
 
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
@@ -545,7 +566,8 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
-      "present_barrier=ordered-sync-commit-superseded trace=bounded-exact wrap=rearmed\n",
+      "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
+      "frame_ownership=reactivation-stable wrap=rearmed\n",
       checks);
-  return checks == 57 ? 0 : 1;
+  return checks == 59 ? 0 : 1;
 }

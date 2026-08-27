@@ -41,6 +41,7 @@ FORBIDDEN_DEFERRED_PRESENT_MARKERS = (
     "present_queue_enqueue_",
 )
 
+ADOPTED_EPISODE_MEMBER = "uint64_t redraw_present_adopted_episode_ = 0;"
 FRAME_EPISODE_MEMBER = "uint64_t redraw_present_frame_episode_ = 0;"
 BACKBUFFER_SNAPSHOT_TYPE = "struct BackbufferFrameSnapshot"
 BACKBUFFER_SNAPSHOT_METHOD = "BackbufferFrameSnapshot getBackbufferFrameSnapshot() const"
@@ -115,7 +116,7 @@ def validate(
         "backbuffer_snapshot.format",
         "backbuffer_snapshot.width",
         "backbuffer_snapshot.height",
-        "redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;",
+        "redraw_present_adopted_episode_ = backbuffer_snapshot.redraw_episode;",
     )
     for token in sync_tokens:
         if sync.count(token) != 1:
@@ -236,6 +237,8 @@ def validate(
         if positions != tuple(sorted(positions)):
             errors.append("context end-frame can no longer precede synchronous window swap")
 
+    if context_header.count(ADOPTED_EPISODE_MEMBER) != 1:
+        errors.append("window context does not retain its currently adopted resize episode")
     if context_header.count(FRAME_EPISODE_MEMBER) != 1:
         errors.append("window frame does not retain its resize episode")
 
@@ -277,6 +280,7 @@ def validate(
 
     begin_frame = method(context_source, "void WGPUContext::begin_frame()")
     begin_frame_tokens = (
+        "redraw_present_frame_episode_ = redraw_present_adopted_episode_;",
         "ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);",
         "queue_scheduler_.begin_epoch();",
     )
@@ -286,8 +290,9 @@ def validate(
     if "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();" in begin_frame:
         errors.append("frame start resamples the episode separately from backbuffer adoption")
     if begin_frame and all(token in begin_frame for token in begin_frame_tokens):
-        if begin_frame.index(begin_frame_tokens[0]) > begin_frame.index(begin_frame_tokens[1]):
-            errors.append("frame trace starts after the backend queue epoch")
+        positions = tuple(begin_frame.index(token) for token in begin_frame_tokens)
+        if positions != tuple(sorted(positions)):
+            errors.append("adopted episode is not captured once at the frame boundary")
 
     end_frame = method(context_source, "void WGPUContext::end_frame()")
     end_frame_tokens = (
@@ -472,8 +477,18 @@ def main() -> int:
             1,
         ),
         "snapshot_episode": context_source.replace(
+            "redraw_present_adopted_episode_ = backbuffer_snapshot.redraw_episode;",
+            "redraw_present_adopted_episode_ = ghost_web::redraw_episode_generation();",
+            1,
+        ),
+        "frame_episode_capture": context_source.replace(
+            "  redraw_present_frame_episode_ = redraw_present_adopted_episode_;",
+            "",
+            1,
+        ),
+        "reactivation_relabels_frame": context_source.replace(
+            "redraw_present_adopted_episode_ = backbuffer_snapshot.redraw_episode;",
             "redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;",
-            "redraw_present_frame_episode_ = ghost_web::redraw_episode_generation();",
             1,
         ),
         "frame_trace_reset": context_source.replace(
@@ -520,6 +535,7 @@ def main() -> int:
         ),
     }
     context_header_mutations = {
+        "adopted_episode_member": context_header.replace(ADOPTED_EPISODE_MEMBER, "", 1),
         "frame_episode_member": context_header.replace(FRAME_EPISODE_MEMBER, "", 1),
     }
     wm_mutations = {
@@ -720,7 +736,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=6 checks=80 mutations=47")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=6 checks=82 mutations=50")
     return 0
 
 

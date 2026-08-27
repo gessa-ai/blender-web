@@ -3068,6 +3068,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   retire the replacement barrier. A callback-transfer mutant fails at the new ready-supersession
   boundary; final 28-case output is byte-identical across runtimes. Runtime artifacts remain exact,
   so this strengthens the pending candidate without starting another Apple generation.
+  **Hardware rejection 2026-08-27, round 6:** the driver-deposited ten-attempt result reports
+  `passed=0`; all ten zero-input shrink captures are exactly 3,458 bytes, the established full-black
+  signature, with zero page errors and zero WebGPU rejects. The legacy result file does not carry
+  product hashes, retained PNGs, counters, or console traces, so it is not a canonical receipt and
+  cannot identify whether the barrier omitted its surface copy or copied an empty backbuffer. It is
+  nevertheless a hard pixel rejection: the current candidate must not be promoted. `1419943` now
+  writes failure-only `NN-diagnostics.json` sidecars from the repository producer with pre/post WM
+  tick, uncapped present, and redraw-episode counters plus all bounded resize/draw-plan/barrier
+  lines. This changes no product byte and gives the next Apple run the missing discriminator before
+  another runtime patch is attempted.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

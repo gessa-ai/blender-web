@@ -87,6 +87,7 @@ def main() -> None:
     staging_markers = (
         "approximately 14,742,104 bytes",
         "257,896 bytes under the size ceiling",
+        "before the already-named small compressed-Wasm delta is remeasured",
         "Previously accepted Apple profiles are bound to an older CAPTURE generation",
     )
     for marker in staging_markers:

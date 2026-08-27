@@ -2961,10 +2961,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   green at their applicable boundaries; refreshed M8 remains honestly RED at its pre-existing 23
   APPLY/browser/tier failures. No public deployment, product, profile, receipt, result, or promise
   was promoted. See `notes/m8-public-parity-dashboard-20260826.md`.
-- [~] **P1-M8-PUBLIC-PARITY-STAGING-FRESHNESS [compliance, claimed_by: root]:** refresh the
+- [x] **P1-M8-PUBLIC-PARITY-STAGING-FRESHNESS [compliance] (`3742064`):** refresh the
   public size/latency row from the superseded provisional Stage-0 accounting to the current
   shader-seed plus layout-preserving UI-font projection, and fail closed if the public page
-  regresses to stale profile-generation language or byte totals.
+  regresses to stale profile-generation language or byte totals. The page now reports the
+  14,742,104-byte projection, its 257,896-byte provisional margin and small-Wasm-delta caveat,
+  current `b8b2a682ff09` CAPTURE identity, and fresh-profile requirement without promoting APPLY.
 - [x] **P1-RELEASE-TAGGED-BUILD-CORRESPONDENCE [driver] (`2946f0e`):** the
   deterministic packager now binds an annotated release tag at clean `HEAD`, the strict successful
   APPLY inventory/preflight, the canonical pinned-upstream source replay, independently replayed

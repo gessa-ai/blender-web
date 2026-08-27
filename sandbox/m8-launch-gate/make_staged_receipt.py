@@ -68,8 +68,78 @@ def phase_request_failures(row: dict, contract: dict[str, object]) -> list[str]:
     return failures
 
 
+def pthread_blob_transport_failures(row: dict, bundle_files: object,
+                                    bundle_artifacts: object) -> list[str]:
+    """Validate in-memory pthread starts without miscounting Blob URLs as wire."""
+    failures: list[str] = []
+    source_path = "/bin/blender_browser.worker.js"
+    source_name = source_path.removeprefix("/")
+    if not isinstance(bundle_files, (list, tuple, set)) or source_name not in bundle_files:
+        failures.append("pthread Blob source is absent from the public bundle inventory")
+    if not isinstance(bundle_artifacts, dict) or not isinstance(
+            bundle_artifacts.get(source_name), dict):
+        failures.append("pthread Blob source identity is absent")
+        expected: dict[str, object] = {}
+    else:
+        expected = bundle_artifacts[source_name]
+    proof = row.get("pthread_blob_proof")
+    if not isinstance(proof, dict):
+        return [*failures, "pthread Blob bootstrap proof is absent"]
+    if (proof.get("contract") != "pthread-main-script-blob-v1" or
+            proof.get("sourcePath") != source_path or proof.get("phase") != "ready"):
+        failures.append("pthread Blob bootstrap contract is invalid")
+    if proof.get("bytes") != expected.get("bytes") or proof.get("sha256") != expected.get("sha256"):
+        failures.append("pthread Blob source identity differs from the public bundle artifact")
+    if proof.get("factoryCalls") != 1 or proof.get("error") is not None:
+        failures.append("pthread Blob factory accounting is invalid")
+
+    workers = row.get("pthread_blob_workers")
+    if not isinstance(workers, list) or len(workers) < 9:
+        return [*failures, "fewer than the proxied-main plus eight pool Blob workers were observed"]
+    interaction = row.get("semantic_interaction_ms")
+    origins: set[str] = set()
+    urls: set[str] = set()
+    initial_workers = 0
+    for index, worker_row in enumerate(workers):
+        if not isinstance(worker_row, dict):
+            failures.append(f"pthread Blob worker {index} is invalid")
+            continue
+        url = worker_row.get("url")
+        origin = worker_row.get("origin")
+        if (worker_row.get("protocol") != "blob:" or not isinstance(origin, str) or
+                not isinstance(url, str) or not url.startswith(f"blob:{origin}/")):
+            failures.append(f"pthread Blob worker {index} escaped its exact page origin")
+        else:
+            origins.add(origin)
+        if worker_row.get("kind") != "dedicated-worker":
+            failures.append(f"pthread Blob worker {index} is not a dedicated worker")
+        at = worker_row.get("at_ms")
+        if (not isinstance(at, (int, float)) or isinstance(at, bool) or
+                not math.isfinite(at) or at < 0):
+            failures.append(f"pthread Blob worker {index} has an invalid timestamp")
+        elif isinstance(interaction, (int, float)) and not isinstance(interaction, bool) and \
+                at <= interaction:
+            initial_workers += 1
+        if url in urls:
+            failures.append(f"pthread Blob URL was reused: {url}")
+        elif isinstance(url, str):
+            urls.add(url)
+    if len(origins) != 1:
+        failures.append("pthread Blob workers do not share one page origin")
+    page_origin = row.get("page_origin")
+    if not isinstance(page_origin, str) or origins != {page_origin}:
+        failures.append("pthread Blob worker origin differs from the measured page origin")
+    if initial_workers < 9:
+        failures.append("proxied-main plus eight pool Blob workers were not ready before interaction")
+    if row.get("pthread_blob_transport_valid") is not True:
+        failures.append("producer did not accept the pthread Blob transport")
+    if row.get("pthread_blob_transport_failures") != []:
+        failures.append("producer reported pthread Blob transport failures")
+    return failures
+
+
 def observed_critical_paths(row: dict, contract: dict[str, object],
-                            bundle_files: object) -> tuple[list[str], list[str]]:
+                            bundle_files: object, bundle_artifacts: object) -> tuple[list[str], list[str]]:
     """Derive and independently validate every pre-semantic same-origin response."""
     failures: list[str] = []
     interaction = row.get("semantic_interaction_ms")
@@ -135,6 +205,7 @@ def observed_critical_paths(row: dict, contract: dict[str, object],
         failures.append("producer reported critical transport failures")
     if row.get("wire_brotli") is not True:
         failures.append("producer did not accept complete Brotli transport")
+    failures.extend(pthread_blob_transport_failures(row, bundle_files, bundle_artifacts))
     return paths, failures
 
 
@@ -273,7 +344,7 @@ def main() -> int:
             for failure in phase_request_failures(row, contract):
                 require(False, f"performance run {index + 1}: {failure}")
             observed_paths, transport_failures = observed_critical_paths(
-                row, contract, bundle_files)
+                row, contract, bundle_files, expected_bundle)
             observed_path_sets.append(observed_paths)
             for failure in transport_failures:
                 require(False, f"performance run {index + 1}: {failure}")

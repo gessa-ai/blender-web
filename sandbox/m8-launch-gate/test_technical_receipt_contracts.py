@@ -25,6 +25,7 @@ DEFERRED = {
     "critical": False,
 }
 CONTRACT = {"shipped_wasm": [PRIMARY, DEFERRED]}
+WORKER_IDENTITY = {"bytes": 1234, "sha256": "c" * 64}
 
 
 def request(url: str, at_ms: int) -> dict[str, object]:
@@ -46,6 +47,28 @@ def transport_request(url: str, at_ms: int = 10, **overrides: object) -> dict[st
     }
     row.update(overrides)
     return row
+
+
+def pthread_blob_fields() -> dict[str, object]:
+    origin = "https://fixture.invalid"
+    return {
+        "page_origin": origin,
+        "pthread_blob_proof": {
+            "contract": "pthread-main-script-blob-v1",
+            "sourcePath": "/bin/blender_browser.worker.js",
+            "phase": "ready",
+            **WORKER_IDENTITY,
+            "factoryCalls": 1,
+            "error": None,
+        },
+        "pthread_blob_workers": [
+            {"url": f"blob:{origin}/{index}", "protocol": "blob:", "origin": origin,
+             "kind": "dedicated-worker", "at_ms": 20 + index}
+            for index in range(9)
+        ],
+        "pthread_blob_transport_valid": True,
+        "pthread_blob_transport_failures": [],
+    }
 
 
 def phase_selfcheck() -> tuple[int, int]:
@@ -82,11 +105,13 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "/diagnostics-bootstrap.js",
         "/file-bridge.js",
         "/boot-windowed.js",
+        "/pthread-main-loader.js",
         "/stage1-loader.js",
         "/service-worker-register.js",
         "/service-worker.js",
         "/fonts/bw-interface-sans.woff2",
         "/bin/blender_browser.js",
+        "/bin/blender_browser.worker.js",
         "/bin/blender_browser.data",
         "/bin/blender_browser.wasm",
     ))
@@ -97,6 +122,11 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "bin/blender_browser.deferred.wasm",
         "bin/blender_browser.deferred.wasm.br",
     })
+    bundle_artifacts = {
+        name: (WORKER_IDENTITY if name == "bin/blender_browser.worker.js" else
+               {"bytes": 1, "sha256": "e" * 64})
+        for name in bundle_files
+    }
     requests = [transport_request(path, 10 + index) for index, path in enumerate(mandatory)]
     requests.append(transport_request(
         f"/bin/blender_browser.deferred.wasm?sha256={'b' * 64}", 101,
@@ -111,9 +141,10 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "critical_transport_failures": [],
         "content_encoding": {path: "br" for path in mandatory},
         "wire_brotli": True,
+        **pthread_blob_fields(),
     }
     actual, failures = make_staged_receipt.observed_critical_paths(
-        positive, CONTRACT, bundle_files)
+        positive, CONTRACT, bundle_files, bundle_artifacts)
     assert actual == mandatory and failures == []
 
     extra_path = "/extra.js"
@@ -126,7 +157,9 @@ def critical_path_selfcheck() -> tuple[int, int]:
         "content_encoding": {**positive["content_encoding"], extra_path: "br"},
     }
     actual, failures = make_staged_receipt.observed_critical_paths(
-        dynamic, CONTRACT, dynamic_bundle)
+        dynamic, CONTRACT, dynamic_bundle,
+        {**bundle_artifacts, "extra.js": {"bytes": 1, "sha256": "f" * 64},
+         "extra.js.br": {"bytes": 1, "sha256": "f" * 64}})
     assert actual == dynamic_paths and failures == []
     assert verify_m8.critical_path_failures(dynamic_paths, CONTRACT, dynamic_bundle) == []
     receipt_paths = {
@@ -148,9 +181,21 @@ def critical_path_selfcheck() -> tuple[int, int]:
          dynamic_bundle),
         ({**dynamic, "same_origin_requests": mutated_requests,
           "critical_paths": mandatory}, dynamic_bundle),
+        ({**positive, "pthread_blob_workers": positive["pthread_blob_workers"][:8]},
+         bundle_files),
+        ({**positive, "pthread_blob_proof": {
+            **positive["pthread_blob_proof"], "sha256": "d" * 64}}, bundle_files),
+        ({**positive, "page_origin": "https://other.invalid"}, bundle_files),
+        ({**positive, "pthread_blob_workers": [
+            *positive["pthread_blob_workers"][:-1],
+            {**positive["pthread_blob_workers"][-1], "kind": "shared-worker"}]},
+         bundle_files),
     )
     for row, files in negatives:
-        _, failures = make_staged_receipt.observed_critical_paths(row, CONTRACT, files)
+        artifacts = {name: (WORKER_IDENTITY if name == "bin/blender_browser.worker.js" else
+                            {"bytes": 1, "sha256": "e" * 64}) for name in files}
+        _, failures = make_staged_receipt.observed_critical_paths(
+            row, CONTRACT, files, artifacts)
         assert failures, row
     assert verify_m8.critical_path_receipt_failures(
         {**receipt_paths, "critical_paths": mandatory}, CONTRACT, dynamic_bundle, 3)

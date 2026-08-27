@@ -31,6 +31,9 @@ PUBLIC_MINIFIER = ROOT / "sandbox/m8-staged-deploy/public_shell_minify.mjs"
 PUBLIC_QUERY_CONTRACT = (
     ROOT / "sandbox/m8-staged-deploy/verify_public_query_hardening.mjs"
 )
+PTHREAD_LOADER_CONTRACT = (
+    ROOT / "sandbox/m8-staged-deploy/test_pthread_main_loader.mjs"
+)
 TERSER_BUNDLE = (
     ROOT / "tools/emsdk/upstream/emscripten/node_modules/terser/dist/bundle.min.js"
 )
@@ -249,6 +252,7 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
     minified_copy_map = {
         "diagnostics-bootstrap.js": shell / "diagnostics-bootstrap.js",
         "file-bridge.js": shell / "file-bridge.js",
+        "pthread-main-loader.js": staged_root / "pthread-main-loader.js",
         "stage1-loader.js": staged_root / "stage1-loader.js",
     }
     for name, source in minified_copy_map.items():
@@ -275,15 +279,33 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         else:
             _compare_bytes(bundle / "boot-windowed.js", minified_boot,
                            "deterministic boot-windowed hardening and minification", failures)
+    worker_source = bundle / "bin/blender_browser.worker.js"
+    public_main = bundle / "bin/blender_browser.js"
+    if public_main.is_file():
+        _compare_bytes(worker_source, public_main.read_bytes(),
+                       "public Stage-0 main glue", failures)
+    else:
+        failures.append("public Stage-0 main glue is absent for pthread derivation")
+    if worker_source.is_file():
+        derived["bin/blender_browser.worker.js"] = identity(worker_source)
+
     index = (shell / "windowed.html").read_text(encoding="utf-8")
     boot_tag = '<script src="/boot-windowed.js"></script>'
-    injected = boot_tag + "\n  <!-- STAGED DEPLOY: stream the deferred payload after first pixels, then cache it -->\n" \
+    boot_injected = boot_tag + "\n  <!-- STAGED DEPLOY: stream the deferred payload after first pixels, then cache it -->\n" \
         '  <script src="/stage1-loader.js"></script>\n' \
         '  <script src="/service-worker-register.js"></script>'
+    main_tag = '<script src="/bin/blender_browser.js"></script>'
+    pthread_injected = main_tag + \
+        '\n  <!-- PUBLIC: one origin fetch supplies every in-memory pthread worker. -->\n' \
+        '  <script src="/pthread-main-loader.js"></script>'
     if index.count(boot_tag) != 1:
         failures.append("windowed stage-loader injection seam is absent/ambiguous")
-    else:
-        _compare_bytes(bundle / "index.html", index.replace(boot_tag, injected, 1).encode(),
+    if index.count(main_tag) != 1:
+        failures.append("windowed pthread-loader injection seam is absent/ambiguous")
+    if index.count(boot_tag) == 1 and index.count(main_tag) == 1:
+        expected_index = index.replace(main_tag, pthread_injected, 1).replace(
+            boot_tag, boot_injected, 1)
+        _compare_bytes(bundle / "index.html", expected_index.encode(),
                        "deterministic staged index injection", failures)
     header_template = staged_root / "_headers"
     if not header_template.is_file():
@@ -300,7 +322,8 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
 
     cache_files = [
         "index.html", "diagnostics-bootstrap.js", "boot-windowed.js", "file-bridge.js",
-        "wgpu-preinit-worker.js", "_headers", "stage1-loader.js", "service-worker-register.js",
+        "pthread-main-loader.js", "wgpu-preinit-worker.js", "_headers", "stage1-loader.js",
+        "service-worker-register.js",
         "fonts/bw-interface-sans.woff2",
         "scenes/stress-mixed.blend", "scenes/stress-mixed.blend.license",
         "legal/LICENSE.txt", "legal/AUTHORS.txt", "legal/NOTICE.txt", "legal/THIRD-PARTY.md",
@@ -312,18 +335,21 @@ def verify_full(source_root: Path, source_bin: Path, bundle: Path,
         "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
         "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
         "legal/OpenUSD-26.03/LICENSE.txt", "legal/OpenUSD-26.03/NOTICE.txt",
-        "bin/blender_browser.js", "bin/blender_browser.data", "bin/split-build.json",
+        "bin/blender_browser.js", "bin/blender_browser.worker.js",
+        "bin/blender_browser.data", "bin/split-build.json",
         "bin/stage1-manifest.json", "bin/stage1.data",
         *(f"bin/{row['filename']}" for row in shipped_rows),
     ]
     payload_br_names = [
-        "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
+        "bin/blender_browser.js.br", "bin/blender_browser.worker.js.br",
+        "bin/blender_browser.data.br", "bin/stage1.data.br",
         *(f"bin/{row['filename']}.br" for row in shipped_rows),
     ]
     shell_br_names = [
         f"{name}.br" for name in (
             "index.html", "diagnostics-bootstrap.js", "file-bridge.js", "boot-windowed.js",
-            "stage1-loader.js", "service-worker-register.js", "service-worker.js",
+            "pthread-main-loader.js", "stage1-loader.js", "service-worker-register.js",
+            "service-worker.js",
             "fonts/bw-interface-sans.woff2",
         )
     ]
@@ -397,12 +423,22 @@ def selfcheck() -> None:
              "--positive-only"], cwd=ROOT, capture_output=True, text=True)
         assert minified_contract.returncode == 0 and \
             "M8_PUBLIC_QUERY_HARDENING_MINIFIED_PASS" in minified_contract.stdout
+        minified_pthread = Path(temporary) / "pthread-main-loader.js"
+        minified_pthread.write_bytes(minify_bytes(
+            (ROOT / "sandbox/m8-staged-deploy/pthread-main-loader.js").read_bytes()))
+        pthread_contract = subprocess.run(
+            [str(PINNED_NODE), str(PTHREAD_LOADER_CONTRACT), str(minified_pthread)],
+            cwd=ROOT, capture_output=True, text=True)
+        assert pthread_contract.returncode == 0 and \
+            "M8_PTHREAD_MAIN_LOADER_CONTRACT_PASS" in pthread_contract.stdout
     wire_sources = (
         ("diagnostics-bootstrap.js",
          (ROOT / "platform_web/shell/diagnostics-bootstrap.js").read_bytes()),
         ("file-bridge.js", (ROOT / "platform_web/shell/file-bridge.js").read_bytes()),
         ("boot-windowed.js", harden_boot_source(
             (ROOT / "platform_web/shell/boot-windowed.js").read_bytes())),
+        ("pthread-main-loader.js",
+         (ROOT / "sandbox/m8-staged-deploy/pthread-main-loader.js").read_bytes()),
         ("stage1-loader.js",
          (ROOT / "sandbox/m8-staged-deploy/stage1-loader.js").read_bytes()),
     )
@@ -426,7 +462,7 @@ def selfcheck() -> None:
                 else:
                     minified_wire += encoded.stat().st_size
     wire_tuple = (raw_wire, minified_wire, raw_wire - minified_wire)
-    assert wire_tuple == (26342, 13194, 13148), wire_tuple
+    assert wire_tuple == (27555, 13944, 13611), wire_tuple
     codec_contract = subprocess.run(
         [str(PINNED_NODE), str(BROTLI_CODEC), "--selfcheck"],
         cwd=ROOT, capture_output=True, text=True
@@ -529,7 +565,8 @@ def selfcheck() -> None:
                        "register generator", control_failures)
         assert len(control_failures) == 2
     print("M8_STAGE_PROVENANCE_SELFCHECK_PASS derived=4 negatives=8 codec=1/4 "
-          "minifier=5/6 minified_stage=23 wire=26342->13194(-13148) packer=572/5/9/13 "
+          "minifier=5/6 minified_stage=23 pthread=10/10 wire=27555->13944(-13611) "
+          "packer=572/5/9/13 "
           "coherent=diagnostics+worker+register")
 
 

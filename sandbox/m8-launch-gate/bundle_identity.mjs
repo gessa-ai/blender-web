@@ -17,16 +17,19 @@ export const BOOT_CRITICAL_URLS = Object.freeze([
   "/diagnostics-bootstrap.js",
   "/file-bridge.js",
   "/boot-windowed.js",
+  "/pthread-main-loader.js",
   "/stage1-loader.js",
   "/service-worker-register.js",
   "/service-worker.js",
   "/fonts/bw-interface-sans.woff2",
   "/bin/blender_browser.js",
+  "/bin/blender_browser.worker.js",
   "/bin/blender_browser.data",
 ]);
 
 export const STATIC_BUNDLE_NAMES = [
-  "index.html", "diagnostics-bootstrap.js", "boot-windowed.js", "file-bridge.js", "wgpu-preinit-worker.js",
+  "index.html", "diagnostics-bootstrap.js", "boot-windowed.js", "file-bridge.js",
+  "pthread-main-loader.js", "wgpu-preinit-worker.js",
   "stage1-loader.js", "service-worker-register.js", "service-worker.js", "_headers",
   "fonts/bw-interface-sans.woff2",
   "scenes/stress-mixed.blend", "scenes/stress-mixed.blend.license",
@@ -40,11 +43,13 @@ export const STATIC_BUNDLE_NAMES = [
   "legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt",
   "legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt",
   "legal/OpenUSD-26.03/LICENSE.txt", "legal/OpenUSD-26.03/NOTICE.txt",
-  "bin/blender_browser.js", "bin/blender_browser.data",
+  "bin/blender_browser.js", "bin/blender_browser.worker.js", "bin/blender_browser.data",
   "bin/stage1.data", "bin/stage1-manifest.json", BUNDLE_SPLIT_MANIFEST,
-  "bin/blender_browser.js.br", "bin/blender_browser.data.br", "bin/stage1.data.br",
+  "bin/blender_browser.js.br", "bin/blender_browser.worker.js.br",
+  "bin/blender_browser.data.br", "bin/stage1.data.br",
   "index.html.br", "diagnostics-bootstrap.js.br", "file-bridge.js.br",
-  "boot-windowed.js.br", "stage1-loader.js.br", "service-worker-register.js.br",
+  "boot-windowed.js.br", "pthread-main-loader.js.br", "stage1-loader.js.br",
+  "service-worker-register.js.br",
   "service-worker.js.br", "fonts/bw-interface-sans.woff2.br",
 ];
 

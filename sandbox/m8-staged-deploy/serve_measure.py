@@ -28,6 +28,7 @@ from transport_contract import (  # noqa: E402
 PROOF_PATH = "/.well-known/bw-transport-proof"
 TRANSFORMED_PUBLIC_FILES = frozenset({
     "bin/blender_browser.js",
+    "bin/blender_browser.worker.js",
     "bin/blender_browser.data",
 })
 CTYPE = {

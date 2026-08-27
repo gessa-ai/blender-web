@@ -277,10 +277,20 @@ counted rather than ignored. The composer independently derives each cold run's
 critical set, counts their union, and the final verifier recomputes that union and its
 exact bundle Brotli sizes.
 
+Pthreads do not hide repeated origin transfers behind browser cache behavior. The
+public shell fetches one separately inventoried `blender_browser.worker.js` response,
+hashes the decoded bytes, and supplies its Blob through Emscripten's supported
+`mainScriptUrlOrBlob` Module property. Every proxied-main/pool start is then a unique
+same-origin Blob dedicated-worker object, not a network response. The producer and an
+independent receipt consumer require the exact source hash, one factory call, and at
+least the proxied main plus eight pool workers before semantic interaction. Both
+contracts reject wrong-origin, late, reused, or non-worker Blob objects.
+
 The 15 MB critical-wire total therefore includes every observed response fetched
 before the semantic interaction: `index.html`, diagnostics, file bridge, boot shell,
-Stage-1 loader, service-worker registration and worker controls, Emscripten glue/data,
-each manifest-critical Wasm shard, and any future early bundle request. The assembler
+the pthread bootstrap and its one worker-source response, Stage-1 loader, service-worker
+registration and controls, Emscripten page glue/data, each manifest-critical Wasm shard,
+and any future early bundle request. The assembler
 emits deterministic q11/lgwin=24
 siblings for that complete set, and the performance producer observes requests at
 browser-context scope so service-worker traffic cannot disappear from the receipt.

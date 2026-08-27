@@ -164,6 +164,54 @@ function analyzeCriticalTransport(requests, semanticInteractionMs, mandatoryPath
   return {criticalPaths, failures};
 }
 
+function analyzePthreadBlobTransport(workers, proof, semanticInteractionMs, expected, baseOrigin) {
+  const failures = [];
+  if (!proof || typeof proof !== "object" || Array.isArray(proof)) {
+    return ["pthread Blob bootstrap proof is absent"];
+  }
+  if (proof.contract !== "pthread-main-script-blob-v1" ||
+      proof.sourcePath !== "/bin/blender_browser.worker.js" || proof.phase !== "ready") {
+    failures.push("pthread Blob bootstrap contract is invalid");
+  }
+  if (!expected || proof.bytes !== expected.bytes || proof.sha256 !== expected.sha256) {
+    failures.push("pthread Blob source identity differs from the public bundle artifact");
+  }
+  if (proof.factoryCalls !== 1 || proof.error !== null) {
+    failures.push("pthread Blob factory accounting is invalid");
+  }
+  if (!Array.isArray(workers) || workers.length < 9) {
+    return [...failures, "fewer than the proxied-main plus eight pool Blob workers were observed"];
+  }
+  const urls = new Set();
+  let initialWorkers = 0;
+  for (let index = 0; index < workers.length; index++) {
+    const row = workers[index];
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      failures.push(`pthread Blob worker ${index} is invalid`);
+      continue;
+    }
+    if (row.protocol !== "blob:" || row.origin !== baseOrigin ||
+        typeof row.url !== "string" || !row.url.startsWith(`blob:${baseOrigin}/`)) {
+      failures.push(`pthread Blob worker ${index} escaped the exact page origin`);
+    }
+    if (row.kind !== "dedicated-worker") {
+      failures.push(`pthread Blob worker ${index} is not a dedicated worker`);
+    }
+    if (!Number.isFinite(row.at_ms) || row.at_ms < 0) {
+      failures.push(`pthread Blob worker ${index} has an invalid timestamp`);
+    }
+    else if (Number.isFinite(semanticInteractionMs) && row.at_ms <= semanticInteractionMs) {
+      initialWorkers++;
+    }
+    if (urls.has(row.url)) failures.push(`pthread Blob URL was reused: ${row.url}`);
+    urls.add(row.url);
+  }
+  if (initialWorkers < 9) {
+    failures.push("proxied-main plus eight pool Blob workers were not ready before interaction");
+  }
+  return failures;
+}
+
 async function officialChromeVersion(platform, fetcher = fetch) {
   const apiPlatform = platform === "darwin" ? "mac" : platform === "linux" ? "linux" : null;
   if (!apiPlatform) throw new Error(`unsupported Chrome release platform: ${platform}`);
@@ -197,7 +245,7 @@ async function runSelfcheck() {
     "module roots are not absolute and unique");
   check(LOCAL_MODULE_ROOTS.every((root) => MODULE_ROOTS.includes(root) && isRepositoryDescendant(root)),
     "repository-local module fallbacks are incomplete or escaped");
-  check(BOOT_CRITICAL_URLS.length === 10 && new Set(BOOT_CRITICAL_URLS).size === 10 &&
+  check(BOOT_CRITICAL_URLS.length === 12 && new Set(BOOT_CRITICAL_URLS).size === 12 &&
     BOOT_CRITICAL_URLS.every((path) => path.startsWith("/")),
   "boot-critical transport inventory is incomplete or ambiguous");
   requireNodeVersion();
@@ -300,6 +348,34 @@ async function runSelfcheck() {
   ]) {
     const result = analyzeCriticalTransport(rows, 100, mandatoryTransport, bundle);
     if (result.failures.length) negative++;
+    else throw new Error(`M8 performance self-check false green: ${name}`);
+  }
+
+  const blobOrigin = "https://fixture.invalid";
+  const blobExpected = {bytes: 1234, sha256: "c".repeat(64)};
+  const blobProof = {contract: "pthread-main-script-blob-v1",
+    sourcePath: "/bin/blender_browser.worker.js", phase: "ready",
+    bytes: blobExpected.bytes, sha256: blobExpected.sha256, factoryCalls: 1, error: null};
+  const blobWorkers = Array.from({length: 9}, (_, index) => ({
+    url: `blob:${blobOrigin}/${index}`, protocol: "blob:", origin: blobOrigin,
+    kind: "dedicated-worker", at_ms: 20 + index,
+  }));
+  check(analyzePthreadBlobTransport(
+    blobWorkers, blobProof, 100, blobExpected, blobOrigin).length === 0,
+  "pthread Blob transport rejected the exact in-memory worker closure");
+  for (const [name, rows, proof] of [
+    ["blob_missing_worker", blobWorkers.slice(1), blobProof],
+    ["blob_http_scheme", blobWorkers.map((row, index) => index ? row :
+      {...row, protocol: "http:"}), blobProof],
+    ["blob_wrong_origin", blobWorkers.map((row, index) => index ? row :
+      {...row, origin: "https://other.invalid"}), blobProof],
+    ["blob_not_worker", blobWorkers.map((row, index) => index ? row :
+      {...row, kind: "shared-worker"}), blobProof],
+    ["blob_after_interaction", blobWorkers.map((row) => ({...row, at_ms: 101})), blobProof],
+    ["blob_wrong_hash", blobWorkers, {...blobProof, sha256: "d".repeat(64)}],
+    ["blob_factory_twice", blobWorkers, {...blobProof, factoryCalls: 2}],
+  ]) {
+    if (analyzePthreadBlobTransport(rows, proof, 100, blobExpected, blobOrigin).length) negative++;
     else throw new Error(`M8 performance self-check false green: ${name}`);
   }
 
@@ -448,6 +524,8 @@ for (let run = 0; run < RUNS; run++) {
   const sameOriginRequests = [];
   const sameOriginRequestRows = new Map();
   const responseCaptureFailures = [];
+  const pthreadBlobWorkers = [];
+  const nonWireBlobRequestEvents = [];
   const externalRequests = [];
   const pageErrors = [];
   const start = Date.now();
@@ -455,7 +533,12 @@ for (let run = 0; run < RUNS; run++) {
     const url = new URL(request.url());
     const path = url.pathname;
     const at = Date.now() - start;
-    if (url.origin !== baseOrigin) {
+    if (url.protocol === "blob:") {
+      nonWireBlobRequestEvents.push({url: request.url(), method: request.method(),
+        resource_type: request.resourceType(), at_ms: at});
+      return;
+    }
+    if (!['http:', 'https:'].includes(url.protocol) || url.origin !== baseOrigin) {
       externalRequests.push(request.url());
     }
     else {
@@ -471,10 +554,23 @@ for (let run = 0; run < RUNS; run++) {
       wasmRequests.push({url: path + url.search, path, at_ms: at});
     }
   });
+  page.on("worker", (worker) => {
+    const rawUrl = worker.url();
+    let protocol = null, origin = null;
+    try {
+      const parsed = new URL(rawUrl);
+      protocol = parsed.protocol;
+      origin = parsed.origin;
+    }
+    catch {}
+    pthreadBlobWorkers.push({url: rawUrl, protocol, origin,
+      kind: "dedicated-worker", at_ms: Date.now() - start});
+  });
   page.on("pageerror", (error) => pageErrors.push(String(error && error.message || error)));
   page.on("crash", () => pageErrors.push("PAGE CRASH"));
   context.on("response", (response) => {
     const url = new URL(response.url());
+    if (url.protocol === "blob:") return;
     if (url.origin !== baseOrigin) return;
     const path = url.pathname;
     const row = sameOriginRequestRows.get(response.request());
@@ -532,6 +628,13 @@ for (let run = 0; run < RUNS; run++) {
   const criticalTransport = analyzeCriticalTransport(
     sameOriginRequests, semanticInteractionMs, mandatoryCriticalPaths, artifactContract.bundleNames);
   criticalTransport.failures.push(...responseCaptureFailures);
+  const pthreadBlobProof = await page.evaluate(() => {
+    const state = globalThis.__bwPthreadMainScript;
+    return state ? {...state} : null;
+  });
+  const pthreadBlobFailures = analyzePthreadBlobTransport(
+    pthreadBlobWorkers, pthreadBlobProof, semanticInteractionMs,
+    bundleArtifacts["bin/blender_browser.worker.js"], baseOrigin);
   const criticalPaths = criticalTransport.criticalPaths;
   const declaredCritical = [...artifactContract.criticalWasmUrls].sort();
   const observedCritical = [...observedCriticalWasm].sort();
@@ -552,7 +655,12 @@ for (let run = 0; run < RUNS; run++) {
     semantic_interaction_ms: semanticInteractionMs, request_timeline_ms: requestTimelineMs,
     expected_shard_requests: [...expectedShardRequests].sort(),
     wasm_requests: wasmRequests,
-    same_origin_requests: sameOriginRequests,
+    page_origin: baseOrigin, same_origin_requests: sameOriginRequests,
+    pthread_blob_workers: pthreadBlobWorkers,
+    non_wire_blob_request_events: nonWireBlobRequestEvents,
+    pthread_blob_proof: pthreadBlobProof,
+    pthread_blob_transport_valid: pthreadBlobFailures.length === 0,
+    pthread_blob_transport_failures: pthreadBlobFailures,
     critical_paths: criticalPaths, manifest_phase_valid: manifestPhaseValid,
     critical_transport_valid: criticalTransport.failures.length === 0,
     critical_transport_failures: criticalTransport.failures,
@@ -605,6 +713,7 @@ const pass = signing.valid && browserVersion === official.version && rows.length
   rows.every((row) => row.fp !== null && row.pixel_proof?.pass === true && row.wire_brotli &&
     row.semantic_interaction?.pass === true && row.manifest_phase_valid === true &&
     row.critical_transport_valid === true &&
+    row.pthread_blob_transport_valid === true &&
     row.external_request_count === 0 && row.page_error_count === 0 &&
     row.served_bundle_sha256 === expectedBundleDigest);
 console.log(`M8_PERF_MEASURE_${pass ? "PASS" : "FAIL"} median=${summary.scenarios["cold-1.5mbps"].fp_median}ms -> ${OUT}`);

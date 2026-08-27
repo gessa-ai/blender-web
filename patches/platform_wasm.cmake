@@ -298,11 +298,17 @@ function(blender_web_browser_binary src_target)
   # the shell's boot.js can set BLENDER_SYSTEM_PYTHON/SCRIPTS/DATAFILES to the WasmFS
   # mounts in preRun (the browser equivalent of the node recipe's env triad). FS is
   # exported too so the shell / node verifier can sanity-check the preloaded tree.
+  # Keep Emscripten's default incoming Module surface and add mainScriptUrlOrBlob.
+  # The public bundle downloads one dedicated worker-script response into a Blob;
+  # every pthread then executes that in-memory Blob instead of re-requesting the
+  # complete link glue from the origin.  This is the pinned runtime's supported
+  # libpthread seam (src/lib/libpthread.js), not a generated-glue rewrite.
   set(_bw_browser_flags
     "-pthread -fexceptions -sMALLOC=dlmalloc -sWASM_BIGINT -sALLOW_MEMORY_GROWTH \
 -sINITIAL_MEMORY=536870912 -sPROXY_TO_PTHREAD -sEXIT_RUNTIME=1 -sSTACK_SIZE=8388608 \
 -sPTHREAD_POOL_SIZE=8 -sWASMFS -sFORCE_FILESYSTEM=1 \
--sMODULARIZE=1 -sEXPORT_NAME=createBlenderModule -sEXPORTED_RUNTIME_METHODS=ENV,FS,callMain")
+-sMODULARIZE=1 -sEXPORT_NAME=createBlenderModule -sEXPORTED_RUNTIME_METHODS=ENV,FS,callMain \
+-sINCOMING_MODULE_JS_API=ENVIRONMENT,arguments,canvas,dynamicLibraries,elementPointerLock,instantiateWasm,locateFile,mainScriptUrlOrBlob,monitorRunDependencies,noExitRuntime,noInitialRun,onAbort,onExit,onRuntimeInitialized,postRun,preInit,preRun,print,printErr,setStatus,statusMessage,stderr,stdin,stdout,thisProgram,wasm,websocket")
 
   string(TOUPPER "${BLENDER_WEB_WASM_SPLIT_MODE}" _bw_split_mode)
   if(NOT _bw_split_mode MATCHES "^(OFF|CAPTURE|APPLY)$")

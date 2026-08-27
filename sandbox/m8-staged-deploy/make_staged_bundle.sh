@@ -24,6 +24,7 @@ REPO="$(cd -- "${SELF_DIR}/../.." && pwd -P)"
 SHELL_DIR="${REPO}/platform_web/shell"
 BROTLI_CODEC="${SELF_DIR}/brotli_q11.mjs"
 PUBLIC_MINIFIER="${SELF_DIR}/public_shell_minify.mjs"
+PTHREAD_LOADER_CONTRACT="${SELF_DIR}/test_pthread_main_loader.mjs"
 TERSER_BUNDLE="${REPO}/tools/emsdk/upstream/emscripten/node_modules/terser/dist/bundle.min.js"
 PINNED_NODE="${EMSDK_NODE:-${REPO}/tools/emsdk/node/22.16.0_64bit/bin/node}"
 OUT="${SELF_DIR}/bundle-staged"
@@ -74,6 +75,8 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     sandbox/m8-staged-deploy/prepare_split_inventory.py \
     sandbox/m8-staged-deploy/public_shell_hardening.py \
     sandbox/m8-staged-deploy/public_shell_minify.mjs \
+    sandbox/m8-staged-deploy/pthread-main-loader.js \
+    sandbox/m8-staged-deploy/test_pthread_main_loader.mjs \
     sandbox/m8-staged-deploy/service-worker.js \
     sandbox/m8-staged-deploy/service-worker-register.js; do
     [ -f "${REPO}/${f}" ] || die "self-check source missing: ${f}"
@@ -83,7 +86,9 @@ if [ "${SELF_CHECK}" -eq 1 ]; then
     die "deterministic Brotli q11/lgwin=24 self-check failed"
   "${PINNED_NODE}" "${PUBLIC_MINIFIER}" --selfcheck >/dev/null || \
     die "deterministic public-shell minifier self-check failed"
-  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=13 brotli=q11-lgwin24 minifier=terser-5.39.0 apply_manifest_reads=0 writes=0"
+  "${PINNED_NODE}" "${PTHREAD_LOADER_CONTRACT}" >/dev/null || \
+    die "pthread main-script Blob loader contract failed"
+  echo "M8_STAGED_ASSEMBLY_SELFCHECK_PASS root=derived sources=15 brotli=q11-lgwin24 minifier=terser-5.39.0 pthread=single-transfer apply_manifest_reads=0 writes=0"
   exit 0
 fi
 
@@ -101,11 +106,15 @@ done
 "${PINNED_NODE}" "${BROTLI_CODEC}" --selfcheck >/dev/null || \
   die "deterministic Brotli q11/lgwin=24 self-check failed"
 [ -f "${PUBLIC_MINIFIER}" ] || die "deterministic public-shell minifier missing: ${PUBLIC_MINIFIER}"
+[ -f "${PTHREAD_LOADER_CONTRACT}" ] || die "pthread main-script Blob loader contract missing: ${PTHREAD_LOADER_CONTRACT}"
 [ -f "${TERSER_BUNDLE}" ] || die "pinned Terser executable bundle missing: ${TERSER_BUNDLE}"
 "${PINNED_NODE}" "${PUBLIC_MINIFIER}" --selfcheck >/dev/null || \
   die "deterministic public-shell minifier self-check failed"
+"${PINNED_NODE}" "${PTHREAD_LOADER_CONTRACT}" >/dev/null || \
+  die "pthread main-script Blob loader contract failed"
 [ -f "${SELF_DIR}/_headers" ] || [ -f "${REPO}/sandbox/m8-deploy/_headers" ] || die "_headers template missing"
 [ -f "${SELF_DIR}/stage1-loader.js" ] || die "stage1-loader.js missing"
+[ -f "${SELF_DIR}/pthread-main-loader.js" ] || die "pthread-main-loader.js missing"
 [ -f "${SELF_DIR}/service-worker.js" ] || die "service-worker.js missing"
 [ -f "${SELF_DIR}/service-worker-register.js" ] || die "service-worker-register.js missing"
 [ -f "${REPO}/sandbox/corpus-prep/corpus/stress_mixed.blend" ] || die "allowlisted share scene missing"
@@ -142,6 +151,7 @@ cp "${SHELL_DIR}/wgpu-preinit-worker.js" "${OUT}/wgpu-preinit-worker.js"
 cp "${SHELL_DIR}/fonts/bw-interface-sans.woff2" \
   "${OUT}/fonts/bw-interface-sans.woff2"
 cp "${SELF_DIR}/stage1-loader.js"        "${OUT}/stage1-loader.js"
+cp "${SELF_DIR}/pthread-main-loader.js" "${OUT}/pthread-main-loader.js"
 cp "${SELF_DIR}/service-worker-register.js" "${OUT}/service-worker-register.js"
 cp "${REPO}/sandbox/corpus-prep/corpus/stress_mixed.blend" "${OUT}/scenes/stress-mixed.blend"
 cp "${SELF_DIR}/share-scene.license" "${OUT}/scenes/stress-mixed.blend.license"
@@ -180,12 +190,16 @@ p=sys.argv[1]; t=open(p).read()
 needle='<script src="/boot-windowed.js"></script>'
 add='<script src="/boot-windowed.js"></script>\n  <!-- STAGED DEPLOY: stream the deferred payload after first pixels, then cache it -->\n  <script src="/stage1-loader.js"></script>\n  <script src="/service-worker-register.js"></script>'
 assert needle in t, "boot-windowed.js script tag not found in index.html"
-open(p,"w").write(t.replace(needle,add,1))
+main='<script src="/bin/blender_browser.js"></script>'
+pthread=main+'\n  <!-- PUBLIC: one origin fetch supplies every in-memory pthread worker. -->\n  <script src="/pthread-main-loader.js"></script>'
+assert t.count(main) == 1, "blender_browser.js script tag missing/ambiguous in index.html"
+open(p,"w").write(t.replace(main,pthread,1).replace(needle,add,1))
 PY
 # Public bundle JavaScript is derived from the reviewed source with one pinned,
 # deterministic compressor. This stays bundle-only: CAPTURE/APPLY Wasm bytes and
 # their profile generation are untouched.
-for f in diagnostics-bootstrap.js file-bridge.js boot-windowed.js stage1-loader.js; do
+for f in diagnostics-bootstrap.js file-bridge.js boot-windowed.js pthread-main-loader.js \
+         stage1-loader.js; do
   "${PINNED_NODE}" "${PUBLIC_MINIFIER}" \
     --input "${OUT}/${f}" --output "${OUT}/${f}"
 done
@@ -214,6 +228,11 @@ EOF
 
 # --- payload: stage_pack.py re-slices the monolith into stage-0 + stage-1 ----------
 python3 "${SELF_DIR}/stage_pack.py" --bin "${BIN}" --out "${OUT}/bin" ${DEFER_DF}
+# `mainScriptUrlOrBlob` must execute the same public, Stage-0-manifest glue as
+# the page factory.  Keep it as a separately inventoried URL so the one fetch is
+# visible and counted by the 15 MB receipt; all later Blob worker starts are
+# explicitly proven as in-memory execution rather than hidden transport.
+cp "${OUT}/bin/blender_browser.js" "${OUT}/bin/blender_browser.worker.js"
 
 # --- exact split inventory: validate once, copy every shipping shard ---------------
 split_rows="$(mktemp "${TMPDIR:-/tmp}/bw-split-rows.XXXXXX")"
@@ -231,7 +250,8 @@ done < "${split_rows}"
 # The service worker version is a content digest, not a hand-maintained release
 # string. Stable binary names therefore cannot retain stale bytes across deploys.
 cache_files=(
-  index.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js wgpu-preinit-worker.js _headers \
+  index.html diagnostics-bootstrap.js boot-windowed.js file-bridge.js pthread-main-loader.js \
+           wgpu-preinit-worker.js _headers \
            fonts/bw-interface-sans.woff2 \
            stage1-loader.js service-worker-register.js \
            scenes/stress-mixed.blend scenes/stress-mixed.blend.license \
@@ -245,13 +265,13 @@ cache_files=(
            legal/LICENSES/LicenseRef-OpenSubdiv-TOST-1.0.txt \
            legal/THIRD_PARTY_NOTICES/OpenSubdiv-3.7.0-NOTICE.txt \
            legal/OpenUSD-26.03/LICENSE.txt legal/OpenUSD-26.03/NOTICE.txt \
-           bin/blender_browser.js bin/blender_browser.data bin/split-build.json \
+           bin/blender_browser.js bin/blender_browser.worker.js bin/blender_browser.data bin/split-build.json \
            bin/stage1-manifest.json bin/stage1.data)
 for filename in "${shipped_wasm[@]}"; do cache_files+=("bin/${filename}"); done
 
 if [ "${DO_BROTLI}" = "1" ]; then
   echo "make_staged_bundle: writing mandatory production Brotli q11/lgwin=24 siblings (slow)..." >&2
-  for f in bin/blender_browser.js bin/blender_browser.data bin/stage1.data; do
+  for f in bin/blender_browser.js bin/blender_browser.worker.js bin/blender_browser.data bin/stage1.data; do
     "${PINNED_NODE}" "${BROTLI_CODEC}" encode "${OUT}/${f}" "${OUT}/${f}.br"
   done
   for filename in "${shipped_wasm[@]}"; do
@@ -264,7 +284,7 @@ cache_identity_files=()
 for f in "${cache_files[@]}"; do
   [ "${f}" = "service-worker-register.js" ] || cache_identity_files+=("${f}")
 done
-for f in bin/blender_browser.js bin/blender_browser.data bin/stage1.data; do
+for f in bin/blender_browser.js bin/blender_browser.worker.js bin/blender_browser.data bin/stage1.data; do
   cache_identity_files+=("${f}.br")
 done
 for filename in "${shipped_wasm[@]}"; do
@@ -342,6 +362,7 @@ if [ "${DO_BROTLI}" = "1" ]; then
   # exact transport bytes inside the same q11/lgwin=24 release contract as the
   # Emscripten payload instead of letting the 15 MB receipt omit shell overhead.
   for f in index.html diagnostics-bootstrap.js file-bridge.js boot-windowed.js \
+           pthread-main-loader.js \
            stage1-loader.js service-worker-register.js service-worker.js \
            fonts/bw-interface-sans.woff2; do
     "${PINNED_NODE}" "${BROTLI_CODEC}" encode "${OUT}/${f}" "${OUT}/${f}.br"

@@ -84,11 +84,16 @@ const RELEVANT_ERROR_PATTERNS = Object.freeze([
   ["transactionRejected", /present transaction rejected/i],
   ["deviceLost", /\[bw\]\[GPU-LOST\]/],
 ]);
-const RESIZE_DIAGNOSTIC_PATTERNS = Object.freeze([
+const RESIZE_MECHANISM_PATTERNS = Object.freeze([
   /^WGPUWeb-resize:/,
   /^WGPUWeb-resize-trace:/,
   /^WGPUWeb-resize-present-barrier:/,
-  /WGPUShader '.*': assembled group-0 resources do not match surviving WGSL bindings:/,
+]);
+const BIND_GROUP_COMPLETENESS_PATTERN =
+  /WGPUShader '.*': assembled group-0 resources do not match surviving WGSL bindings:/;
+const RESIZE_DIAGNOSTIC_PATTERNS = Object.freeze([
+  ...RESIZE_MECHANISM_PATTERNS,
+  BIND_GROUP_COMPLETENESS_PATTERN,
 ]);
 
 function isDescendant(parent, candidate) {
@@ -451,9 +456,31 @@ function isResizeDiagnosticLine(line) {
   return RESIZE_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(line));
 }
 
+function isResizeMechanismLine(line) {
+  return RESIZE_MECHANISM_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function isBindGroupCompletenessLine(line) {
+  return BIND_GROUP_COMPLETENESS_PATTERN.test(line);
+}
+
 function retainResizeDiagnostic(line, active, retained, limit = DIAGNOSTIC_CONSOLE_LIMIT) {
-  if (!active || retained.length >= limit || !isResizeDiagnosticLine(line)) {
+  if (!active || !isResizeDiagnosticLine(line)) {
     return false;
+  }
+  if (retained.length >= limit) {
+    /* Completeness warnings can arrive in a burst before the completed-frame trace. Keep the
+     * total evidence bounded, but never let those warnings hide the resize/trace/barrier lines
+     * that identify which frame reached the surface. Replace the oldest warning in place of
+     * growing the sidecar; an all-mechanism buffer remains fail-closed at the same hard cap. */
+    if (!isResizeMechanismLine(line)) {
+      return false;
+    }
+    const replaceAt = retained.findIndex(isBindGroupCompletenessLine);
+    if (replaceAt < 0) {
+      return false;
+    }
+    retained.splice(replaceAt, 1);
   }
   retained.push(line);
   return true;
@@ -785,6 +812,24 @@ async function runSelfcheck() {
     "WGPUWeb-resize: over cap", true, cappedDiagnostics,
   ) && cappedDiagnostics.length === DIAGNOSTIC_CONSOLE_LIMIT,
   "resize diagnostic cap was not fail closed");
+  const completenessLine =
+    "gpu.webgpu | WARNING WGPUShader 'overlay_background': assembled group-0 resources do not match surviving WGSL bindings: surviving=[0] assembled=[] missing=[0] extra=[]";
+  const prioritizedDiagnostics = Array(4).fill(completenessLine);
+  const mechanismLines = [
+    "WGPUWeb-resize: backing -> 1100x640",
+    "WGPUWeb-resize-trace: episode=1 sample=0",
+    "WGPUWeb-resize-present-barrier: episode=1 synchronous-present=1",
+  ];
+  check(mechanismLines.every((line) => retainResizeDiagnostic(
+    line, true, prioritizedDiagnostics, 4,
+  )) && prioritizedDiagnostics.length === 4 &&
+    mechanismLines.every((line) => prioritizedDiagnostics.includes(line)) &&
+    prioritizedDiagnostics.filter(isBindGroupCompletenessLine).length === 1,
+  "bind-group warning storm hid a resize mechanism diagnostic");
+  check(!retainResizeDiagnostic(
+    completenessLine, true, prioritizedDiagnostics, 4,
+  ) && prioritizedDiagnostics.length === 4,
+  "a later bind-group warning displaced a retained mechanism diagnostic");
   const counterFixture = await sampleRuntimeCounters({
     evaluate: async () => ({ticks: 11, presents: 7, redrawEpisodes: 2}),
   });

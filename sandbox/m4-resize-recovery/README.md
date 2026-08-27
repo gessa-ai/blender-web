@@ -98,10 +98,12 @@ uncapped WM tick, presentation, and resize-episode counters immediately before a
 shrink, plus the already-bounded `WGPUWeb-resize`, `WGPUWeb-resize-trace`, and
 `WGPUWeb-resize-present-barrier` console lines. The diagnostic window opens at the exact
 zero-input resize boundary, excluding boot warmup, and also retains post-resize bind-group
-completeness failures. Passing runs emit no sidecars, so the independent accepted-receipt
-inventory stays unchanged. These failure-only records distinguish a missing barrier present from
-a successful present of stale or empty backbuffer content, and show whether that admitted frame
-had a known dropped draw, without another product relink.
+completeness failures. The 128-line total remains hard-bounded, but resize/trace/barrier lines
+displace completeness warnings if a warning storm fills the cap; warnings can never hide the
+completed-frame mechanism evidence. Passing runs emit no sidecars, so the independent
+accepted-receipt inventory stays unchanged. These failure-only records distinguish a missing
+barrier present from a successful present of stale or empty backbuffer content, and show whether
+that admitted frame had a known dropped draw, without another product relink.
 
 `verify_hardware_resize_receipt.mjs` is the independent post-capture consumer. It re-hashes the
 current CAPTURE product, producer source, and all 30 images; decodes every PNG and replays the

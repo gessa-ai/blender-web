@@ -2958,6 +2958,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Browser-free self-check is 26 positive/17 negative; a live Linux adapter-absent probe and a stale
   generation both reject before evidence allocation. This adds no pixel evidence and does not
   change the relinked candidate. See `notes/p0-window-resize-hardware-acceptance-20260827.md`.
+  **Local ordering audit 2026-08-27:** the complete backend queue-mutation census still permits no
+  direct `Submit`, `WriteBuffer`, or `WriteTexture` outside the ordered helpers; every async encode
+  reserves its ticket before scope settlement, and the GHOST surface blit remains the sole separate
+  submit behind that FIFO. The focused 14-mutation source contract and 43-contract native/Wasm
+  ordering smoke are green at `20260827T083704-1814063` and `20260827T083708-1814093`.
+  The relinked candidate is unchanged.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

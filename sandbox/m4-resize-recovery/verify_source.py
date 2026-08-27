@@ -262,7 +262,8 @@ def validate(
         "ghost_web::redraw_present_frame_matches_episode(",
         "redraw_present_frame_episode_, episode",
         "ghost_web::redraw_trace_active(episode)",
-        "ghost_web::schedule_redraw_present_barrier(episode)",
+        "ghost_web::schedule_redraw_present_barrier(\n"
+        "          episode, ghost_web::redraw_trace_snapshot())",
         "queue_scheduler_.enqueue(",
         "ghost_web::arrive_redraw_present_barrier(episode, std::move(done));",
         "ghost_web::cancel_redraw_present_barrier(episode);",
@@ -421,7 +422,8 @@ def main() -> int:
             1,
         ),
         "barrier_schedule": context_source.replace(
-            "ghost_web::schedule_redraw_present_barrier(episode)",
+            "ghost_web::schedule_redraw_present_barrier(\n"
+            "          episode, ghost_web::redraw_trace_snapshot())",
             "false",
             1,
         ),

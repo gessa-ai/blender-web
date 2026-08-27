@@ -1821,3 +1821,18 @@ read/publication and reject split getters; only repeated semantic pixels on conf
 can close the race. See `platform_web/ghost/GHOST_ContextWGPUWeb.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
 `sandbox/m4-resize-recovery/verify_source.py`.
+
+## Class 124 — a queue barrier must snapshot diagnostics at the boundary it proves
+
+Signature: a completed-frame barrier correctly holds later GPU submissions, but its diagnostic
+samples mutable draw state only when the later synthetic presentation update runs. CPU encoding
+for that later frame has already advanced the live counters even though its queue work is still
+behind the barrier, so the log attributes unpresented plans to the older backbuffer actually being
+copied. Capture the complete draw-plan snapshot when `end_frame()` schedules the barrier, retain
+it unchanged through queue arrival, and consume that snapshot before completing the synchronous
+present. Duplicate same-episode scheduling must not replace it; supersession may replace it only
+with the newer episode's frame-tail snapshot; completion and cancellation clear it. Exercise the
+snapshot lifetime on native and wasm32, while leaving semantic closure to hardware pixels. See
+`platform_web/ghost/GHOST_WebDisplayState.hh`,
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
+`sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.

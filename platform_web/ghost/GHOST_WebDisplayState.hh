@@ -248,9 +248,11 @@ inline bool redraw_present_frame_matches_episode(const uint64_t frame_episode,
  * Browser command scopes settle only after the current JavaScript turn. WM can therefore reach
  * swapBufferRelease() while the frame it just encoded is still queued, and presenting the shared
  * persistent backbuffer at that point exposes an arbitrary intermediate pass. The backend appends
- * this barrier at end_frame(). Once all earlier queue entries have completed, the barrier admits
- * exactly one synthetic WindowUpdate while holding later submissions. GHOST then copies the
- * completed backbuffer synchronously and releases the queue after that copy has been submitted.
+ * this barrier at end_frame(), together with the draw-plan snapshot from that exact frame tail.
+ * Once all earlier queue entries have completed, the barrier admits exactly one synthetic
+ * WindowUpdate while holding later submissions. GHOST then copies the completed backbuffer
+ * synchronously and releases the queue after that copy has been submitted. Diagnostics use the
+ * immutable barrier snapshot, never plans encoded by the later synthetic update.
  * A newer resize cancels an older waiter; a failed/canceled present leaves the same episode
  * retryable. This state is process-global because GHOST-web publishes exactly one canvas window.
  */
@@ -258,7 +260,7 @@ class RedrawPresentBarrier {
  public:
   using Completion = std::function<void(bool)>;
 
-  bool schedule(const uint64_t episode)
+  bool schedule(const uint64_t episode, RedrawTraceSnapshot trace_snapshot = {})
   {
     Completion superseded;
     {
@@ -270,6 +272,9 @@ class RedrawPresentBarrier {
       }
       superseded = std::move(completion_);
       scheduled_episode_ = episode;
+      scheduled_trace_snapshot_ =
+          trace_snapshot.episode_generation == episode ? std::move(trace_snapshot) :
+                                                         RedrawTraceSnapshot{};
       phase_ = Phase::Scheduled;
       update_requested_ = false;
     }
@@ -322,6 +327,7 @@ class RedrawPresentBarrier {
       completion = std::move(completion_);
       phase_ = Phase::Idle;
       scheduled_episode_ = 0;
+      scheduled_trace_snapshot_ = {};
       update_requested_ = false;
       if (valid) {
         completed_valid_ = true;
@@ -346,6 +352,7 @@ class RedrawPresentBarrier {
       completion = std::move(completion_);
       phase_ = Phase::Idle;
       scheduled_episode_ = 0;
+      scheduled_trace_snapshot_ = {};
       update_requested_ = false;
     }
     if (completion) {
@@ -378,6 +385,12 @@ class RedrawPresentBarrier {
     return phase_ == Phase::Ready ? scheduled_episode_ : 0;
   }
 
+  RedrawTraceSnapshot ready_trace_snapshot() const
+  {
+    std::lock_guard lock(mutex_);
+    return phase_ == Phase::Ready ? scheduled_trace_snapshot_ : RedrawTraceSnapshot{};
+  }
+
   uint64_t completed_episode() const
   {
     std::lock_guard lock(mutex_);
@@ -400,6 +413,7 @@ class RedrawPresentBarrier {
   mutable std::mutex mutex_;
   Phase phase_ = Phase::Idle;
   uint64_t scheduled_episode_ = 0;
+  RedrawTraceSnapshot scheduled_trace_snapshot_;
   bool update_requested_ = false;
   Completion completion_;
   bool completed_valid_ = false;
@@ -409,9 +423,10 @@ class RedrawPresentBarrier {
 
 inline RedrawPresentBarrier redraw_present_barrier;
 
-inline bool schedule_redraw_present_barrier(const uint64_t episode)
+inline bool schedule_redraw_present_barrier(const uint64_t episode,
+                                            RedrawTraceSnapshot trace_snapshot)
 {
-  return redraw_present_barrier.schedule(episode);
+  return redraw_present_barrier.schedule(episode, std::move(trace_snapshot));
 }
 
 inline bool arrive_redraw_present_barrier(const uint64_t episode,
@@ -448,6 +463,11 @@ inline uint64_t redraw_present_barrier_scheduled_episode()
 inline uint64_t redraw_present_barrier_ready_episode()
 {
   return redraw_present_barrier.ready_episode();
+}
+
+inline RedrawTraceSnapshot redraw_present_barrier_ready_trace_snapshot()
+{
+  return redraw_present_barrier.ready_trace_snapshot();
 }
 
 inline bool complete_redraw_present_barrier(const uint64_t episode, const bool valid)

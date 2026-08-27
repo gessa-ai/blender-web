@@ -36280,10 +36280,10 @@ index 0000000000000000000000000000000000000000..75e2336e12d5c52eb91a815aeabfc985
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..3cf12038d30f7ed7ad880d71cd58394f8dba5f65
+index 0000000000000000000000000000000000000000..cea8c02d8b841fa4cb40af6972851014ae2a2ea7
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1362 @@
+@@ -0,0 +1,1363 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37607,7 +37607,8 @@ index 0000000000000000000000000000000000000000..3cf12038d30f7ed7ad880d71cd58394f
 +  if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
 +                                      redraw_present_frame_episode_, episode) &&
 +      ghost_web::redraw_trace_active(episode) &&
-+      ghost_web::schedule_redraw_present_barrier(episode))
++      ghost_web::schedule_redraw_present_barrier(
++          episode, ghost_web::redraw_trace_snapshot()))
 +  {
 +    queue_scheduler_.enqueue(
 +        [episode](std::function<void(bool)> done) {

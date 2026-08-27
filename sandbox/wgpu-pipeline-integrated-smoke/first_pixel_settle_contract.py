@@ -79,6 +79,7 @@ def validate(
         "inline bool filter_redraw_present_barrier_update(",
         "inline bool complete_redraw_present_barrier(",
         "inline bool cancel_redraw_present_barrier(",
+        "inline RedrawTraceSnapshot redraw_present_barrier_ready_trace_snapshot()",
         "inline uint64_t redraw_present_barrier_completion_generation()",
     ):
         require_once(display_header, token, "redraw recovery state")
@@ -90,17 +91,25 @@ def validate(
     )
     barrier = method(display_header, "class RedrawPresentBarrier")
     for token in (
-        "bool schedule(const uint64_t episode)",
+        "bool schedule(const uint64_t episode, RedrawTraceSnapshot trace_snapshot = {})",
         "bool arrive(const uint64_t episode, Completion completion)",
         "bool filter_update(const uint64_t episode, const bool requested)",
         "bool complete(const uint64_t episode, const bool valid)",
         "bool cancel(const uint64_t episode)",
+        "RedrawTraceSnapshot ready_trace_snapshot() const",
+        "trace_snapshot.episode_generation == episode ? std::move(trace_snapshot) :",
         "superseded(false);",
         "phase_ = Phase::Ready;",
         "completion(valid);",
         "completion_generation_++;",
     ):
         require_once(barrier, token, "resize present barrier")
+    require_count(
+        barrier,
+        "scheduled_trace_snapshot_",
+        5,
+        "resize present barrier trace lifetime",
+    )
     for token in (
         "retry_generation != retry_generation_seen",
         "retry_generation_seen = retry_generation;",
@@ -300,6 +309,8 @@ def selfcheck(
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "return frame_episode == current_episode;", "return true;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "trace_snapshot.episode_generation == episode ? std::move(trace_snapshot) :", "false ? std::move(trace_snapshot) :"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "return phase_ == Phase::Ready ? scheduled_trace_snapshot_ : RedrawTraceSnapshot{};", "return {};"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "phase_ = Phase::Ready;", "phase_ = Phase::Scheduled;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "completion(valid);", "completion(false);"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "episode_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
@@ -402,7 +413,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=45 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=47 bounded=180 readiness=4 drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound")
     return 0
 
 

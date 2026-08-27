@@ -53,6 +53,7 @@ def validate(
         "inline void redraw_trace_finish(",
         "inline void redraw_trace_note(",
         "inline RedrawTraceSnapshot redraw_trace_snapshot()",
+        "inline RedrawTraceSnapshot redraw_present_barrier_ready_trace_snapshot()",
     ):
         require_once(display, token, "shared resize trace")
     for field in (
@@ -115,8 +116,11 @@ def validate(
     for token in (
         "ghost_web::redraw_trace_active(redraw_trace_episode)",
         "ghost_web::redraw_trace_snapshot()",
+        "ghost_web::redraw_present_barrier_ready_trace_snapshot()",
+        "barrier_redraw_trace.episode_generation == barrier_ready_episode",
+        "barrier_redraw_trace_available ? barrier_redraw_trace : live_redraw_trace",
         "redraw_trace.episode_generation == redraw_trace_episode",
-        "ghost_web::redraw_present_barrier_ready_episode() == redraw_trace_episode",
+        "redraw_trace_active || barrier_redraw_trace_available",
         "if (redraw_trace_available && resize_trace_total_samples < 64)",
         "resize_trace_total_samples < 64",
         "resize_trace_episode_samples < 24",
@@ -187,8 +191,13 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         ("context", "resize_trace_episode_samples < 24", "resize_trace_episode_samples < 23"),
         (
             "context",
-            "ghost_web::redraw_present_barrier_ready_episode() == redraw_trace_episode",
+            "barrier_redraw_trace.episode_generation == barrier_ready_episode",
             "false",
+        ),
+        (
+            "context",
+            "barrier_redraw_trace_available ? barrier_redraw_trace : live_redraw_trace",
+            "live_redraw_trace",
         ),
         ("context", '"WGPUWeb-resize-trace: episode=', '"disabled-resize-trace: episode='),
         ("context", "ghost_web::redraw_trace_finish(redraw_trace_episode);", ""),

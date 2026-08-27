@@ -968,17 +968,26 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const wgpu::RenderPipeline pipeline = present_pipeline_;
   const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
   const std::shared_ptr<ghost_web::DeviceCallbackState> device_state = device_state_;
-  const uint64_t redraw_trace_episode = ghost_web::redraw_episode_generation();
+  const uint64_t live_redraw_trace_episode = ghost_web::redraw_episode_generation();
+  const uint64_t barrier_ready_episode = ghost_web::redraw_present_barrier_ready_episode();
+  const ghost_web::RedrawTraceSnapshot barrier_redraw_trace =
+      ghost_web::redraw_present_barrier_ready_trace_snapshot();
+  const bool barrier_redraw_trace_available =
+      barrier_ready_episode != 0 &&
+      barrier_redraw_trace.episode_generation == barrier_ready_episode;
+  const uint64_t redraw_trace_episode =
+      barrier_redraw_trace_available ? barrier_ready_episode : live_redraw_trace_episode;
   const bool redraw_trace_active = ghost_web::redraw_trace_active(redraw_trace_episode);
-  const ghost_web::RedrawTraceSnapshot redraw_trace = ghost_web::redraw_trace_snapshot();
+  const ghost_web::RedrawTraceSnapshot live_redraw_trace = ghost_web::redraw_trace_snapshot();
+  const ghost_web::RedrawTraceSnapshot redraw_trace =
+      barrier_redraw_trace_available ? barrier_redraw_trace : live_redraw_trace;
   /* A correctly frame-bound barrier can outlive the 180-tick redraw heartbeat while a slow
-   * software adapter drains its complete frame. Retain the already-bounded snapshot for that
-   * barrier present even after capture has stopped, so a failing hardware run never loses the
-   * exact draw plan needed to distinguish an empty backbuffer from a missing presentation. */
+   * software adapter drains its complete frame. Use the immutable snapshot captured at that
+   * frame's end, not the later synthetic WindowUpdate's mutable plans, so a failing hardware run
+   * describes the exact backbuffer content admitted to presentation. */
   const bool redraw_trace_available =
       redraw_trace.episode_generation == redraw_trace_episode &&
-      (redraw_trace_active ||
-       ghost_web::redraw_present_barrier_ready_episode() == redraw_trace_episode);
+      (redraw_trace_active || barrier_redraw_trace_available);
   const uint32_t configured_width = width_;
   const uint32_t configured_height = height_;
   const uint32_t requested_width = requested_width_;

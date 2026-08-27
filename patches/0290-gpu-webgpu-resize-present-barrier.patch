@@ -71,7 +71,7 @@ diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webg
    back->adopt_external(backbuffer, fmt, w, h);
 +  redraw_present_frame_episode_ = backbuffer_snapshot.redraw_episode;
 
-@@ -1296,6 +1301,32 @@ void WGPUContext::begin_frame()
+@@ -1296,6 +1301,33 @@ void WGPUContext::begin_frame()
  {
 +  /* The web window context captured its resize episode atomically with backbuffer adoption in
 +   * sync_backbuffer(), which activation runs immediately before this frame begins. */
@@ -91,7 +91,8 @@ diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webg
 +  if (ghost_window_ != nullptr && ghost_web::redraw_present_frame_matches_episode(
 +                                      redraw_present_frame_episode_, episode) &&
 +      ghost_web::redraw_trace_active(episode) &&
-+      ghost_web::schedule_redraw_present_barrier(episode))
++      ghost_web::schedule_redraw_present_barrier(
++          episode, ghost_web::redraw_trace_snapshot()))
 +  {
 +    queue_scheduler_.enqueue(
 +        [episode](std::function<void(bool)> done) {

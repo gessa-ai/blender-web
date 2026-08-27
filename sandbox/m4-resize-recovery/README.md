@@ -29,9 +29,12 @@ backbuffer's `VIEW_3D` regions untouched.
 `verify_resize_trace.py` binds that episode to a diagnostic which records the exact resolved target,
 viewport, and scissor for every successfully encoded draw, retains dedicated `overlay_background`
 and `OCIO_Display` snapshots, and prints one line per successful present under hard per-episode and
-process ceilings. The browser backend also appends one ordered-queue barrier after the resized
-frame. GHOST withholds interim surface copies until every earlier scoped submission has settled,
-then performs exactly one synchronous present while the barrier holds later queue work. The actual
+process ceilings. The browser backend captures that snapshot at the exact resized-frame tail and
+stores it with the ordered-queue barrier. The later synthetic WindowUpdate may encode another
+frame while the barrier is ready, but those mutable later plans cannot overwrite the diagnostic
+for the completed backbuffer actually admitted to presentation. GHOST withholds interim surface
+copies until every earlier scoped submission has settled, then performs exactly one synchronous
+present while the barrier holds later queue work. The actual
 surface acquire/encode/submit remains inside `swapBufferRelease()`; it is never deferred across a
 WM frame or browser turn. The native/Wasm integration also drives both rejection boundaries: a
 failed prior-frame submission must cancel the waiting barrier and drain the next epoch, while a

@@ -151,11 +151,17 @@ int main()
    * exactly one WindowUpdate when the queued frame is ready, and release the queue only after the
    * synchronous GHOST present has been submitted. */
   ghost_web::RedrawPresentBarrier barrier;
+  ghost_web::RedrawTraceSnapshot completed_frame_trace;
+  completed_frame_trace.episode_generation = after_episode;
+  completed_frame_trace.draw_count = 7;
+  completed_frame_trace.window_draw_count = 3;
+  ghost_web::RedrawTraceSnapshot later_frame_trace = completed_frame_trace;
+  later_frame_trace.draw_count = 99;
   bool first_completion_called = false;
   bool first_completion_valid = false;
-  if (!require(barrier.schedule(after_episode),
+  if (!require(barrier.schedule(after_episode, completed_frame_trace),
                "a fresh resize episode schedules one present barrier") ||
-      !require(!barrier.schedule(after_episode),
+      !require(!barrier.schedule(after_episode, later_frame_trace),
                "one resize episode cannot schedule duplicate barriers") ||
       !require(barrier.scheduled_episode() == after_episode &&
                    barrier.ready_episode() == 0,
@@ -167,8 +173,10 @@ int main()
                  first_completion_valid = valid;
                }),
                "the ordered queue publishes one completed resize frame") ||
-      !require(barrier.ready_episode() == after_episode,
-               "the arrived barrier exposes the exact ready episode") ||
+      !require(barrier.ready_episode() == after_episode &&
+                   barrier.ready_trace_snapshot().episode_generation == after_episode &&
+                   barrier.ready_trace_snapshot().draw_count == completed_frame_trace.draw_count,
+               "the arrived barrier exposes the frame-tail trace, not a later redraw") ||
       !require(!barrier.filter_update(after_episode, false),
                "a ready barrier does not invent a WindowUpdate") ||
       !require(barrier.filter_update(after_episode, true) &&
@@ -178,7 +186,8 @@ int main()
                    first_completion_valid,
                "a synchronous present releases the ordered queue successfully") ||
       !require(barrier.completed_episode() == after_episode &&
-                   barrier.scheduled_episode() == 0 && barrier.ready_episode() == 0,
+                   barrier.scheduled_episode() == 0 && barrier.ready_episode() == 0 &&
+                   barrier.ready_trace_snapshot().episode_generation == 0,
                "successful presentation retires the resize barrier") ||
       !require(barrier.filter_update(after_episode, true),
                "ordinary redraw policy resumes after the completed barrier") ||

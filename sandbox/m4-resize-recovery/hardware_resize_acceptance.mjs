@@ -6,9 +6,10 @@
  *
  * Ten fresh browser contexts dismiss the startup splash, establish a painted
  * VIEW_3D baseline, shrink 1280x720 -> 1100x640, and then send no more input.
- * The run passes only when all ten shrinks recover non-flat VIEW_3D pixels
- * within the calibrated 24-second bound with no page or WebGPU transaction
- * errors. Software/fallback adapters are rejected before evidence allocation.
+ * The run passes only when all ten shrinks recover three consecutive non-flat
+ * VIEW_3D samples within the calibrated 24-second bound with no page or WebGPU
+ * transaction errors. Software/fallback adapters are rejected before evidence
+ * allocation.
  */
 
 import {createHash} from "node:crypto";
@@ -56,6 +57,7 @@ const POST_DISMISS_POLL_MS = 1000;
 const SHRINK_POLLS = 12;
 const SHRINK_POLL_MS = 2000;
 const DOMINANT_FRACTION_LIMIT = 0.95;
+const STABLE_PAINT_POLLS = 3;
 const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
   "swiftshader",
   "llvmpipe",
@@ -366,6 +368,15 @@ function semanticView3D(PNG, buffer, expectedExtent) {
   return semanticView3DRaw(PNG.sync.read(buffer), expectedExtent);
 }
 
+function advanceStablePaintPolls(current, painted) {
+  return painted ? current + 1 : 0;
+}
+
+function stableSemanticPainted(result, requiredStablePolls) {
+  return Boolean(result?.proof?.painted) &&
+    result.stablePaintPolls >= requiredStablePolls;
+}
+
 function emptyErrorCounts() {
   return Object.fromEntries(RELEVANT_ERROR_PATTERNS.map(([name]) => [name, 0]));
 }
@@ -385,16 +396,27 @@ function hasRelevantErrors(counts) {
   return Object.values(counts).some((count) => count !== 0);
 }
 
-async function waitForSemanticPaint(page, PNG, expectedExtent, polls, delayMs) {
+async function waitForSemanticPaint(
+  page,
+  PNG,
+  expectedExtent,
+  polls,
+  delayMs,
+  requiredStablePolls = 1,
+) {
   let lastBuffer = null;
   let lastProof = null;
+  let stablePaintPolls = 0;
   for (let index = 0; index < polls; index++) {
     await page.waitForTimeout(delayMs);
     lastBuffer = await page.screenshot({timeout: 20000});
     lastProof = semanticView3D(PNG, lastBuffer, expectedExtent);
-    if (lastProof.painted) return {buffer: lastBuffer, proof: lastProof, poll: index + 1};
+    stablePaintPolls = advanceStablePaintPolls(stablePaintPolls, lastProof.painted);
+    if (stablePaintPolls >= requiredStablePolls) {
+      return {buffer: lastBuffer, proof: lastProof, poll: index + 1, stablePaintPolls};
+    }
   }
-  return {buffer: lastBuffer, proof: lastProof, poll: polls};
+  return {buffer: lastBuffer, proof: lastProof, poll: polls, stablePaintPolls};
 }
 
 function finalVerdict(results) {
@@ -435,6 +457,14 @@ async function runSelfcheck() {
   check(REQUIRED_ATTEMPTS === 10 && SHRINK_POLLS * SHRINK_POLL_MS === 24000,
     "10-attempt/24-second acceptance bar drifted");
   check(DOMINANT_FRACTION_LIMIT === 0.95, "semantic threshold drifted");
+  check(STABLE_PAINT_POLLS === 3, "stable-paint sample count drifted");
+  let stablePaintPolls = 0;
+  const stablePaintSequence = [true, true, false, true, true, true].map((painted) => {
+    stablePaintPolls = advanceStablePaintPolls(stablePaintPolls, painted);
+    return stablePaintPolls;
+  });
+  check(JSON.stringify(stablePaintSequence) === JSON.stringify([1, 2, 0, 1, 2, 3]),
+    "stable-paint streak did not reset after a stale frame");
   check(parseArgs(["--selfcheck"]).selfcheck === true, "self-check parsing drifted");
   const parsed = parseArgs([
     "--port", "8165",
@@ -580,6 +610,52 @@ async function runSelfcheck() {
   check(!semanticView3DRaw({width: 1, height: 1, data: new Uint8Array(4)}).painted,
     "wrong-extent pixel fixture was accepted");
 
+  const fixturePNG = {sync: {read: (frame) => frame}};
+  const fixturePage = (frames) => {
+    let index = 0;
+    return {
+      waitForTimeout: async () => {},
+      screenshot: async () => frames[Math.min(index++, frames.length - 1)],
+    };
+  };
+  const transientPaint = await waitForSemanticPaint(
+    fixturePage([makePixels("scene"), makePixels("flat"), makePixels("flat")]),
+    fixturePNG,
+    SHRUNK_EXTENT,
+    STABLE_PAINT_POLLS,
+    0,
+    STABLE_PAINT_POLLS,
+  );
+  check(!transientPaint.proof.painted && transientPaint.stablePaintPolls === 0,
+    "one transient painted frame false-greened resize stability");
+  const incompleteStablePaint = await waitForSemanticPaint(
+    fixturePage([makePixels("flat"), makePixels("scene"), makePixels("scene")]),
+    fixturePNG,
+    SHRUNK_EXTENT,
+    STABLE_PAINT_POLLS,
+    0,
+    STABLE_PAINT_POLLS,
+  );
+  check(incompleteStablePaint.proof.painted && incompleteStablePaint.stablePaintPolls === 2 &&
+    !stableSemanticPainted(incompleteStablePaint, STABLE_PAINT_POLLS),
+    "an incomplete painted streak false-greened resize stability");
+  const stablePaint = await waitForSemanticPaint(
+    fixturePage([
+      makePixels("flat"),
+      makePixels("scene"),
+      makePixels("scene"),
+      makePixels("scene"),
+    ]),
+    fixturePNG,
+    SHRUNK_EXTENT,
+    STABLE_PAINT_POLLS + 1,
+    0,
+    STABLE_PAINT_POLLS,
+  );
+  check(stableSemanticPainted(stablePaint, STABLE_PAINT_POLLS) &&
+    stablePaint.poll === STABLE_PAINT_POLLS + 1,
+    "three consecutive painted frames did not satisfy resize stability");
+
   const errors = emptyErrorCounts();
   check(classifyConsoleLine("Scissor rect is not contained", errors) &&
     errors.scissorRejected === 1, "scissor rejection was not counted");
@@ -674,6 +750,7 @@ async function runLive(options) {
         shrunkExtent: SHRUNK_EXTENT,
         dominantFractionLimit: DOMINANT_FRACTION_LIMIT,
         shrinkTimeoutMs: SHRINK_POLLS * SHRINK_POLL_MS,
+        requiredStablePaintPolls: STABLE_PAINT_POLLS,
         postResizeInputEvents: 0,
       },
       results: [],
@@ -725,7 +802,12 @@ async function runLive(options) {
         await page.setViewportSize({width: SHRUNK_EXTENT[0], height: SHRUNK_EXTENT[1]});
         /* Acceptance boundary: no keyboard or pointer operation may occur after this call. */
         const shrink = await waitForSemanticPaint(
-          page, dependencies.PNG, SHRUNK_EXTENT, SHRINK_POLLS, SHRINK_POLL_MS,
+          page,
+          dependencies.PNG,
+          SHRUNK_EXTENT,
+          SHRINK_POLLS,
+          SHRINK_POLL_MS,
+          STABLE_PAINT_POLLS,
         );
         writeFileSync(
           join(runDir, `${String(attempt).padStart(2, "0")}-shrink.png`),
@@ -733,15 +815,16 @@ async function runLive(options) {
         );
         const postResizeInputEvents = 0;
         const clean = pageErrors.length === 0 && !hasRelevantErrors(relevantErrors);
+        const shrinkStable = stableSemanticPainted(shrink, STABLE_PAINT_POLLS);
         result = {
           attempt,
-          ok: Boolean(shrink.proof?.painted) && clean,
+          ok: shrinkStable && clean,
           elapsedMs: Date.now() - startedAt,
-          shrinkPaintAtMs: shrink.proof?.painted ?
+          shrinkPaintAtMs: shrinkStable ?
             shrink.poll * SHRINK_POLL_MS : null,
           boot: boot.proof,
           baseline: baseline.proof,
-          shrink: shrink.proof,
+          shrink: {...shrink.proof, stablePaintPolls: shrink.stablePaintPolls},
           postResizeInputEvents,
           pageErrors,
           relevantErrors,

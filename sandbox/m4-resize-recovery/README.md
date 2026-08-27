@@ -59,8 +59,10 @@ machine-local module paths and adds the project's current hardware-adapter contr
 Node/Playwright/PNGJS/Chromium identities, an expected `.wasm.orig` hash, confined immutable
 evidence, and fail-closed page/WebGPU-error accounting. It uses ten fresh browser contexts. Each
 attempt establishes a visible baseline, dismisses the splash, shrinks 1280x720 to 1100x640, then
-sends no further input while polling for at most 24 seconds. Every boot, baseline, and shrink image
-is retained so the semantic decision can be visually audited for the grid, Cube, and gizmo.
+sends no further input while polling for at most 24 seconds. A shrink passes only after three
+consecutive non-flat samples, so one transient good frame followed by the stale overlay cannot
+false-green the run. Every boot, baseline, and shrink image is retained so the semantic decision
+can be visually audited for the grid, Cube, and gizmo.
 
 The browser-free self-check runs on either host:
 

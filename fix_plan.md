@@ -3053,6 +3053,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   present. Both paths drain later-epoch work, clear present suppression, and leave the current
   resize episode retryable instead of bricking the renderer. The exact CAPTURE candidate remains
   byte-identical and still requires Apple 10/10 pixels.
+  **Hardware receipt ingestion 2026-08-27 (`3168ee0`):** the acceptance producer now binds every
+  canonical CAPTURE file and all 30 retained boot/baseline/shrink PNGs by byte count and SHA-256.
+  A separate post-capture consumer re-hashes those bytes, decodes every PNG, replays the unchanged
+  VIEW_3D semantic threshold, and requires the exact 10-attempt/three-stable-sample/zero-input/
+  zero-error hardware contract with no missing or extra evidence. Producer self-check is 32/17;
+  consumer self-check is 2/13 and rejects stale product/source/image identities, mutated or flat
+  frames, and inventory drift. This changes no runtime byte and supplies no Apple pixels; the exact
+  candidate remains `.wasm.orig` `2f45a8ed62eb...`.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

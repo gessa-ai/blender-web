@@ -23,6 +23,13 @@ GHOST swap call.
 - The fail-first/native/Wasm recovery model now covers 44 cases, including scheduled, ready,
   single-update, synchronous-completion, superseded, canceled, and retryable-failure states.
   The seven-source contract rejects 44 mutations and the resize trace contract rejects 31.
+- The source contract also binds the upstream window call graph on which the barrier depends:
+  `wm_draw_window()` finishes all offscreen/onscreen encoding, calls the per-context
+  `GPU_context_end_frame()`, and only then does `wm_draw_update()` call GHOST's synchronous
+  `wm_window_swap_buffer_release()`. Three new mutations prove that a missing/misordered context
+  tail or a pre-draw swap cannot escape. Fail-first/final evidence is
+  `ledger/buildlogs/20260827T121845-2000991.log` and
+  `ledger/buildlogs/20260827T121909-2001772.log`.
 - Canonical pin replay is exact at 20,258 entries; the generated patch is 2,362,507 bytes at
   SHA-256 `ac4ccc43a0ef7b71858be62a3c5185b92d6e486380f978cece534ef1efc86e6f`.
 - The integrated native/Wasm GPU suite is green at
@@ -42,6 +49,18 @@ GHOST swap call.
   31-positive/17-negative self-check; the profile producer remains 21-positive/23-negative:
   `ledger/buildlogs/20260827T112428-1956857.log` and
   `ledger/buildlogs/20260827T112428-1956858.log`.
+- Post-audit, the resize trace and hardware producer self-checks remain green, the integrated
+  native/Wasm GPU suite remains green, and REUSE 6.2.0 remains green:
+  `ledger/buildlogs/20260827T122001-2002051.log`,
+  `ledger/buildlogs/20260827T122001-2002052.log`,
+  `ledger/buildlogs/20260827T122007-2002115.log`, and
+  `ledger/buildlogs/20260827T122038-2003603.log`.
+- Locked `blender_browser` remains a true no-op at
+  `ledger/buildlogs/20260827T122212-2005765.log`; all five CAPTURE hashes below are unchanged.
+  Direct M4 remains RED only at the unsupported hardware binding
+  (`ledger/buildlogs/20260827T122101-2004365.log`), while authoritative pinned-container
+  regression restores M0 6/6 and preserves every later named boundary
+  (`ledger/buildlogs/20260827T122142-2004888.log`).
 - The current original contains 136,771 defined functions; the deferral registry and generated
   public dashboard bind the new generation and explicitly retain 14,628,429 bytes only as a
   preceding-generation planning fixture: `ledger/buildlogs/20260827T112952-1961349.log` and

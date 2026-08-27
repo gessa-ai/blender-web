@@ -3033,6 +3033,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   CAPTURE preflight and locked no-work retain exact `.wasm.orig` SHA-256 `2f45a8ed62eb...` while
   forbidding patch 0288's deferred GHOST present seam. This changes no artifact and supplies no
   Apple pixel evidence.
+  **Window frame-tail call-graph audit 2026-08-27:** the resize source contract now distinguishes
+  per-window `GPU_context_end_frame()` from backend-wide `GPU_render_end()` and binds the exact
+  encode -> context-tail -> synchronous-GHOST-swap order. The fail-first contract exposed all
+  three missing/misordered-tail mutations; the final 35-check/20-mutation verifier rejects them.
+  This preserves the exact pending CAPTURE generation and adds no device-free pixel claim.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

@@ -85,6 +85,46 @@ def validate(
     if not (update_at >= 0 and update_at < reactivate_at < window_loop_at):
         errors.append("window-context reactivation is not ordered before the draw loop")
 
+    # WGPUContext::end_frame() is the queue-tail hook used by the resize barrier. Blender's
+    # similarly named GPU_render_end() is backend-wide and runs later; it does not call the
+    # context hook. Bind the real window call graph so the barrier cannot drift before region
+    # encoding or after GHOST has already copied the persistent backbuffer to the surface.
+    draw_window = method(wm_source, "static void wm_draw_window(bContext *C, wmWindow *win)")
+    context_begin = (
+        "GPU_context_begin_frame(static_cast<GPUContext *>(win->runtime->gpuctx));"
+    )
+    context_end = (
+        "GPU_context_end_frame(static_cast<GPUContext *>(win->runtime->gpuctx));"
+    )
+    for token in (context_begin, context_end):
+        if draw_window.count(token) != 1:
+            errors.append(f"window context frame boundary differs: {token}")
+    begin_at = draw_window.find(context_begin)
+    first_region_draw_at = draw_window.find("wm_draw_window_offscreen(C, win, stereo);")
+    last_composite_at = draw_window.rfind("wm_draw_window_onscreen(C, win")
+    draw_clear_at = draw_window.find("screen->do_draw = false;")
+    end_at = draw_window.find(context_end)
+    if not (
+        begin_at >= 0
+        and begin_at < first_region_draw_at <= last_composite_at < draw_clear_at < end_at
+    ):
+        errors.append("context end-frame is not after complete window encoding")
+
+    draw_update = method(wm_source, "void wm_draw_update(bContext *C)")
+    window_sequence = (
+        "wm_window_swap_buffer_acquire(&win);",
+        "wm_draw_window(C, &win);",
+        "wm_draw_update_clear_window(C, &win);",
+        "wm_window_swap_buffer_release(&win);",
+    )
+    for token in window_sequence:
+        if draw_update.count(token) != 1:
+            errors.append(f"window draw/swap sequence differs: {token}")
+    if all(token in draw_update for token in window_sequence):
+        positions = tuple(draw_update.index(token) for token in window_sequence)
+        if positions != tuple(sorted(positions)):
+            errors.append("context end-frame can no longer precede synchronous window swap")
+
     end_frame = method(context_source, "void WGPUContext::end_frame()")
     end_frame_tokens = (
         "ghost_web::redraw_episode_generation()",
@@ -236,6 +276,27 @@ def main() -> int:
         ),
         "browser_scope": wm_source.replace(" && defined(__EMSCRIPTEN__)", "", 1),
         "reactivation_call": wm_source.replace("  wm_window_clear_drawable(wm);", "", 1),
+        "window_context_end_missing": wm_source.replace(
+            "  GPU_context_end_frame(static_cast<GPUContext *>(win->runtime->gpuctx));",
+            "",
+            1,
+        ),
+        "window_context_end_before_clear": wm_source.replace(
+            "  screen->do_draw = false;\n\n"
+            "  GPU_context_end_frame(static_cast<GPUContext *>(win->runtime->gpuctx));",
+            "  GPU_context_end_frame(static_cast<GPUContext *>(win->runtime->gpuctx));\n\n"
+            "  screen->do_draw = false;",
+            1,
+        ),
+        "window_swap_before_draw": wm_source.replace(
+            "      wm_draw_window(C, &win);\n"
+            "      wm_draw_update_clear_window(C, &win);\n\n"
+            "      wm_window_swap_buffer_release(&win);",
+            "      wm_window_swap_buffer_release(&win);\n\n"
+            "      wm_draw_window(C, &win);\n"
+            "      wm_draw_update_clear_window(C, &win);",
+            1,
+        ),
     }
     ghost_source_mutations = {
         "present_bypass": ghost_source.replace(
@@ -297,7 +358,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=27 mutations=17")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=35 mutations=20")
     return 0
 
 

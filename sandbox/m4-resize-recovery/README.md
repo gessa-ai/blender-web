@@ -10,6 +10,10 @@ adopts a coherently committed replacement texture before any region encodes into
 framebuffer. The integrated first-pixel contract also requires every applied browser extent to
 request a redraw after surface reconfiguration and the WM size event, then requires the
 asynchronously validated replacement surface/backbuffer commit to start a fresh bounded episode.
+The source verifier distinguishes Blender's per-window `GPU_context_end_frame()` hook from the
+later backend-wide `GPU_render_end()`: it requires complete offscreen/onscreen encoding, then the
+context queue-tail hook, then GHOST's synchronous `swapBufferRelease()`. This call order is what
+makes the completed-frame barrier a real frame tail rather than an empty or post-present marker.
 `verify_resize_trace.py` binds that episode to a diagnostic which records the exact resolved target,
 viewport, and scissor for every successfully encoded draw, retains dedicated `overlay_background`
 and `OCIO_Display` snapshots, and prints one line per successful present under hard per-episode and

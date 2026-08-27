@@ -40,7 +40,15 @@ deferrable to M2. And **the whole M1 dep build is gated on disk** (see M0.8-CRIT
   immutable container proof `m0-oracle-ornith-20260820-r1` passes; `m0` is 6/6 GREEN and
   `--regress` retains the separately named M1-M6 receipt/artifact/hardware failures. This is
   runtime oracle evidence, not a fresh strict M0-M3 candidate or milestone promise.
-- [ ] **M0.9 [harness]** CI skeleton — deferred until a GitHub repo exists; revisit at M1 exit.
+- [x] **M0.9 [harness] RECONCILED:** the owner-provided public source destination now exists,
+  and the canonical tree's CI skeleton is executable rather than documentary. The workflow pins
+  all three third-party actions and the emsdk repository/release, restores separate `EM_CACHE`
+  and `CCACHE_DIR` trees, runs REUSE before dependency checkout, compiles/runs a Wasm program,
+  proves a compiler-cache hit, compiles through the emdawnwebgpu port, and shallow-fetches the
+  exact Blender pin. The structural self-check and exact workflow payload pass on ornith-lab.
+  This closes only source readiness: no hosted Actions run or milestone receipt is claimed because
+  the unauthenticated workflow endpoint was not visible from this host. See
+  `notes/m0-public-ci-skeleton-reconciliation-20260827.md`.
 - Harness registry H-1 (result schema), H-2 (`--regress` missing, highest), H-3 (live emcc probe)
   stay open in `notes/harness-issues.md`; driver reconciles at the M1 boundary (lift lock, fix,
   re-run 6/6, add an `m1` regress scope, re-lock). H-2 blocks honest regression from M1.10 on.

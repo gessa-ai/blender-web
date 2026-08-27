@@ -3038,6 +3038,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   encode -> context-tail -> synchronous-GHOST-swap order. The fail-first contract exposed all
   three missing/misordered-tail mutations; the final 35-check/20-mutation verifier rejects them.
   This preserves the exact pending CAPTURE generation and adds no device-free pixel claim.
+  **Exact-candidate handoff audit 2026-08-27:** the P0-H-forbidden deferred-present seam remains
+  absent, the focused resize source contract and pinned 31-positive/17-negative Apple-producer
+  self-check remain green, and all five CAPTURE hashes still match the `86d2ef6` generation,
+  including `.wasm.orig` `2f45a8ed62eb...`. Authoritative container regression restores M0 6/6;
+  no newer Apple evidence is present, so this audit changes no runtime byte or pixel verdict.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

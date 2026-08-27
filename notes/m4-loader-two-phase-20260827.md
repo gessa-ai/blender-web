@@ -43,7 +43,7 @@ Apple 10/10 acceptance so this hardware candidate remains stable.
   `20260827T050450-1653382`, `20260827T050450-1653385`,
   `20260827T050450-1653397`, and `20260827T050450-1653408`.
 - Exact Stage-0 provenance/minification replay passes at `20260827T050526-1654195`; the five
-  public scripts now measure 27,972 raw Brotli bytes versus 14,250 minified bytes under pinned
+  public scripts now measure 28,031 raw Brotli bytes versus 14,250 minified bytes under pinned
   q11/lgwin-24. The independent minifier and codec self-checks pass at
   `20260827T052255-1659636` and `20260827T052255-1659643`.
 - REUSE 6.2.0 passes at `20260827T052333-1659955`.

@@ -2961,7 +2961,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
 - [x] **P1-RELEASE-LOADER-REDESIGN [shell, public-bundle] (`1040ac7`, boot correction `824686b`):** the windowed loader now
   uses the owner-specified `#17181b` surface, one thin ring, one 2-pixel determinate bar and percent,
   plus one single-line GPL source/trademark footer. The proof/marketing copy moved to `README.md`;
-  `#bw-diag`, `?gate=`, and first-semantic-pixel dismissal are preserved. A reproducible renamed
+  `#bw-diag`, `?gate=`, and the existing generic first-presentation dismissal are preserved. A reproducible renamed
   Inter 4.001 subset initially shipped locally at 9,500 bytes; the Stage-0 bootstrap pass later
   expanded it to a layout-preserving 22,480 bytes (SHA-256
   `47d56ba06d6380e40f49201b85421b5f8a22bc2b83ed7a257c9ab49fdc66421f`) with OFL metadata,
@@ -2974,6 +2974,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   CAPTURE relink is nonshipping; Apple P0-E/P0-G pixels and fresh exact-generation profiles remain
   mandatory before APPLY or publication. See
   `notes/m4-release-loader-redesign-20260826.md`.
+- [x] **P1-RELEASE-TWO-PHASE-LOADER [shell] (`f9dfb78`):** the same minimal loader now labels
+  Stage-0 byte progress `Downloading`, then switches at Emscripten's post-run-dependency
+  `Running...` boundary to `Launching` with the percentage retired and the same two-pixel bar
+  honestly indeterminate. Controlled Chromium proves both states, one ring/bar, local font,
+  single-line footer, hidden diagnostics, and zero external requests; public hardening,
+  monolithic/staged assembler, provenance/minifier, technical receipt, first-presentation
+  fallback, and REUSE contracts are green. This shell-only commit does not relink or invalidate
+  P0-E's pending Apple candidate. See `notes/m4-loader-two-phase-20260827.md`.
+- [ ] **P1-RELEASE-VIEWPORT-CONTENT-LOADER-DISMISSAL [driver, claimed_by: none,
+  blocked-by: P0-E Apple 10/10 against wasm.orig `390062afea7c`]:** replace the generic
+  first-presentation hide signal with a distinct marker proving successful visible
+  `SPACE_VIEW3D` content (grid/gizmo/scene), then require the loader to remain visible through
+  every chrome-only/clear viewport frame. Do not infer readiness from elapsed time or present
+  count. This requires a C++ relink and same-rig cold-boot pixel verification; keep the current
+  P0-E candidate stable until its filed acceptance run completes.
 - [x] **P1-RELEASE-PUBLICATION-METADATA-SCRUB [compliance] (`a920bfd`):** the two public-facing
   migration comments no longer publish the private host runbook name, and the preserved
   outer-worktree recovery patch is regenerated from its exact `0577f7f` anchor without private

@@ -3093,6 +3093,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   (`20260827T141610-2103171`). **RELINKED windowed-opt @ `5a48bb4`:** `.wasm.orig` is
   119,152,955 bytes/136,772 defined functions at SHA-256
   `6fb76b7f760930385cb6be4b18f828c6fca1cfae02e65ce240e72ae78568cdfa`.
+  **Frame-activation contract 2026-08-27:** the prior verifier allowed
+  `WGPUContext::activate()` to omit `sync_backbuffer()`, so its frame-episode claim did not bind
+  the actual replacement-texture adoption boundary. The fail-first mutation escapes at
+  `20260827T143416-2117985`; the final 44-check/27-mutation source contract requires ordered
+  activation/adoption and `wm_window_make_drawable()` before the context frame begins
+  (`20260827T143522-2119087`). Native/wasm32 queue behavior and the draw-trace contract remain
+  exact. This is contract-only: all five pending CAPTURE artifacts remain unchanged.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

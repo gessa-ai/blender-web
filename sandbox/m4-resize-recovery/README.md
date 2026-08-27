@@ -7,7 +7,10 @@
 framebuffer extent caches. It also requires browser WebGPU to join Metal's established per-frame
 drawable reset: a single-window redraw must reactivate its GPU context so `sync_backbuffer()`
 adopts a coherently committed replacement texture before any region encodes into the default
-framebuffer. The integrated first-pixel contract also requires every applied browser extent to
+framebuffer. The source contract binds that activation through `sync_backbuffer()` and requires
+`wm_window_make_drawable()` to precede `GPU_context_begin_frame()`, so the frame-episode barrier
+cannot be labeled before the replacement drawable and cached extents have actually been adopted.
+The integrated first-pixel contract also requires every applied browser extent to
 request a redraw after surface reconfiguration and the WM size event, then requires the
 asynchronously validated replacement surface/backbuffer commit to start a fresh bounded episode.
 The source verifier distinguishes Blender's per-window `GPU_context_end_frame()` hook from the

@@ -50,6 +50,16 @@ hardware producer instead of freezing evidence at an unrelated six-second delay.
   `20260827T141710-2105051`, `20260827T141929-2107660`, `20260827T141929-2107661`,
   `20260827T141726-2105183`). Container-backed regression restores M0 6/6 while M1-M8 retain their
   named strict profile/APPLY/hardware/product boundaries (`20260827T141818-2105871`).
+- A post-handoff fail-first mutation proved the old source verifier allowed
+  `WGPUContext::activate()` to omit `sync_backbuffer()` (`20260827T143416-2117985`). The final
+  contract binds ordered activation/adoption plus `wm_window_make_drawable()` before frame start
+  and rejects 27 mutations across 44 checks (`20260827T143522-2119087`). The native/wasm32
+  integrated queue suite remains byte-identical and the eight-source trace contract still rejects
+  all 35 mutations (`20260827T143603-2119429`, `20260827T143603-2119434`); REUSE 6.2.0 is green
+  (`20260827T143756-2122037`). Direct M4 remains red at its hardware-pixel binding
+  (`20260827T143835-2122317`), and the pinned-container regression restores M0 6/6 while preserving
+  every later named boundary (`20260827T143913-2122901`). This changed no runtime or CAPTURE
+  artifact.
 
 ## Relinked CAPTURE generation
 

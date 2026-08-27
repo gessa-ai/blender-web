@@ -80,6 +80,25 @@ def validate(
     endif_at = context_source.find("#endif", refresh_at)
     if not (adopt_at >= 0 and refresh_at > adopt_at and endif_at > refresh_at):
         errors.append("extent synchronization is not ordered after adoption inside the web guard")
+
+    # The frame-episode guard is meaningful only when the window context has already adopted the
+    # current persistent backbuffer. Bind WGPUContext activation itself: wm_draw_update() forces
+    # one activation per browser frame below, and GPU_context_begin_frame() captures the episode
+    # only after that activation has refreshed the wrapper and both default-framebuffer extents.
+    activation = method(context_source, "void WGPUContext::activate()")
+    activation_tokens = (
+        "is_active_ = true;",
+        "sync_backbuffer();",
+        "immActivate();",
+    )
+    for token in activation_tokens:
+        if activation.count(token) != 1:
+            errors.append(f"window context activation differs: {token}")
+    if activation and all(token in activation for token in activation_tokens):
+        positions = tuple(activation.index(token) for token in activation_tokens)
+        if positions != tuple(sorted(positions)):
+            errors.append("persistent backbuffer adoption is not ordered inside activation")
+
     if wm_source.count(REACTIVATION_BLOCK) != 1:
         errors.append("browser WebGPU does not reactivate the window context before each draw")
     update_at = wm_source.find("void wm_draw_update(bContext *C)")
@@ -115,13 +134,17 @@ def validate(
 
     draw_update = method(wm_source, "void wm_draw_update(bContext *C)")
     window_sequence = (
+        "wm_window_make_drawable(wm, &win);",
         "wm_window_swap_buffer_acquire(&win);",
         "wm_draw_window(C, &win);",
         "wm_draw_update_clear_window(C, &win);",
         "wm_window_swap_buffer_release(&win);",
     )
-    for token in window_sequence:
-        if draw_update.count(token) != 1:
+    for index, token in enumerate(window_sequence):
+        # A second make-drawable restores the window context after optional offscreen surfaces.
+        # The first occurrence must still precede this window's acquire/draw/release sequence.
+        expected = draw_update.count(token) >= 1 if index == 0 else draw_update.count(token) == 1
+        if not expected:
             errors.append(f"window draw/swap sequence differs: {token}")
     if all(token in draw_update for token in window_sequence):
         positions = tuple(draw_update.index(token) for token in window_sequence)
@@ -273,6 +296,12 @@ def main() -> int:
             "back->adopt_external(backbuffer, fmt, w, w);",
             1,
         ),
+        "activation_sync_call": context_source.replace("  sync_backbuffer();", "", 1),
+        "activation_sync_order": context_source.replace(
+            "  sync_backbuffer();\n  immActivate();",
+            "  immActivate();\n  sync_backbuffer();",
+            1,
+        ),
         "deferred_present_registration": context_source.replace(
             "  instance_ = wgpu_ghost->getInstance();",
             "  wgpu_ghost->setPresentQueueEnqueue([](WGPUGhostContext::QueuedPresent) {});\n"
@@ -321,6 +350,9 @@ def main() -> int:
         ),
         "browser_scope": wm_source.replace(" && defined(__EMSCRIPTEN__)", "", 1),
         "reactivation_call": wm_source.replace("  wm_window_clear_drawable(wm);", "", 1),
+        "window_activation_call": wm_source.replace(
+            "      wm_window_make_drawable(wm, &win);", "", 1
+        ),
         "window_context_end_missing": wm_source.replace(
             "  GPU_context_end_frame(static_cast<GPUContext *>(win->runtime->gpuctx));",
             "",
@@ -408,7 +440,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=5 checks=39 mutations=24")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=5 checks=44 mutations=27")
     return 0
 
 

@@ -2977,6 +2977,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `blender_browser` invocation is a true no-op (`20260827T093347-1861874`), and all five CAPTURE
   identities still exactly match the documented `e3d284c7da0e` generation. No full-window extent
   substitution or relink was made while that exact candidate awaits Apple acceptance.
+  **Fresh handoff reconciliation 2026-08-27:** direct review of the round-4 trace and failed Apple
+  pixels shows correctly resized grid/gizmo content around the stale grey layer, reinforcing an
+  ordering/stale-composite failure rather than an invalid 900x547 region target. The portable
+  hardware-acceptance self-check remains green (`20260827T100818-1894660`), and pinned-container
+  regression restores M0 6/6 while retaining the named later-tier boundaries
+  (`20260827T101510-1899114`). The exact relinked candidate remains unchanged and hardware-pending.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See

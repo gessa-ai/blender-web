@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-"""Fail closed unless resize draws and presentation use one coherent queue boundary."""
+"""Fail closed unless resize adoption and the synchronous window swap stay coherent."""
 
 from __future__ import annotations
 
@@ -33,16 +33,13 @@ REACTIVATION_BLOCK = """#if defined(WITH_METAL_BACKEND) || \\
 #endif
 """
 
-PRESENT_QUEUE_REGISTRATION = """  wgpu_ghost->setPresentQueueEnqueue(
-      [this](WGPUGhostContext::QueuedPresent present) {
-        queue_scheduler_.enqueue(std::move(present));
-      });
-"""
-
-PRESENT_QUEUE_CLEAR = """  if (ghost_context_ != nullptr) {
-    static_cast<WGPUGhostContext *>(ghost_context_)->setPresentQueueEnqueue({});
-  }
-"""
+FORBIDDEN_DEFERRED_PRESENT_MARKERS = (
+    "setPresentQueueEnqueue",
+    "PresentQueueEnqueue",
+    "QueuedPresent",
+    "PresentCompletion",
+    "present_queue_enqueue_",
+)
 
 
 def validate(
@@ -70,59 +67,29 @@ def validate(
     if not (update_at >= 0 and update_at < reactivate_at < window_loop_at):
         errors.append("window-context reactivation is not ordered before the draw loop")
 
-    if context_source.count(PRESENT_QUEUE_REGISTRATION) != 1:
-        errors.append("browser presentation is not registered with the backend queue")
-    if context_source.count(PRESENT_QUEUE_CLEAR) != 1:
-        errors.append("browser presentation queue registration is not cleared on teardown")
-    constructor_at = context_source.find("WGPUContext::WGPUContext(")
-    registration_at = context_source.find(PRESENT_QUEUE_REGISTRATION)
-    destructor_at = context_source.find("WGPUContext::~WGPUContext()")
-    clear_at = context_source.find(PRESENT_QUEUE_CLEAR)
-    free_at = context_source.find("  free_resources();", destructor_at)
-    if not (
-        constructor_at >= 0
-        and registration_at > constructor_at
-        and registration_at < destructor_at
-    ):
-        errors.append("presentation queue registration is outside the context constructor")
-    if not (destructor_at >= 0 and clear_at > destructor_at and clear_at < free_at):
-        errors.append("presentation queue registration survives backend resource teardown")
-
-    for marker in (
-        "using PresentCompletion = std::function<void(bool success)>;",
-        "using QueuedPresent = std::function<void(PresentCompletion on_complete)>;",
-        "using PresentQueueEnqueue = std::function<void(QueuedPresent present)>;",
-        "void setPresentQueueEnqueue(PresentQueueEnqueue enqueue);",
-        "PresentQueueEnqueue present_queue_enqueue_;",
-        "bool presentBackbuffer(PresentCompletion on_complete = {});",
-    ):
-        if ghost_header.count(marker) != 1:
-            errors.append(f"GHOST queued-present interface differs: {marker}")
+    for marker in FORBIDDEN_DEFERRED_PRESENT_MARKERS:
+        if marker in context_source or marker in ghost_source or marker in ghost_header:
+            errors.append(f"deferred window-present seam remains reachable: {marker}")
+    if ghost_header.count("bool presentBackbuffer();") != 1:
+        errors.append("GHOST presentBackbuffer is not the synchronous no-callback interface")
 
     swap_start = ghost_source.find("GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()")
     swap_end = ghost_source.find(
         "GHOST_TSuccess GHOST_ContextWGPUWeb::activateDrawingContext()", swap_start
     )
     swap_release = ghost_source[swap_start:swap_end]
-    queued_start = swap_release.find("if (present_queue_enqueue_) {")
-    queued_swap = swap_release[queued_start:]
-    queued_swap_markers = (
-        "if (present_queue_enqueue_) {",
-        "present_queue_enqueue_(",
-        "started = owner.presentBackbuffer(settle);",
-        "return GHOST_kSuccess;",
-        "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;",
+    immediate = "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;"
+    if swap_release.count(immediate) != 1:
+        errors.append("GHOST swap does not synchronously execute exactly one present")
+    device_check = swap_release.find("if (!deviceIsUsable())")
+    device_only = swap_release.find(
+        "if (mode_ == ghost_web::DrawingContextMode::DeviceOnly)"
     )
-    positions = [queued_swap.find(marker) for marker in queued_swap_markers]
-    if any(position < 0 for position in positions) or positions != sorted(positions):
-        errors.append("GHOST swap does not queue present before its immediate fallback")
-    for marker in (
-        "void GHOST_ContextWGPUWeb::setPresentQueueEnqueue(PresentQueueEnqueue enqueue)",
-        "bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)",
-        "on_complete(committed);",
-    ):
-        if ghost_source.count(marker) != 1:
-            errors.append(f"GHOST queued-present implementation differs: {marker}")
+    immediate_at = swap_release.find(immediate)
+    if not (device_check >= 0 and device_check < device_only < immediate_at):
+        errors.append("GHOST synchronous present is outside the validated swap boundary")
+    if ghost_source.count("bool GHOST_ContextWGPUWeb::presentBackbuffer()") != 1:
+        errors.append("GHOST synchronous present implementation differs")
     return errors
 
 
@@ -171,8 +138,12 @@ def main() -> int:
             "back->adopt_external(backbuffer, fmt, w, w);",
             1,
         ),
-        "present_registration": context_source.replace(PRESENT_QUEUE_REGISTRATION, "", 1),
-        "present_clear": context_source.replace(PRESENT_QUEUE_CLEAR, "", 1),
+        "deferred_present_registration": context_source.replace(
+            "  instance_ = wgpu_ghost->getInstance();",
+            "  wgpu_ghost->setPresentQueueEnqueue([](WGPUGhostContext::QueuedPresent) {});\n"
+            "  instance_ = wgpu_ghost->getInstance();",
+            1,
+        ),
     }
     wm_mutations = {
         "webgpu_reactivation": wm_source.replace(
@@ -184,26 +155,25 @@ def main() -> int:
         "reactivation_call": wm_source.replace("  wm_window_clear_drawable(wm);", "", 1),
     }
     ghost_source_mutations = {
-        "queued_present": ghost_source.replace(
-            "if (present_queue_enqueue_) {", "if (false) {", 1
+        "present_bypass": ghost_source.replace(
+            "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;",
+            "return GHOST_kSuccess;",
+            1,
         ),
-        "queued_completion": ghost_source.replace("on_complete(committed);", "", 1),
-        "queued_setter": ghost_source.replace(
-            "void GHOST_ContextWGPUWeb::setPresentQueueEnqueue(PresentQueueEnqueue enqueue)",
-            "void GHOST_ContextWGPUWeb::disabledPresentQueueEnqueue(PresentQueueEnqueue enqueue)",
+        "deferred_present_signature": ghost_source.replace(
+            "bool GHOST_ContextWGPUWeb::presentBackbuffer()",
+            "bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)",
             1,
         ),
     }
     ghost_header_mutations = {
-        "queued_alias": ghost_header.replace(
-            "using PresentQueueEnqueue = std::function<void(QueuedPresent present)>;", "", 1
-        ),
-        "queued_member": ghost_header.replace("PresentQueueEnqueue present_queue_enqueue_;", "", 1),
-        "queued_signature": ghost_header.replace(
-            "bool presentBackbuffer(PresentCompletion on_complete = {});",
-            "bool presentBackbuffer();",
+        "deferred_present_alias": ghost_header.replace(
+            "  bool presentBackbuffer();",
+            "  using PresentCompletion = std::function<void(bool success)>;\n"
+            "  bool presentBackbuffer();",
             1,
         ),
+        "present_signature": ghost_header.replace("bool presentBackbuffer();", "", 1),
     }
     escaped = [
         name
@@ -229,7 +199,7 @@ def main() -> int:
         print("BW_M4_RESIZE_SOURCE_FAIL mutation escaped: " + ",".join(escaped))
         return 1
 
-    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=14 mutations=14")
+    print("BW_M4_RESIZE_SOURCE_PASS sources=4 checks=12 mutations=11")
     return 0
 
 

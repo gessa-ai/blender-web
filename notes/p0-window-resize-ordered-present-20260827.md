@@ -1,14 +1,16 @@
 <!-- SPDX-FileCopyrightText: 2026 blender-web contributors -->
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# P0-E ordered window presentation candidate — 2026-08-27
+# P0-E ordered window presentation candidate — REJECTED 2026-08-27
 
 ## Outcome
 
-Patch 0288 queues the browser's persistent-backbuffer surface blit behind every draw/write already
-reserved in the WebGPU backend FIFO. It is a hardware-pending candidate for the Apple resize pixel
-failure, not closure: P0-E still requires 10/10 zero-input shrinks with the full grid, Cube, and
-gizmo visible.
+Patch 0288 queued the browser's persistent-backbuffer surface blit behind every draw/write already
+reserved in the WebGPU backend FIFO. The resulting `e3d284c7da0e` generation hard-aborted during
+boot on 10/10 Apple M4 Pro attempts, before P0-E could be evaluated. Patch 0289 retires this design
+and restores the byte-identical `94cccc1` synchronous-present generation. This note preserves the
+experiment and its trace correction; it is not an active candidate. See
+`notes/p0-boot-crash-ordered-present-rollback-20260827.md`.
 
 ## Trace correction and root cause
 
@@ -24,7 +26,7 @@ The same trace identifies `overlay_background` as an offscreen target (`window_t
 `OCIO_Display` and the latest direct draw target the 1100x640 window. Replacing 900x547 with
 1100x640 would therefore corrupt a valid region pass.
 
-The stronger ordering defect is at submission rather than encoding. Blender's WebGPU helpers
+The rejected experiment hypothesized an ordering defect at submission rather than encoding. Blender's WebGPU helpers
 encode commands immediately, but their `queue.Submit` calls remain in `OrderedQueueScheduler`
 until asynchronous browser error scopes settle. `GHOST_ContextWGPUWeb::swapBufferRelease()` used
 to bypass that scheduler and synchronously submit its backbuffer-to-surface blit. It could therefore
@@ -32,12 +34,13 @@ present an intermediate backbuffer before the frame's content submissions reache
 later input creates another present after the pending content settles, matching the driver's
 instant recovery under orbit.
 
-The browser GPU context now installs a queue-enqueue callback on its GHOST context. At
+Patch 0288 installed a queue-enqueue callback on its GHOST context. At
 `swapBufferRelease()`, the blit enters the same FIFO after all prior frame operations. Once it
 reaches the head, surface acquire, encode, and submit remain synchronous within that callback's
 browser turn, preserving the already-verified swapchain-texture lifetime fix. Teardown clears the
 only callback capturing the backend scheduler. The standalone GHOST harness installs no callback
-and keeps its immediate presentation path.
+and kept its immediate presentation path. Hardware boot evidence rejected that cross-frame seam;
+patch 0289 removes it rather than carrying an unusable P0-E candidate forward.
 
 ## Evidence
 

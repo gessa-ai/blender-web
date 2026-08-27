@@ -1790,3 +1790,18 @@ semantic hardware pixels for closure. See
 `upstream/source/blender/windowmanager/intern/wm_draw.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
 `sandbox/m4-resize-recovery/verify_source.py`.
+
+## Class 122 — a synchronous window swap cannot become an asynchronous backend callback
+
+Signature: frame submissions validate asynchronously, so routing the final surface blit through
+their FIFO appears to restore GPU order. The platform swap then reports success before it acquires,
+encodes, or submits anything; later WM frame epochs can begin while the prior swap is still a
+backend-owned callback. Device-free queue-order tests stay green, but the hardware product can
+hard-abort in unrelated-looking Blender allocation code because the platform lifetime contract has
+already been crossed. Keep surface acquire, blit, submit, and result propagation inside GHOST's
+synchronous `swapBufferRelease()` browser turn. Solve earlier submission ordering without moving
+that boundary, and require a real-hardware boot before accepting any replacement. Preserve rejected
+experiments in numbered history, but add an explicit rollback patch and forbid their callback seam
+in the live source contract. See `platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
+`patches/0289-gpu-webgpu-restore-synchronous-window-present.patch`, and
+`notes/p0-boot-crash-ordered-present-rollback-20260827.md`.

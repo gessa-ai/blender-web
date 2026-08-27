@@ -56,12 +56,6 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
  public:
   /** Called once after the selected device-only or presentable initialization settles. */
   using ReadyCallback = std::function<void(bool success)>;
-  /** Completion passed through the backend's ordered queue to one deferred present. */
-  using PresentCompletion = std::function<void(bool success)>;
-  /** One present operation accepted by the backend's ordered queue. */
-  using QueuedPresent = std::function<void(PresentCompletion on_complete)>;
-  /** Backend-owned enqueue boundary installed while its GPU context is alive. */
-  using PresentQueueEnqueue = std::function<void(QueuedPresent present)>;
 
   GHOST_ContextWGPUWeb(const GHOST_ContextParams &context_params,
                        const char *canvas_selector,
@@ -88,10 +82,6 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
    * immediately; the work completes off the event loop.
    */
   void initAsync(uint32_t width, uint32_t height, ReadyCallback on_ready);
-
-  /** Route window presentation through the backend queue after the frame's draws. An empty
-   * callback restores the immediate path used by the standalone GHOST harness. */
-  void setPresentQueueEnqueue(PresentQueueEnqueue enqueue);
 
   bool isReady() const
   {
@@ -211,9 +201,9 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   void ensureBackbuffer();
   /* Lazily build the fullscreen-triangle present pipeline (once). */
   void ensurePresentPipeline();
-  /* Present: acquire, render-pass blit, and submit the offscreen back-buffer onto the current
-   * surface texture synchronously within one browser turn. */
-  bool presentBackbuffer(PresentCompletion on_complete = {});
+  /* Present: render-pass blit the offscreen back-buffer onto the surface's current texture
+   * and submit, within the caller's rAF tick (swapBufferRelease). */
+  bool presentBackbuffer();
 
   std::string canvas_selector_;
   ghost_web::DrawingContextMode mode_ = ghost_web::DrawingContextMode::PresentableWindow;
@@ -247,8 +237,6 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   wgpu::BindGroupLayout present_bgl_;
   bool present_pipeline_pending_ = false;
   bool present_pending_ = false;
-  PresentQueueEnqueue present_queue_enqueue_;
-
   ReadyCallback on_ready_;
   bool ready_ = false;
   bool initialization_settled_ = false;

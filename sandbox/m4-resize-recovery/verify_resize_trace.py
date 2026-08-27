@@ -111,10 +111,7 @@ def validate(
         raise ValueError("batch trace does not cover direct/indirect ordinary and layered draws")
     require_once(immediate, batch_call, "immediate trace capture")
 
-    present = method(
-        context,
-        "bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)",
-    )
+    present = method(context, "bool GHOST_ContextWGPUWeb::presentBackbuffer()")
     for token in (
         "ghost_web::redraw_trace_active(redraw_trace_episode)",
         "ghost_web::redraw_trace_snapshot()",

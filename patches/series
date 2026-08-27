@@ -1170,3 +1170,6 @@
 # 0288: queue the browser surface blit behind every asynchronously validated
 # draw/write submission so presentation cannot expose an intermediate backbuffer.
 0288-gpu-webgpu-ordered-window-present.patch
+# 0289: hardware rollback of 0288. Keep GHOST's acquire/blit/submit inside the
+# synchronous WM swap boundary; deferred cross-frame presentation hard-aborts boot.
+0289-gpu-webgpu-restore-synchronous-window-present.patch

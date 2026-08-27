@@ -345,16 +345,6 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()
   return GHOST_kSuccess;
 }
 
-void GHOST_ContextWGPUWeb::setPresentQueueEnqueue(PresentQueueEnqueue enqueue)
-{
-  const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
-  auto owner_execution = lifetime->enter();
-  if (!owner_execution) {
-    return;
-  }
-  present_queue_enqueue_ = std::move(enqueue);
-}
-
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()
 {
   const std::shared_ptr<CallbackLifetime> lifetime = callback_lifetime_;
@@ -373,35 +363,16 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
     return GHOST_kFailure;
   }
   /* End-of-frame present (M4.T21): the backend renders every pass into the PERSISTENT
-   * offscreen back-buffer. Blender's browser backend installs present_queue_enqueue_, so
-   * its blit waits behind every asynchronously validated frame draw/write. The standalone
-   * GHOST harness has no backend scheduler and uses the immediate fallback below. In both
-   * paths, surface acquire+encode+submit remain synchronous within one browser turn, before
-   * that turn can expire the swap-chain texture. */
+   * offscreen back-buffer; here — the last op of the frame, still inside the WM's rAF
+   * tick (wm_draw.cc:1692 wm_window_swap_buffer_release) — we blit it onto the surface's
+   * current texture and submit once. The browser then auto-presents that texture on
+   * event-loop yield. Because acquire+copy+submit all happen in-tick and nothing else
+   * ever references the surface, the per-frame "Destroyed texture … WebgpuSwapChainTexture
+   * used in a submit" family (725x/boot pre-M4.T21) cannot occur. */
   if (!deviceIsUsable()) {
     return GHOST_kFailure;
   }
   if (mode_ == ghost_web::DrawingContextMode::DeviceOnly) {
-    return GHOST_kSuccess;
-  }
-  if (present_queue_enqueue_) {
-    const std::shared_ptr<CallbackLifetime> present_lifetime = callback_lifetime_;
-    present_queue_enqueue_([present_lifetime](PresentCompletion done) mutable {
-      auto completion = std::make_shared<PresentCompletion>(std::move(done));
-      auto settle = [completion](const bool success) mutable {
-        if (*completion) {
-          PresentCompletion callback = std::move(*completion);
-          callback(success);
-        }
-      };
-      bool started = false;
-      const bool delivered = present_lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
-        started = owner.presentBackbuffer(settle);
-      });
-      if (!delivered || !started) {
-        settle(false);
-      }
-    });
     return GHOST_kSuccess;
   }
   return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;
@@ -913,7 +884,7 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
           });
 }
 
-bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)
+bool GHOST_ContextWGPUWeb::presentBackbuffer()
 {
   if (!deviceIsUsable() || surface_ == nullptr || present_pending_) {
     return false;
@@ -1044,9 +1015,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)
            requested_width,
            requested_height,
            backbuffer_width,
-           backbuffer_height,
-           on_complete = std::move(on_complete)](const bool valid) mutable {
-            bool committed = false;
+           backbuffer_height](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
               if (!ghost_web::device_state_allows_callback_work(device_state)) {
                 return;
@@ -1158,14 +1127,10 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)
               }
               /* ghost-keepalive advances only after the submission scope completes cleanly. */
               ghost_web::note_present();
-              committed = true;
             });
-            if (on_complete) {
-              on_complete(committed);
-            }
           });
-  /* The browser auto-presents `st.texture` when this invocation's browser turn yields. Acquire,
-   * render-pass encoding, and queue submission happen synchronously above; only the two
-   * error-scope results settle later, while present_pending_ prevents another transaction. */
+  /* The browser auto-presents `st.texture` when this rAF tick yields. Acquire, render-pass
+   * encoding, and queue submission happen synchronously above; only the two error-scope results
+   * settle later, while present_pending_ prevents another in-flight transaction. */
   return true;
 }

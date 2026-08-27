@@ -1878,8 +1878,8 @@ require_fixed_count 1 'ghost_web::fallback_device_loss_notify(' "$GHOST_SOURCE"
 require_fixed_count 5 \
   'ghost_web::device_state_allows_callback_work(device_state)' \
   "$GHOST_SOURCE"
-require_fixed_count 8 'lifetime->deliver' "$GHOST_SOURCE"
-require_fixed_count 10 'auto owner_execution = lifetime->enter();' "$GHOST_SOURCE"
+require_fixed_count 7 'lifetime->deliver' "$GHOST_SOURCE"
+require_fixed_count 9 'auto owner_execution = lifetime->enter();' "$GHOST_SOURCE"
 require_fixed_count 8 'auto owner_execution = lifetime->enter();' "$GHOST_HEADER"
 require_fixed_count 1 'ghost_web::scoped_handle_create(' "$GHOST_SOURCE"
 require_fixed_count 1 'ghost_web::present_pipeline_create_scoped(' "$GHOST_SOURCE"
@@ -1894,10 +1894,8 @@ require_fixed_count 1 'uint32_t requested_width_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'uint32_t requested_height_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pipeline_pending_ = false;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pending_ = false;' "$GHOST_HEADER"
-require_fixed_count 1 \
-  'using PresentQueueEnqueue = std::function<void(QueuedPresent present)>;' \
-  "$GHOST_HEADER"
-require_fixed_count 1 'PresentQueueEnqueue present_queue_enqueue_;' "$GHOST_HEADER"
+require_fixed_count 0 'PresentQueueEnqueue' "$GHOST_HEADER"
+require_fixed_count 0 'PresentCompletion' "$GHOST_HEADER"
 "$PYBIN" - "$GHOST_SOURCE" "$GHOST_HEADER" "$GHOST_TRANSACTION_HEADER" <<'PY'
 from pathlib import Path
 import sys
@@ -1940,7 +1938,6 @@ configure = method("void GHOST_ContextWGPUWeb::configureSurface(uint32_t width, 
 destructor = method("GHOST_ContextWGPUWeb::~GHOST_ContextWGPUWeb()")
 initialize = method("GHOST_TSuccess GHOST_ContextWGPUWeb::initializeDrawingContext()")
 release_native = method("GHOST_TSuccess GHOST_ContextWGPUWeb::releaseNativeHandles()")
-set_present_queue = method("void GHOST_ContextWGPUWeb::setPresentQueueEnqueue(")
 request_adapter = method("void GHOST_ContextWGPUWeb::requestAdapter()")
 request_device = method("void GHOST_ContextWGPUWeb::requestDevice()")
 finish = method("void GHOST_ContextWGPUWeb::finishSetup()")
@@ -1953,7 +1950,7 @@ release_drawing = method("GHOST_TSuccess GHOST_ContextWGPUWeb::releaseDrawingCon
 init_async = method("void GHOST_ContextWGPUWeb::initAsync(")
 device_usable = method("bool GHOST_ContextWGPUWeb::deviceIsUsable()")
 propagate_loss = method("void GHOST_ContextWGPUWeb::propagateDeviceLoss()")
-present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer(PresentCompletion on_complete)")
+present = method("bool GHOST_ContextWGPUWeb::presentBackbuffer()")
 fallback_loss_notify = method_from(transaction, "bool fallback_device_loss_notify(")
 present_transaction = method_from(transaction, "void present_frame_encode_submit_scoped(")
 
@@ -1966,7 +1963,6 @@ owner_boundary = "auto owner_execution = lifetime->enter();"
 for label, body in (
     ("initialize", initialize),
     ("release-native", release_native),
-    ("present-queue-setter", set_present_queue),
     ("swap-acquire", swap_acquire),
     ("swap-release", swap_release),
     ("activate", activate),
@@ -2195,27 +2191,12 @@ for needle in (
 if swap_release.count("return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;") != 1:
     raise SystemExit("ERROR: GHOST swap status does not propagate the immediate present result")
 for needle in (
-    "if (present_queue_enqueue_) {",
-    "present_queue_enqueue_([present_lifetime](PresentCompletion done)",
-    "started = owner.presentBackbuffer(settle);",
-    "if (!delivered || !started) {",
+    "present_queue_enqueue_",
+    "PresentCompletion",
+    "setPresentQueueEnqueue",
 ):
-    if swap_release.count(needle) != 1:
-        raise SystemExit(f"ERROR: GHOST swap lacks one ordered present boundary: {needle}")
-queued_at = swap_release.index("if (present_queue_enqueue_) {")
-immediate_at = swap_release.index(
-    "return presentBackbuffer() ? GHOST_kSuccess : GHOST_kFailure;"
-)
-if queued_at >= immediate_at:
-    raise SystemExit("ERROR: immediate present can overtake the backend queue")
-for needle in (
-    "on_complete = std::move(on_complete)",
-    "bool committed = false;",
-    "committed = true;",
-    "on_complete(committed);",
-):
-    if present.count(needle) != 1:
-        raise SystemExit(f"ERROR: queued present does not settle exactly once: {needle}")
+    if needle in swap_release or needle in present or needle in header:
+        raise SystemExit(f"ERROR: deferred present seam remains reachable: {needle}")
 if swap_acquire.count("deviceIsUsable()") != 1 or swap_release.count("deviceIsUsable()") != 1:
     raise SystemExit("ERROR: GHOST swap boundaries do not propagate terminal device state")
 for needle in (
@@ -2427,7 +2408,7 @@ if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
 fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 44 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 43 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -2471,9 +2452,6 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ordered_queue_scheduler_failure_drain PASS followers=100000 executed=0 canceled=100000 failed_epochs=100000 retained_peak=1 retained_final=0 stack=bounded retry=accepted' \
-       "$stdout_file" ||
-     ! grep -qx \
-       'CONTRACT frame_present_queue_order PASS cases=3 order=draw-present-write retry=1' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT transient_resource_gate PASS cases=3 settle_orders=2 error_object=blocked dependent=1 canceled=2 retry=accepted' \
@@ -2542,7 +2520,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=43 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 frame_present_queue_cases=3 ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 ordered_scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=42 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 ordered_scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

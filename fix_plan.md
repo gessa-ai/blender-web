@@ -2958,6 +2958,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Browser-free self-check is 26 positive/17 negative; a live Linux adapter-absent probe and a stale
   generation both reject before evidence allocation. This adds no pixel evidence and does not
   change the relinked candidate. See `notes/p0-window-resize-hardware-acceptance-20260827.md`.
+  **Acceptance stability hardening 2026-08-27 (`4abbbb8`):** the live producer no longer accepts
+  the first isolated non-flat shrink sample. It now requires three consecutive painted samples
+  inside the unchanged 24-second bound, resets the streak on any stale frame, records the required
+  streak in the receipt contract, and bases the final attempt verdict on the completed streak.
+  The fail-first seam and final 31-positive/17-negative self-check reject both a one-frame recovery
+  followed by stale pixels and an incomplete two-frame streak. REUSE and the pinned-container
+  regression are green at their existing boundaries. The exact relinked candidate is unchanged.
   **Local ordering audit 2026-08-27:** the complete backend queue-mutation census still permits no
   direct `Submit`, `WriteBuffer`, or `WriteTexture` outside the ordered helpers; every async encode
   reserves its ticket before scope settlement, and the GHOST surface blit remains the sole separate

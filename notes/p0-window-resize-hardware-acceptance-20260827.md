@@ -14,6 +14,11 @@ Playwright and PNGJS imports named two driver-local absolute trees. The new prod
 checkout and product paths, resolves the already-pinned browser dependencies, and writes confined
 immutable evidence without retaining host-local paths in its receipt.
 
+Commit `4abbbb8` strengthens that same producer without changing the runtime candidate. A single
+non-flat sample is no longer enough: resize acceptance requires three consecutive painted samples
+inside the existing 24-second window, and any intervening stale frame resets the streak. This
+prevents a transient correct present followed by the filed grey overlay from false-greening P0-E.
+
 ## Contract
 
 - exact Node 22.16.0, Playwright 1.61.1, PNGJS 7.0.0, and Chromium 149.0.7827.55;
@@ -24,8 +29,9 @@ immutable evidence without retaining host-local paths in its receipt.
   CAPTURE manifest, and the manifest served by the tested loopback origin;
 - exactly ten fresh browser contexts at DPR 1; each establishes a 1280x720 semantic VIEW_3D
   baseline, dismisses the splash, shrinks to 1100x640, then emits no keyboard or pointer input;
-- the driver's calibrated fixed-region decision (`dominantFraction < 0.95`) with a 24-second hard
-  bound, retaining every boot, baseline, and shrink PNG for grid/Cube/gizmo visual audit;
+- the driver's calibrated fixed-region decision (`dominantFraction < 0.95`) with three consecutive
+  passing samples inside a 24-second hard bound, retaining every boot, baseline, and shrink PNG for
+  grid/Cube/gizmo visual audit;
 - zero unhandled page errors and zero scissor, encode, submit, present-transaction, or device-loss
   diagnostics in every passing attempt.
 
@@ -53,10 +59,16 @@ The self-check and any software-adapter run are explicitly nonreceipts.
   `ledger/buildlogs/20260827T081236-1796119.log`.
 - Authoritative pinned-container regression restores M0 to 6/6 and leaves M1-M8 at their existing
   strict receipt/APPLY/browser/tier boundaries: `ledger/buildlogs/20260827T081310-1797248.log`.
+- The stability seam fails first at `ledger/buildlogs/20260827T102740-1908944.log`; the final
+  31-positive/17-negative self-check rejects transient and incomplete painted streaks at
+  `ledger/buildlogs/20260827T102930-1909623.log`.
+- REUSE 6.2.0 remains green at `ledger/buildlogs/20260827T103029-1910711.log`; pinned-container
+  regression restores M0 to 6/6 and preserves the named M1-M8 boundaries at
+  `ledger/buildlogs/20260827T103113-1911237.log`.
 
 ## Boundary
 
-This unit changes no runtime source and performs no relink. It creates no hardware adapter, pixel
+These units change no runtime source and perform no relink. They create no hardware adapter, pixel
 receipt, profile, APPLY/public bundle, result promotion, tolerance, golden, blacklist, deferral,
 tag, or launch claim. P0-E stays open against exact CAPTURE generation
 `e3d284c7da0e11f09beada6c9a4b788044b0c8f9715dcee42bc80839d70c8238` until the driver-operated

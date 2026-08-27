@@ -3013,6 +3013,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the hardware-known-clean-boot `94cccc1` artifacts (`.wasm.orig` `aed9ba633f08...`), which are a
   safe diagnostic baseline but already known not to clear P0-E's grey-overdraw pixel bar. The next
   P0-E candidate must start from this safe baseline and preserve synchronous GHOST presentation.
+  **Completed-frame barrier candidate 2026-08-27 (`86d2ef6`, patch 0290):** the browser backend now
+  appends a resize-only tail barrier to its existing ordered queue and GHOST withholds interim
+  surface copies until all earlier frame submissions have settled. One synthetic WindowUpdate then
+  performs the actual acquire/encode/submit synchronously inside `swapBufferRelease()` before the
+  barrier releases later work, preserving P0-H's safe boundary. The 44-case native/Wasm model,
+  44-mutation recovery contract, 31-mutation trace contract, canonical replay, producer
+  self-checks, and REUSE are green. The exact fallback product completes shrink/restore with
+  episodes `0/1/2`, presents `16/17/18`, exactly one ordered present per resize, two complete draw
+  plans, and zero rejection/loss (`20260827T112204-1953387`). **RELINKED windowed-opt @ `86d2ef6`:**
+  `.wasm.orig` is 119,152,777 bytes at SHA-256
+  `2f45a8ed62ebeee3a9a80587ceca7e6918cb5c79c59f5a8fcd8219bb4934ffc6`.
   **Still open:** the driver must require 10/10 consecutive Apple hardware shrinks to full idle
   grid+Cube+gizmo pixels with zero input before closing P0-E, cutting APPLY/public bytes, or
   tagging; patch 0286 remains baked in for any failing-run trace. See
@@ -3022,7 +3033,8 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `notes/p0-window-resize-draw-trace-20260827.md` and
   `notes/p0-window-resize-backbuffer-reactivation-20260827.md` and
   `notes/p0-window-resize-trace-consumer-20260827.md` and
-  `notes/p0-window-resize-ordered-present-20260827.md`.
+  `notes/p0-window-resize-ordered-present-20260827.md` and
+  `notes/p0-window-resize-present-barrier-20260827.md`.
 - [x] **P0-F-M4-POINTER-LOCK-PROMISE-REJECTION [ghost-web] (`34bad47`):** both sanctioned Apple
   CAPTURE scenarios otherwise pass but report `WrongDocumentError` page errors when trusted MMB
   orbit reaches Emscripten's discarded `requestPointerLock()` Promise. The first-script shell now
@@ -3135,12 +3147,12 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   profiles remain mandatory before APPLY, tagging, or publication. See
   `notes/release-tagged-build-correspondence-20260826.md`.
 - [~] **P1-M4-M8-SPLIT-CAPTURE-PRODUCT [driver, claimed_by: root]:** the current windowed build is
-  freshly relinked at implementation commit `0155397` as a strict CAPTURE generation with
-  120,497,886-byte instrumented Wasm, 119,144,751-byte `.wasm.orig` at SHA-256
-  `b8b2a682ff09e5eb80ba125b3fb85cd4fe65193c3eabd577e8a794c9e6a9fda6`, and a schema-1 PASS
+  freshly relinked at implementation commit `86d2ef6` as a strict CAPTURE generation with
+  120,506,081-byte instrumented Wasm, 119,152,777-byte `.wasm.orig` at SHA-256
+  `2f45a8ed62ebeee3a9a80587ceca7e6918cb5c79c59f5a8fcd8219bb4934ffc6`, and a schema-1 PASS
   clean-build manifest. Inventory preflight, the strict producer self-check, two-phase source
-  contract, locked no-work replay, deterministic regeneration, and exact-artifact fallback boot
-  are green. **Not resolved:**
+  contract, canonical replay, committed-state locked no-work, and exact-artifact fallback
+  shrink/restore are green. **Not resolved:**
   CAPTURE is non-shipping and has no deferred shard. The driver-operated Apple hardware rig must
   produce the exact success plus terminal-error profiles; only their accepted union can authorize
   the hash-bound APPLY relink. Any intervening relink requires new profiles. See

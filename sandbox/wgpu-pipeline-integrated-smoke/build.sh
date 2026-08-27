@@ -44,6 +44,7 @@ FIRST_PIXEL_SETTLE_CONTRACT="$HERE/first_pixel_settle_contract.py"
 FIRST_PIXEL_SETTLE_TEST="$HERE/first_pixel_settle_test.cc"
 VIEWPORT_CONTENT_LOADER_CONTRACT="$ROOT/sandbox/m4-viewport-content-loader/verify.py"
 RESIZE_TRACE_CONTRACT="$ROOT/sandbox/m4-resize-recovery/verify_resize_trace.py"
+BROWSER_SAME_TURN_CONTRACT="$ROOT/sandbox/m4-browser-same-turn-submission/verify.py"
 WGPU_PREINIT_SOURCE="$ROOT/platform_web/shell/wgpu-preinit-worker.js"
 DIAGNOSTICS_BOOTSTRAP_SOURCE="$ROOT/platform_web/shell/diagnostics-bootstrap.js"
 WGPU_PREINIT_TEST="$HERE/preinit_worker_test.mjs"
@@ -237,6 +238,7 @@ require_file "$GHOST_IME_QUEUE_HEADER"
 require_file "$GHOST_DISPLAY_HEADER"
 require_file "$FIRST_PIXEL_SETTLE_CONTRACT"
 require_file "$VIEWPORT_CONTENT_LOADER_CONTRACT"
+require_file "$BROWSER_SAME_TURN_CONTRACT"
 require_file "$FIRST_PIXEL_SETTLE_TEST"
 require_file "$GHOST_BASE_WINDOW_SOURCE"
 require_file "$GHOST_TYPES_SOURCE"
@@ -586,7 +588,9 @@ for path in sources:
 
 common_text = common.read_text(encoding="utf-8")
 for direct in (".Submit(", ".WriteBuffer(", ".WriteTexture("):
-    if common_text.count(direct) != 1:
+    # Browser and native paths intentionally share the same helper but use different timing:
+    # same-turn queue mutation in Wasm, validation-ordered scheduling on native Dawn.
+    if common_text.count(direct) != 2:
         raise SystemExit(f"ERROR: common queue boundary is ambiguous for {direct}")
 if common_text.count("device.PushErrorScope(") != 3:
     raise SystemExit("ERROR: command helper does not push validation/OOM/internal scopes")
@@ -1789,6 +1793,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$GHOST_SOURCE" --selfcheck
 "$PYBIN" "$VIEWPORT_CONTENT_LOADER_CONTRACT" --selfcheck
 "$PYBIN" "$RESIZE_TRACE_CONTRACT" --selfcheck
+"$PYBIN" "$BROWSER_SAME_TURN_CONTRACT" --selfcheck
 "$PYBIN" "$CLIPBOARD_BRIDGE_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" "$GHOST_SYSTEM_HEADER" --selfcheck
 "$PYBIN" "$IME_BRIDGE_CONTRACT" \
@@ -2490,7 +2495,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        'CONTRACT compute_command_transaction PASS cases=6 accepted=1 error_objects=2 encoder_fail=closed pass_fail=closed command_fail=closed' \
        "$stdout_file" ||
      ! grep -qx \
-       'CONTRACT buffer_command_transaction PASS cases=6 accepted=1 error_objects=2 ordered=1 canceled=5 retry_epochs=6' \
+       'CONTRACT buffer_command_transaction PASS cases=6 accepted=1 error_objects=2 browser=same-turn native=validation-ordered retry_epochs=6' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ghost_window_publication_transaction PASS cases=5 context=2 windows=3 accepted=2 invalid=destroyed publication=atomic' \

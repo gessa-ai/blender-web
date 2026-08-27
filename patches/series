@@ -1188,3 +1188,6 @@
 # 0294: keep the loader authoritative until a validated surface submission carries
 # an encoded VIEW_3D background, stock grid, and final display composite.
 0294-gpu-webgpu-viewport-content-ready.patch
+# 0295: issue browser command submissions and direct queue writes in JavaScript call order;
+# asynchronous error-scope settlement remains diagnostic and never delays the surface copy.
+0295-gpu-webgpu-browser-same-turn-submission.patch

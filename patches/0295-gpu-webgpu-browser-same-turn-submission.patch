@@ -1,0 +1,135 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
+index 75e2336e12d5c52eb91a815aeabfc98566ab5245..bf68e679d1834bdbf87a2fe864976c83a7d4a99e 100644
+--- a/source/blender/gpu/webgpu/wgpu_common.hh
++++ b/source/blender/gpu/webgpu/wgpu_common.hh
+@@ -1061,6 +1061,63 @@ inline void command_encode_submit_scoped(const InstanceT &instance,
+   const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
+   const std::string operation_label = label ? label : "";
+   const std::string encode_label = operation_label.empty() ? "" : operation_label + " encoding";
++#ifdef __EMSCRIPTEN__
++  /* Browser error-scope results are asynchronous diagnostics, not a queue-order primitive.
++   * Deferring Submit until PopErrorScope settles lets WM reach its synchronous surface copy while
++   * ordinary frame command buffers are still absent from the queue. Submit the finished command
++   * buffer in this call, under nested scopes, so JavaScript call order is WebGPU queue order; join
++   * both scope results later for load-action/error reporting. The browser copies command-buffer
++   * references during Submit, so no callback owns a transient surface or encoder handle. */
++  (void)scheduler;
++  webgpu_error_scopes_push(device);
++  auto encoder = device.CreateCommandEncoder();
++  using CommandBufferT = decltype(encoder.Finish());
++  CommandBufferT command_buffer;
++  bool handles_valid = encoder != nullptr;
++  if (handles_valid) {
++    using EncodeResult = decltype(std::forward<EncodeFn>(encode)(encoder));
++    if constexpr (std::is_same_v<EncodeResult, bool>) {
++      handles_valid = std::forward<EncodeFn>(encode)(encoder);
++    }
++    else {
++      std::forward<EncodeFn>(encode)(encoder);
++    }
++  }
++  if (handles_valid) {
++    command_buffer = encoder.Finish();
++    handles_valid = command_buffer != nullptr;
++  }
++
++  const bool submitted = handles_valid && queue != nullptr;
++  struct BrowserCommandResult {
++    std::atomic<int> pending{0};
++    std::atomic<bool> valid{true};
++    std::shared_ptr<CompleteT> completion;
++  };
++  auto result = std::make_shared<BrowserCommandResult>();
++  result->pending.store(submitted ? 2 : 1, std::memory_order_relaxed);
++  result->valid.store(submitted, std::memory_order_relaxed);
++  result->completion = completion;
++  auto settle = [result](const bool scope_valid) {
++    if (!scope_valid) {
++      result->valid.store(false, std::memory_order_release);
++    }
++    if (result->pending.fetch_sub(1, std::memory_order_acq_rel) == 1) {
++      (*result->completion)(result->valid.load(std::memory_order_acquire));
++    }
++  };
++
++  if (submitted) {
++    webgpu_error_scopes_push(device);
++    queue.Submit(1, &command_buffer);
++    /* Pop the nested submission scopes before the enclosing encoding scopes. */
++    webgpu_error_scopes_pop(instance,
++                            device,
++                            operation_label.empty() ? "" : operation_label + " submission",
++                            settle);
++  }
++  webgpu_error_scopes_pop(instance, device, encode_label, std::move(settle));
++#else
+   OrderedQueueScheduler::Ticket ticket = scheduler.reserve();
+ 
+   webgpu_error_scopes_push(device);
+@@ -1120,6 +1177,7 @@ inline void command_encode_submit_scoped(const InstanceT &instance,
+             },
+             [completion]() { (*completion)(false); });
+       });
++#endif
+ }
+ 
+ /** Encode a short-lived pass inside the same scoped, ordered command transaction. */
+@@ -1188,6 +1246,21 @@ inline void queue_write_buffer_scoped(const InstanceT &instance,
+   using CompleteT = std::decay_t<CompleteFn>;
+   const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
+   const std::string operation_label = label ? label : "buffer write";
++#ifdef __EMSCRIPTEN__
++  /* Queue::WriteBuffer copies its source bytes before returning. Keep browser queue chronology in
++   * the calling turn and use PopErrorScope only to report whether that already-issued write was
++   * accepted; deferring the write would let a later command submission overtake its uniforms. */
++  (void)scheduler;
++  if (queue == nullptr || buffer == nullptr || bytes.empty()) {
++    (*completion)(false);
++    return;
++  }
++  webgpu_error_scopes_push(device);
++  queue.WriteBuffer(buffer, offset, bytes.data(), bytes.size());
++  webgpu_error_scopes_pop(instance, device, operation_label, [completion](const bool valid) {
++    (*completion)(valid);
++  });
++#else
+   scheduler.enqueue(
+       [instance,
+        device,
+@@ -1214,6 +1287,7 @@ inline void queue_write_buffer_scoped(const InstanceT &instance,
+             });
+       },
+       [completion]() { (*completion)(false); });
++#endif
+ }
+ 
+ /** Preserve queue chronology for a direct texture write while its error scopes settle. */
+@@ -1243,6 +1317,20 @@ inline void queue_write_texture_scoped(const InstanceT &instance,
+   using CompleteT = std::decay_t<CompleteFn>;
+   const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
+   const std::string operation_label = label ? label : "texture write";
++#ifdef __EMSCRIPTEN__
++  /* WebGPU copies the upload bytes during WriteTexture. Issue the mutation in program order and
++   * retain only its asynchronous validation result, mirroring queue_write_buffer_scoped(). */
++  (void)scheduler;
++  if (queue == nullptr || destination.texture == nullptr || bytes.empty()) {
++    (*completion)(false);
++    return;
++  }
++  webgpu_error_scopes_push(device);
++  queue.WriteTexture(&destination, bytes.data(), bytes.size(), &layout, &extent);
++  webgpu_error_scopes_pop(instance, device, operation_label, [completion](const bool valid) {
++    (*completion)(valid);
++  });
++#else
+   scheduler.enqueue(
+       [instance,
+        device,
+@@ -1270,6 +1358,7 @@ inline void queue_write_texture_scoped(const InstanceT &instance,
+             });
+       },
+       [completion]() { (*completion)(false); });
++#endif
+ }
+ 
+ /** Allocate the std140 `{layer, viewport}` uniform shared by the direct and indirect

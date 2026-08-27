@@ -2883,8 +2883,9 @@ bool compute_command_transaction_contract()
           result = valid;
         });
 #ifdef __EMSCRIPTEN__
-    if (!require(!completed && trace.submits == 0,
-                 "compute command waits for browser error scopes"))
+    const bool handles_valid = test.encoder_success && test.pass_success && test.command_success;
+    if (!require(!completed && trace.submits == int(handles_valid),
+                 "browser compute submission occurs before asynchronous scope settlement"))
     {
       return false;
     }
@@ -2893,15 +2894,22 @@ bool compute_command_transaction_contract()
     const bool encoded = test.encoder_success && test.pass_success && test.command_success &&
                          test.encode_scope_success;
     const bool expect_success = encoded && test.submit_scope_success;
+#ifdef __EMSCRIPTEN__
+    const int expected_submits = int(handles_valid);
+    const int expected_scope_count = handles_valid ? 6 : 3;
+#else
+    const int expected_submits = int(encoded);
+    const int expected_scope_count = encoded ? 6 : 3;
+#endif
     if (!require(completed && result == expect_success, "compute command transaction result") ||
         !require(trace.encoder_creates == 1, "compute command encoder creation count") ||
         !require(trace.pass_begins == test.expected_begins, "compute pass begin count") ||
         !require(trace.pass_work == test.expected_work, "compute pass dependent work count") ||
         !require(trace.pass_ends == test.expected_ends, "compute pass end count") ||
         !require(trace.finishes == test.expected_finishes, "compute command finish count") ||
-        !require(trace.submits == int(encoded), "compute command submit count") ||
-        !require(scope.pushes() == (encoded ? 6 : 3), "compute command scope push count") ||
-        !require(scope.pops() == (encoded ? 6 : 3), "compute command scope pop count") ||
+        !require(trace.submits == expected_submits, "compute command submit count") ||
+        !require(scope.pushes() == expected_scope_count, "compute command scope push count") ||
+        !require(scope.pops() == expected_scope_count, "compute command scope pop count") ||
         !require(scheduler.pending_count() == 0, "compute command scheduler drained"))
     {
       return false;
@@ -3081,8 +3089,12 @@ bool buffer_command_transaction_contract()
         },
         [&]() { canceled_followups++; });
 #ifdef __EMSCRIPTEN__
-    if (!require(!completed && ordered_followups + canceled_followups == int(&test - cases.data()),
-                 "later queue work waits for browser validation"))
+    const bool handles_valid = test.encoder_success && test.encode_success &&
+                               test.command_success;
+    if (!require(!completed && trace.submits == int(handles_valid) &&
+                     ordered_followups == int(&test - cases.data()) + 1 &&
+                     canceled_followups == 0,
+                 "browser queue order is synchronous before validation reporting"))
     {
       return false;
     }
@@ -3091,11 +3103,16 @@ bool buffer_command_transaction_contract()
     const bool encoded = test.encoder_success && test.encode_success && test.command_success &&
                          test.encode_scope_success;
     const bool expect_success = encoded && test.submit_scope_success;
+#ifdef __EMSCRIPTEN__
+    const int expected_submits = int(handles_valid);
+#else
+    const int expected_submits = int(encoded);
+#endif
     if (!require(completed && result == expect_success, "buffer command transaction result") ||
         !require(trace.encoder_creates == 1, "buffer command encoder creation count") ||
         !require(trace.copies == test.expected_copies, "buffer command copy count") ||
         !require(trace.finishes == test.expected_finishes, "buffer command finish count") ||
-        !require(trace.submits == int(encoded), "buffer command submit count") ||
+        !require(trace.submits == expected_submits, "buffer command submit count") ||
         !require(scheduler.pending_count() == 0, "buffer command scheduler drained"))
     {
       return false;
@@ -3109,14 +3126,19 @@ bool buffer_command_transaction_contract()
   }
 
   if (!require(accepted == 1, "buffer command transaction success census") ||
+#ifdef __EMSCRIPTEN__
+      !require(ordered_followups == 6 && canceled_followups == 0,
+               "browser same-turn submissions do not stall later queue calls") ||
+#else
       !require(ordered_followups == 1 && canceled_followups == 5,
-               "failed epoch cancels later queue work") ||
+               "native failed epoch cancels later queue work") ||
+#endif
       !require(retry_epochs == 6, "new epoch retries after failure"))
   {
     return false;
   }
   std::puts("CONTRACT buffer_command_transaction PASS cases=6 accepted=1 error_objects=2 "
-            "ordered=1 canceled=5 retry_epochs=6");
+            "browser=same-turn native=validation-ordered retry_epochs=6");
   return true;
 }
 

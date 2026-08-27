@@ -74,6 +74,29 @@ and 6-second settled screenshots are byte-identical SHA-256
 There are zero page errors, queue rejections, or completeness warnings. This is strong diagnostic
 evidence for the candidate, not hardware closure.
 
+## Receipt-wide completeness census
+
+The backend diagnostic added by patch 0281 was already shader-agnostic: every failed
+`bind_group_entries_complete()` call printed the shader plus sorted `surviving`, `assembled`,
+`missing`, and `extra` sets. The sanctioned profile capture narrowed that generic signal back to an
+allowlist of only `overlay_grid_next`, `overlay_outline_detect`,
+`overlay_antialiasing_pipeline`, and `OCIO_Display`. Consequently, an arbitrary later shader could
+drop a draw while both hardware receipts still passed.
+
+That was not hypothetical. The accepted Apple success-r2 console contains 18 warnings that the old
+capture ignored: one `draw_resource_finalize`, nine `draw_visibility_compute`, and eight
+`draw_command_generate`. All three signatures are missing binding 1 with no extra binding. These
+compute shaders are relevant to the later missing-mesh symptom, but the log alone does not prove
+that they caused P0-I and this iteration does not repair their resource assembly.
+
+Commit `3056f7c` removes the shader-name allowlist. Both capture scenarios now collect every unique
+incomplete-group signature, preserve all four exact binding sets plus a duplicate count and the
+first raw line, retain malformed matching diagnostics fail-closed, and require the resulting
+`incompleteBindGroups` array to be empty. The producer self-check covers the three real Apple names,
+arbitrary future names, duplicated signatures, and malformed diagnostics. Under this strengthened
+contract the old success-r2 run would correctly fail; fresh current-generation Apple receipts must
+report an empty census before APPLY or release promotion.
+
 ## Evidence and acceptance
 
 - Apple screenshots: `~/bw-logs/mac-capture-evidence-20260827-extrude-artifact/`.
@@ -98,6 +121,10 @@ evidence for the candidate, not hardware closure.
 - Committed-state relink reproduced all five tested artifact hashes byte-for-byte, followed by
   locked no-work: `ledger/buildlogs/20260827T224438-2524458.log` and
   `ledger/buildlogs/20260827T224636-2525105.log`.
+- Capture allowlist fail-first, pinned producer self-check, and two-phase source verification:
+  `ledger/buildlogs/20260827T225613-2531382.log`,
+  `ledger/buildlogs/20260827T225833-2532789.log`, and
+  `ledger/buildlogs/20260827T225836-2532827.log`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

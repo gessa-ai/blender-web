@@ -1906,3 +1906,16 @@ cold-boot pixels as the closure bar. See
 `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
 `sandbox/m4-viewport-content-loader/verify.py`.
+
+## Class 129 — a shader-name receipt allowlist turns new draw drops invisible
+
+Signature: a backend-wide completeness diagnostic prints every shader and exact expected/assembled
+binding sets, but the hardware receipt recognizes only the few shader names known when the gate was
+written. A later compute, text, icon, or geometry variant can then hit the identical hard draw-drop
+path while the receipt remains green. Match the invariant diagnostic rather than a shader allowlist,
+parse and preserve its shader plus surviving/assembled/missing/extra sets, aggregate identical
+signatures with counts, and fail closed on malformed matching lines. Self-check both the historical
+names and arbitrary future names. A zero-warning receipt does not prove pixels by itself, but a
+nonzero warning can never be compatible with a complete frame while every caller abandons the draw.
+See `upstream/source/blender/gpu/webgpu/wgpu_shader.cc` and
+`sandbox/m8-wasm-split/capture_blender_profile.mjs`.

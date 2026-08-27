@@ -3266,7 +3266,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   errors/rejections, a thin guide, intact icons, and byte-identical clean 0.5/3/6-second settles.
   **Not resolved:** Apple must show thin constraint guides and clean six-second settles for
   extrude/move/rotate/scale, then retain boot/orbit and P0-E 10x resize/stress. The fallback trace
-  binds no pixels. See
+  binds no pixels. **Receipt gate corrected (`3056f7c`):** patch 0281's backend warning already
+  named every shader and printed exact surviving/assembled/missing/extra sets, but the hardware
+  capture accepted only four hard-coded shader names. The accepted success-r2 Apple log therefore
+  ignored 18 real failures: `draw_resource_finalize` (1), `draw_visibility_compute` (9), and
+  `draw_command_generate` (8), each missing binding 1. Both capture scenarios now aggregate and
+  fail on every incomplete shader signature, including arbitrary future names and malformed
+  diagnostics. This makes the receipt honest; it does not fix or hardware-close those missing
+  resources. Current-generation acceptance additionally requires `incompleteBindGroups=[]`. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -60,6 +60,7 @@ POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
 BUTTON_CURSOR_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_button_cursor.py"
 INPUT_REDRAW_RECOVERY_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_input_redraw_recovery.py"
+RAPID_INPUT_DRAIN_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_rapid_input_drain.py"
 AUXILIARY_CACHE_REDRAW_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py"
 KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
 IME_NONCOMPOSING_KEY_CONTRACT="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/source_contract.py"
@@ -263,6 +264,7 @@ require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
 require_file "$BUTTON_CURSOR_CONTRACT"
 require_file "$INPUT_REDRAW_RECOVERY_CONTRACT"
+require_file "$RAPID_INPUT_DRAIN_CONTRACT"
 require_file "$AUXILIARY_CACHE_REDRAW_CONTRACT"
 require_file "$KEYBOARD_FOCUS_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_CONTRACT"
@@ -1774,6 +1776,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
 "$PYBIN" "$FOCUS_STATE_CONTRACT" "$GHOST_EVENT_BRIDGE_SOURCE" --selfcheck
 "$PYBIN" "$BUTTON_CURSOR_CONTRACT" --self-check
 "$PYBIN" "$INPUT_REDRAW_RECOVERY_CONTRACT" --self-check
+"$PYBIN" "$RAPID_INPUT_DRAIN_CONTRACT" --self-check
 "$PYBIN" "$AUXILIARY_CACHE_REDRAW_CONTRACT" --self-check
 "$PYBIN" "$KEYBOARD_FOCUS_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" \

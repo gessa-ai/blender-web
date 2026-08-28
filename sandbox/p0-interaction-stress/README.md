@@ -14,6 +14,21 @@ and GHOST press coordinates are identical. Moving back into the canvas between t
 prevents a tooltip from turning the automation's settle delay into a false input failure; the
 fallback diagnostic also allows the real workspace layout time instead of queuing later clicks.
 
+`rapid_freeze_repro.mjs` separately preserves the driver's 350 ms screenshot cadence around the
+exact Numpad-view, Select All, Deselect All, orbit, click, second-orbit, and move sequence. Those
+immediate frames are diagnostic samples, not a liveness verdict: a busy WM worker can leave several
+queued actions behind an unchanged canvas. The producer therefore requires, within 12 seconds,
+changed pixels together with advancing WM-tick, presentation, and input-retry counters, then sends
+one independent recovery orbit and requires the same four-way advance again. It reports whether
+the rapid action frames were identical without treating identity alone as failure. Page or browser
+lifecycle errors always fail. The default lane is SwiftShader and binds no pixels; on the sanctioned
+Apple diagnostic host set `BW_P0_RAPID_HARDWARE=1` to omit the software-adapter flags and record the
+adapter info. Hardware mode rejects fallback, absent-status, incomplete-info, and software-token
+adapters before the interaction sequence. A timeout preserves every rapid sample, the last live
+counter snapshot, pointer-lock diagnostics, and the native GHOST event tail so failure can be
+localized without another relink. This focused diagnostic does not replace the immutable hardware
+receipt below.
+
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a
 second MMB orbit. Each changing view is coupled to settled Blender-native perspective/rotation and
@@ -58,6 +73,10 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_capture_contract.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_immediate_dashed_trace.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_rapid_input_drain.py --self-check
+DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
+  harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 ```
 
 The analyzer requires a running product, semantic pixels through the final orbit, Blender-native

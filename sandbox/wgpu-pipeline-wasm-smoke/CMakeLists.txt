@@ -111,6 +111,7 @@ add_executable(ghost_first_pixel_settle_wasm
 )
 target_compile_definitions(ghost_first_pixel_settle_wasm PRIVATE
   BW_GHOST_DISPLAY_STATE_HEADER="${BW_GHOST_DISPLAY_STATE_HEADER}"
+  BW_GHOST_PRESENT_TRANSACTION_HEADER="${BW_GHOST_PRESENT_TRANSACTION_HEADER}"
 )
 set_target_properties(ghost_first_pixel_settle_wasm PROPERTIES
   CXX_STANDARD 17

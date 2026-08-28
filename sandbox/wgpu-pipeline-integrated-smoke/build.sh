@@ -1916,7 +1916,8 @@ require_fixed_count 1 'bool backbuffer_pending_ = false;' "$GHOST_HEADER"
 require_fixed_count 1 'uint32_t requested_width_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'uint32_t requested_height_ = 0;' "$GHOST_HEADER"
 require_fixed_count 1 'bool present_pipeline_pending_ = false;' "$GHOST_HEADER"
-require_fixed_count 1 'bool present_pending_ = false;' "$GHOST_HEADER"
+require_fixed_count 1 'class PresentSettlementLatch {' "$GHOST_TRANSACTION_HEADER"
+require_fixed_count 1 'ghost_web::PresentSettlementLatch present_settlement_;' "$GHOST_HEADER"
 require_fixed_count 0 'PresentQueueEnqueue' "$GHOST_HEADER"
 require_fixed_count 0 'PresentCompletion' "$GHOST_HEADER"
 "$PYBIN" - "$GHOST_SOURCE" "$GHOST_HEADER" "$GHOST_TRANSACTION_HEADER" <<'PY'
@@ -2043,7 +2044,7 @@ if "this" in lost_callback:
 for pending in (
     "backbuffer_pending_ = false;",
     "present_pipeline_pending_ = false;",
-    "present_pending_ = false;",
+    "present_settlement_.reset();",
 ):
     if propagate_loss.count(pending) != 1:
         raise SystemExit(f"ERROR: terminal device loss does not clear pending state: {pending}")
@@ -2151,10 +2152,15 @@ if configuration_positions != sorted(configuration_positions):
     raise SystemExit("ERROR: surface configuration is not validated before resize publication")
 
 for needle in (
+    "if (present_settlement_.defer_if_pending()) {",
+    "present_settlement_.begin();",
     "ghost_web::present_frame_encode_submit_scoped(",
     'popErrorScopes(device, "present command encoding"',
     'popErrorScopes(device, "present queue submission"',
     "queue.Submit(1, &command_buffer);",
+    "const bool retry_after_settlement = owner.present_settlement_.complete();",
+    "if (retry_after_settlement && !owner.presentBackbuffer()) {",
+    "ghost_web::request_redraw_retry();",
     "if (!valid) {",
     "ghost_web::note_present();",
 ):
@@ -2162,7 +2168,12 @@ for needle in (
         raise SystemExit(f"ERROR: present transaction lacks one exact boundary: {needle}")
 
 source_positions = [
+    present.index("if (present_settlement_.defer_if_pending()) {"),
+    present.index("present_settlement_.begin();"),
     present.index("queue.Submit(1, &command_buffer);"),
+    present.index("const bool retry_after_settlement = owner.present_settlement_.complete();"),
+    present.index("if (retry_after_settlement && !owner.presentBackbuffer()) {"),
+    present.index("ghost_web::request_redraw_retry();"),
     present.index("if (!valid) {"),
     present.index("ghost_web::note_present();"),
 ]
@@ -2383,7 +2394,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=68 periodic=15 late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=77 periodic=15 late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh present_settlement=coalesced-direct-retry present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

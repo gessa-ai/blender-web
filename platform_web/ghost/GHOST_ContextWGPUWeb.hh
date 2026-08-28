@@ -254,7 +254,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   wgpu::RenderPipeline present_pipeline_;
   wgpu::BindGroupLayout present_bgl_;
   bool present_pipeline_pending_ = false;
-  bool present_pending_ = false;
+  ghost_web::PresentSettlementLatch present_settlement_;
   ReadyCallback on_ready_;
   bool ready_ = false;
   bool initialization_settled_ = false;

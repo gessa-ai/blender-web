@@ -644,7 +644,7 @@ void GHOST_ContextWGPUWeb::propagateDeviceLoss()
   configured_ = false;
   backbuffer_pending_ = false;
   present_pipeline_pending_ = false;
-  present_pending_ = false;
+  present_settlement_.reset();
   present_pipeline_ = nullptr;
   present_bgl_ = nullptr;
   backbuffer_ = nullptr;
@@ -984,7 +984,10 @@ void GHOST_ContextWGPUWeb::ensurePresentPipeline()
 
 bool GHOST_ContextWGPUWeb::presentBackbuffer()
 {
-  if (!deviceIsUsable() || surface_ == nullptr || present_pending_) {
+  if (!deviceIsUsable() || surface_ == nullptr) {
+    return false;
+  }
+  if (present_settlement_.defer_if_pending()) {
     return false;
   }
 
@@ -1071,7 +1074,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint32_t requested_height = requested_height_;
   const uint32_t backbuffer_width = backbuffer_w_;
   const uint32_t backbuffer_height = backbuffer_h_;
-  present_pending_ = true;
+  present_settlement_.begin();
   ghost_web::present_frame_encode_submit_scoped(
           [device]() { pushErrorScopes(device); },
           [source_texture]() { return source_texture.CreateView(); },
@@ -1132,12 +1135,18 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            backbuffer_width,
            backbuffer_height](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
+              const bool retry_after_settlement = owner.present_settlement_.complete();
               if (!ghost_web::device_state_allows_callback_work(device_state)) {
                 return;
               }
-              owner.present_pending_ = false;
               if (reconfigure_after_present) {
                 owner.configured_ = false;
+              }
+              if (retry_after_settlement && !owner.presentBackbuffer()) {
+                /* The completed command sampled an older backbuffer. This callback is a fresh
+                 * browser turn, so acquire and submit a new surface blit of the retained latest
+                 * frame now. Fall back to the bounded WM redraw path only when that cannot start. */
+                ghost_web::request_redraw_retry();
               }
               if (!valid) {
                 std::printf("WGPUWeb: present transaction rejected\n");
@@ -1251,6 +1260,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
           });
   /* The browser auto-presents `st.texture` when this rAF tick yields. Acquire, render-pass
    * encoding, and queue submission happen synchronously above; only the two error-scope results
-   * settle later, while present_pending_ prevents another in-flight transaction. */
+   * settle later. Newer swaps coalesce behind present_settlement_ and submit one fresh surface
+   * blit when the in-flight transaction settles. */
   return true;
 }

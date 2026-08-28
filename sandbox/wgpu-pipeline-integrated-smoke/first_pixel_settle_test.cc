@@ -12,8 +12,12 @@
 #ifndef BW_GHOST_DISPLAY_STATE_HEADER
 #  error "BW_GHOST_DISPLAY_STATE_HEADER must name the shipping web display-state header"
 #endif
+#ifndef BW_GHOST_PRESENT_TRANSACTION_HEADER
+#  error "BW_GHOST_PRESENT_TRANSACTION_HEADER must name the shipping GHOST transaction header"
+#endif
 
 #include BW_GHOST_DISPLAY_STATE_HEADER
+#include BW_GHOST_PRESENT_TRANSACTION_HEADER
 
 namespace {
 
@@ -33,6 +37,48 @@ bool require(const bool condition, const char *message)
 
 int main()
 {
+  ghost_web::PresentSettlementLatch present_settlement;
+  if (!require(!present_settlement.pending() && !present_settlement.retry_requested(),
+               "a fresh present settlement latch is idle") ||
+      !require(!present_settlement.defer_if_pending() &&
+                   !present_settlement.retry_requested(),
+               "an idle latch does not suppress or schedule a present"))
+  {
+    return 1;
+  }
+  present_settlement.begin();
+  if (!require(present_settlement.pending() && !present_settlement.retry_requested(),
+               "begin publishes exactly one pending present") ||
+      !require(present_settlement.defer_if_pending() &&
+                   present_settlement.retry_requested(),
+               "a suppressed swap requests a settlement retry") ||
+      !require(present_settlement.defer_if_pending() &&
+                   present_settlement.retry_requested(),
+               "multiple suppressed swaps coalesce behind one retry") ||
+      !require(present_settlement.complete() && !present_settlement.pending() &&
+                   !present_settlement.retry_requested(),
+               "settlement consumes the coalesced retry exactly once") ||
+      !require(!present_settlement.complete(),
+               "duplicate settlement cannot emit another retry"))
+  {
+    return 1;
+  }
+  present_settlement.begin();
+  if (!require(!present_settlement.complete() && !present_settlement.pending(),
+               "a present with no suppressed successor settles quietly"))
+  {
+    return 1;
+  }
+  present_settlement.begin();
+  present_settlement.defer_if_pending();
+  present_settlement.reset();
+  if (!require(!present_settlement.pending() && !present_settlement.retry_requested() &&
+                   !present_settlement.complete(),
+               "terminal reset cancels pending and deferred presentation state"))
+  {
+    return 1;
+  }
+
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
@@ -691,8 +737,9 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh "
+      "present_settlement=coalesced-direct-retry "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 68 ? 0 : 1;
+  return checks == 77 ? 0 : 1;
 }

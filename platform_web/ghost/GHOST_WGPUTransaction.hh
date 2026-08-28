@@ -405,6 +405,62 @@ inline bool surface_resize_present_coherent(const bool configured,
          surface_height == authoritative_height;
 }
 
+/**
+ * Coalesce swap requests that arrive while a browser present transaction waits for asynchronous
+ * validation scopes. The in-flight command samples the backbuffer before those later draws, so
+ * settlement must request one fresh surface blit whenever at least one newer swap was suppressed.
+ */
+class PresentSettlementLatch {
+ public:
+  bool pending() const
+  {
+    return pending_;
+  }
+
+  bool retry_requested() const
+  {
+    return retry_requested_;
+  }
+
+  /** Return true when the caller must defer this swap behind the in-flight transaction. */
+  bool defer_if_pending()
+  {
+    if (!pending_) {
+      return false;
+    }
+    retry_requested_ = true;
+    return true;
+  }
+
+  void begin()
+  {
+    pending_ = true;
+    retry_requested_ = false;
+  }
+
+  /** Settle the transaction and return one coalesced request to present newer backbuffer work. */
+  bool complete()
+  {
+    if (!pending_) {
+      return false;
+    }
+    const bool retry_requested = retry_requested_;
+    pending_ = false;
+    retry_requested_ = false;
+    return retry_requested;
+  }
+
+  void reset()
+  {
+    pending_ = false;
+    retry_requested_ = false;
+  }
+
+ private:
+  bool pending_ = false;
+  bool retry_requested_ = false;
+};
+
 /** Publish drawing-context validity only from the context setter's exact status. */
 template<typename StatusT, typename InitializeFn>
 bool drawing_context_initialize_if_valid(const StatusT success, InitializeFn &&initialize)

@@ -19,6 +19,18 @@ class DiagnosticError(RuntimeError):
 REQUIRED_STEPS = (
     "00-baseline",
     "01-preflight-modeling-click",
+    "02a-isolated-front",
+    "02b-isolated-right",
+    "02c-isolated-top",
+    "02d-isolated-camera",
+    "02e-isolated-camera-orbit-cancelled",
+    "02f-isolated-select-all",
+    "02g-isolated-deselect-all",
+    "02h-isolated-orbit-before-click",
+    "02i-isolated-click-select",
+    "02j-isolated-move",
+    "02k-isolated-undo",
+    "02l-isolated-orbit-after-click",
     "03a-reference-pose-3s",
     "03b-reference-pose-6s",
     "10-after-orbit",
@@ -34,6 +46,16 @@ REQUIRED_STEPS = (
     "65a-post-orbit-known-pose-3s",
     "65b-post-orbit-known-pose-6s",
 )
+ISOLATED_VIEW_KEYS = ["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]
+ISOLATED_VIEW_STEPS = (
+    "02a-isolated-front",
+    "02b-isolated-right",
+    "02c-isolated-top",
+    "02d-isolated-camera",
+    "02e-isolated-camera-orbit-cancelled",
+)
+ISOLATED_VIEW_EFFECTS = ["view-change"] * 4 + ["cancelled-in-camera-view"]
+DESELECTED_STEPS = {"02g-isolated-deselect-all", "02h-isolated-orbit-before-click"}
 HARDWARE_EVIDENCE_CLASS = "apple-hardware-interaction-v1"
 FALLBACK_EVIDENCE_CLASS = "diagnostic-software-fallback"
 ADAPTER_CONTRACT = "hardware-webgpu-adapter-v1"
@@ -68,7 +90,7 @@ def is_sha256(value: object) -> bool:
 
 def validate_evidence_binding(document: dict[str, Any]) -> str:
     require(
-        document.get("schema") == "blender-web.p0ij-interaction-stress.v1",
+        document.get("schema") == "blender-web.p0ij-interaction-stress.v2",
         "interaction evidence schema differs",
     )
     evidence_class = document.get("evidenceClass")
@@ -130,6 +152,21 @@ def validate_evidence_binding(document: dict[str, Any]) -> str:
     return evidence_class
 
 
+def validate_move_undo(operator: object, label: str) -> tuple[list[Any], list[Any], list[Any]]:
+    require(isinstance(operator, dict), f"{label} operator canary is absent")
+    require(operator.get("operation") == "G X 2 Enter; Control+Z",
+            f"{label} operator recipe changed")
+    before = operator.get("before")
+    moved = operator.get("moved")
+    undone = operator.get("undone")
+    require(all(isinstance(value, list) and len(value) == 3 for value in
+                (before, moved, undone)), f"{label} operator vectors are invalid")
+    require(abs(moved[0] - (before[0] + 2)) < 0.0001,
+            f"{label} move did not reach native Cube state")
+    require(undone == before, f"{label} undo did not restore native Cube state")
+    return before, moved, undone
+
+
 def validate(document: dict[str, Any]) -> dict[str, int]:
     evidence_class = validate_evidence_binding(document)
     product = document.get("product")
@@ -140,6 +177,10 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         type(product.get("presents")) is int and product["presents"] > 0,
         "present counter is invalid",
     )
+    require(type(product.get("viewportContent")) is int and product["viewportContent"] >= 1,
+            "qualified VIEW_3D present counter is invalid")
+    require(type(product.get("redrawRetries")) is int and product["redrawRetries"] > 0,
+            "redraw-retry generation is invalid")
 
     hard_warnings = document.get("hardCompletenessWarnings")
     require(isinstance(hard_warnings, list), "hard completeness warning census is absent")
@@ -180,13 +221,152 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         state = step.get("state")
         require(isinstance(state, dict), f"{name}: Blender-native state is absent")
         require(state.get("cube_in_view") is True, f"{name}: Cube projection is outside VIEW_3D")
-        require(state.get("selected") is True, f"{name}: selected Cube state was lost")
+        if name in DESELECTED_STEPS:
+            require(state.get("selected") is False and state.get("selected_count") == 0,
+                    f"{name}: isolated deselection state differs")
+        else:
+            require(state.get("selected") is True, f"{name}: selected Cube state was lost")
+            require(type(state.get("selected_count")) is int and state["selected_count"] >= 1,
+                    f"{name}: native selection count is invalid")
         require(isinstance(state.get("view"), dict), f"{name}: VIEW_3D region is absent")
+        require(type(step.get("redrawRetries")) is int and step["redrawRetries"] >= 0,
+                f"{name}: redraw-retry generation is absent")
 
     preflight = steps["01-preflight-modeling-click"]
     require(preflight.get("workspaceRequested") == "Modeling", "preflight target changed")
     require(preflight.get("workspaceAccepted") is True, "clean Modeling workspace click failed")
     require(preflight["state"].get("workspace") == "Modeling", "preflight workspace state differs")
+
+    contract = document.get("contract")
+    require(isinstance(contract, dict), "interaction contract is absent")
+    require(contract.get("isolatedFreeze") == {
+        "viewKeys": ISOLATED_VIEW_KEYS,
+        "selectionCounts": [3, 0, 1],
+        "hardwareSelectionMode": "viewport",
+        "operator": "G X 2 Enter; Control+Z",
+        "orbits": 2,
+    }, "isolated freeze contract differs")
+    isolated = document.get("isolationCanary")
+    require(isinstance(isolated, dict), "isolated freeze canary is absent")
+    require(isolated.get("viewKeys") == ISOLATED_VIEW_KEYS,
+            "isolated view-key sequence differs")
+    views = isolated.get("views")
+    require(isinstance(views, list) and len(views) == len(ISOLATED_VIEW_KEYS),
+            "isolated native view census differs")
+    require([view.get("key") for view in views] == ISOLATED_VIEW_KEYS,
+            "isolated native view order differs")
+    require([view.get("sha256") for view in views] ==
+            [steps[name].get("sha256") for name in ISOLATED_VIEW_STEPS],
+            "isolated view screenshot identities differ")
+    require(len(set(view.get("sha256") for view in views[:4])) == 4,
+            "isolated changing views did not all change pixels")
+    require(views[4].get("sha256") == views[3].get("sha256"),
+            "cancelled camera-view orbit unexpectedly changed pixels")
+    sequences = [view.get("sequence") for view in views]
+    require(all(type(sequence) is int and sequence > 0 for sequence in sequences),
+            "isolated native view sequence is invalid")
+    require(sequences[:4] == sorted(set(sequences[:4])) and sequences[4] >= sequences[3],
+            "isolated native view sequence did not follow change/change/change/change/no-op")
+    perspectives = [view.get("perspective") for view in views]
+    require(perspectives[:3] == ["ORTHO", "ORTHO", "ORTHO"],
+            "isolated orthographic view states differ")
+    require(perspectives[3:] == ["CAMERA", "CAMERA"],
+            "isolated camera/cancelled-orbit states differ")
+    rotations = [view.get("rotation") for view in views]
+    require(all(isinstance(rotation, list) and len(rotation) == 4 for rotation in rotations),
+            "isolated native view rotations are invalid")
+    require(len({json.dumps(rotation) for rotation in rotations[:4]}) == 4 and
+            rotations[4] == rotations[3],
+            "isolated native view rotations do not bind the camera-view cancellation")
+    require([view.get("expectedEffect") for view in views] == ISOLATED_VIEW_EFFECTS,
+            "isolated view-effect census differs")
+    for key, name, view in zip(ISOLATED_VIEW_KEYS, ISOLATED_VIEW_STEPS, views, strict=True):
+        require(steps[name].get("isolatedInput") == key,
+                f"{name}: isolated input binding differs")
+        require(steps[name].get("expectedEffect") == view.get("expectedEffect"),
+                f"{name}: isolated view-effect binding differs")
+        require(steps[name]["state"].get("view_perspective") == view.get("perspective") and
+                steps[name]["state"].get("view_rotation") == view.get("rotation"),
+                f"{name}: isolated native view record differs")
+
+    expected_selection_counts = (
+        [3, 0, 1] if evidence_class == HARDWARE_EVIDENCE_CLASS else [3, 0, 3]
+    )
+    require(isolated.get("selectionCounts") == expected_selection_counts,
+            "isolated selection/deselection/post-orbit liveness states differ")
+    require(steps["02f-isolated-select-all"]["state"].get("selected_count") == 3,
+            "isolated select-all did not select the default scene")
+    require(steps["02i-isolated-click-select"]["state"].get("selected_count") ==
+            expected_selection_counts[-1] and
+            steps["02i-isolated-click-select"]["state"].get("active_object") == "Cube",
+            "isolated post-orbit selection liveness differs")
+    click = isolated.get("click")
+    require(isinstance(click, dict) and type(click.get("expectedX")) is int,
+            "isolated click coordinate canary is absent")
+    require(click.get("domX") == click["expectedX"] and
+            click.get("ghostX") == click["expectedX"],
+            "isolated DOM/GHOST click coordinates differ")
+    if evidence_class == HARDWARE_EVIDENCE_CLASS:
+        require(click.get("selectionMode") == "viewport",
+                "hardware evidence used a non-viewport selection recovery")
+        require(click.get("fallbackLivenessInput") is None,
+                "hardware evidence claims a fallback liveness input")
+    else:
+        require(click.get("selectionMode") in {"viewport", "fallback-select-all"},
+                "fallback selection mode is invalid")
+        if click.get("selectionMode") == "fallback-select-all":
+            require(click.get("fallbackLivenessInput") == "A",
+                    "fallback Select All liveness input is absent")
+
+    selection_restore = isolated.get("fallbackSelectionRestore")
+    if click.get("selectionMode") == "fallback-select-all":
+        require(isinstance(selection_restore, dict) and
+                selection_restore.get("method") == "outliner-click",
+                "fallback Cube-only Outliner restore is absent")
+        require(selection_restore.get("expectedX") == selection_restore.get("domX") ==
+                selection_restore.get("ghostX") and
+                selection_restore.get("expectedY") == selection_restore.get("domY") and
+                selection_restore.get("expectedGhostY") == selection_restore.get("ghostY"),
+                "fallback Cube-only Outliner coordinates differ")
+        require(type(selection_restore.get("sequence")) is int and
+                selection_restore["sequence"] > 0 and
+                selection_restore.get("selectedCount") == 1 and
+                selection_restore.get("activeObject") == "Cube",
+                "fallback Outliner restore did not leave Cube selected alone")
+    else:
+        require(selection_restore is None,
+                "non-fallback evidence claims a fallback selection restore")
+
+    for label, field, before_name, after_name in (
+        ("pre-click", "preClickOrbit", "02g-isolated-deselect-all",
+         "02h-isolated-orbit-before-click"),
+        ("post-click", "postClickOrbit", "02k-isolated-undo",
+         "02l-isolated-orbit-after-click"),
+    ):
+        orbit = isolated.get(field)
+        require(isinstance(orbit, dict), f"isolated {label} orbit canary is absent")
+        require(orbit.get("beforeRotation") != orbit.get("afterRotation"),
+                f"isolated {label} orbit did not change native view rotation")
+        require(orbit.get("beforeSha256") == steps[before_name].get("sha256") and
+                orbit.get("afterSha256") == steps[after_name].get("sha256"),
+                f"isolated {label} orbit screenshot binding differs")
+        require(orbit.get("beforeSha256") != orbit.get("afterSha256"),
+                f"isolated {label} orbit did not change pixels")
+        retries = orbit.get("redrawRetries")
+        require(isinstance(retries, list) and len(retries) == 2 and
+                all(type(value) is int and value >= 0 for value in retries) and
+                retries[1] > retries[0],
+                f"isolated {label} orbit did not publish an input redraw retry")
+        require(type(orbit.get("pixelSettleMs")) is int and
+                0 <= orbit["pixelSettleMs"] <= 12000,
+                f"isolated {label} orbit did not recover pixels within the bounded retry")
+
+    _, isolated_moved, isolated_undone = validate_move_undo(
+        isolated.get("operator"), "isolated post-click",
+    )
+    require(steps["02j-isolated-move"]["state"].get("location") == isolated_moved and
+            steps["02k-isolated-undo"]["state"].get("location") == isolated_undone,
+            "isolated operator step states differ from the canary")
 
     settled_6s = steps["61c-frame-selected-6s"]
     require(
@@ -247,18 +427,12 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
             require(0 <= fraction <= TEXT_REGION_CHANGED_FRACTION_LIMIT,
                     f"{name}: {region_name} differs from the reference")
 
-    operator = document.get("postStressOperatorCanary")
-    require(isinstance(operator, dict), "post-stress operator canary is absent")
-    require(operator.get("operation") == "G X 2 Enter; Control+Z",
-            "post-stress operator recipe changed")
-    before = operator.get("before")
-    moved = operator.get("moved")
-    undone = operator.get("undone")
-    require(all(isinstance(value, list) and len(value) == 3 for value in
-                (before, moved, undone)), "post-stress operator vectors are invalid")
-    require(abs(moved[0] - (before[0] + 2)) < 0.0001,
-            "post-stress move did not reach native Cube state")
-    require(undone == before, "post-stress undo did not restore native Cube state")
+    _, moved, undone = validate_move_undo(
+        document.get("postStressOperatorCanary"), "post-stress",
+    )
+    require(steps["62a-post-stress-move"]["state"].get("location") == moved and
+            steps["62b-post-stress-undo"]["state"].get("location") == undone,
+            "post-stress operator step states differ from the canary")
 
     workspace_steps = sorted([
         step for name, step in steps.items() if len(name) >= 3 and name[:2].isdigit() and name[0] == "4"
@@ -306,6 +480,7 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         "presents": product["presents"],
         "workspace_accepted": workspace_accepted,
         "workspace_attempted": len(workspace_transitions),
+        "isolated_views": len(views),
         "hardware": int(evidence_class == HARDWARE_EVIDENCE_CLASS),
     }
 
@@ -313,6 +488,8 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
 def synthetic_document() -> dict[str, Any]:
     steps = []
     stable_hashes = {
+        "02d-isolated-camera": "isolated-camera",
+        "02e-isolated-camera-orbit-cancelled": "isolated-camera",
         "03a-reference-pose-3s": "reference-pose",
         "03b-reference-pose-6s": "reference-pose",
         "61b-frame-selected-3s": "post-stress-pose",
@@ -325,6 +502,8 @@ def synthetic_document() -> dict[str, Any]:
         "mode": "OBJECT",
         "cube_in_view": True,
         "selected": True,
+        "selected_count": 1,
+        "active_object": "Cube",
         "location": [0.0, 0.0, 0.0],
         "rotation": [0.0, 0.0, 0.0],
         "scale": [1.0, 1.0, 1.0],
@@ -332,12 +511,49 @@ def synthetic_document() -> dict[str, Any]:
         "view_distance": 2.0,
         "view_location": [0.0, 0.0, 0.0],
         "view_rotation": [1.0, 0.0, 0.0, 0.0],
+        "view_perspective": "PERSP",
+    }
+    isolated_view_states = {
+        "02a-isolated-front": ("Numpad1", "ORTHO", [0.7071, -0.7071, 0.0, 0.0]),
+        "02b-isolated-right": ("Numpad3", "ORTHO", [0.5, -0.5, -0.5, -0.5]),
+        "02c-isolated-top": ("Numpad7", "ORTHO", [1.0, 0.0, 0.0, 0.0]),
+        "02d-isolated-camera": ("Numpad0", "CAMERA", [0.92, 0.1, 0.2, 0.3]),
+        "02e-isolated-camera-orbit-cancelled": (
+            "Numpad4", "CAMERA", [0.92, 0.1, 0.2, 0.3]
+        ),
     }
     for index, name in enumerate(REQUIRED_STEPS):
         state = copy.deepcopy(canonical_state)
+        metadata = {}
         if name == "01-preflight-modeling-click":
             state["workspace"] = "Modeling"
-        if name == "62a-post-stress-move":
+        if name in isolated_view_states:
+            key, perspective, rotation = isolated_view_states[name]
+            state["view_perspective"] = perspective
+            state["view_rotation"] = rotation
+            metadata["isolatedInput"] = key
+            metadata["expectedEffect"] = (
+                "cancelled-in-camera-view" if key == "Numpad4" else "view-change"
+            )
+        if name == "02f-isolated-select-all":
+            state["selected_count"] = 3
+        if name in {"02i-isolated-click-select", "02j-isolated-move", "02k-isolated-undo",
+                    "02l-isolated-orbit-after-click"}:
+            state["selected_count"] = 3
+        if name in {"02f-isolated-select-all", "02g-isolated-deselect-all"}:
+            state["view_perspective"] = "CAMERA"
+            state["view_rotation"] = [0.92, 0.1, 0.2, 0.3]
+        if name in DESELECTED_STEPS:
+            state["selected"] = False
+            state["selected_count"] = 0
+            if name == "02h-isolated-orbit-before-click":
+                state["view_perspective"] = "PERSP"
+                state["view_rotation"] = [0.8, 0.2, 0.3, 0.4]
+        if name in {"02i-isolated-click-select", "02j-isolated-move", "02k-isolated-undo"}:
+            state["view_rotation"] = [0.8, 0.2, 0.3, 0.4]
+        if name == "02l-isolated-orbit-after-click":
+            state["view_rotation"] = [0.7, 0.3, 0.4, 0.5]
+        if name in {"02j-isolated-move", "62a-post-stress-move"}:
             state["location"] = [2.0, 0.0, 0.0]
         steps.append(
             {
@@ -345,11 +561,13 @@ def synthetic_document() -> dict[str, Any]:
                 "sha256": stable_hashes.get(name, f"hash-{index}"),
                 "semanticPixels": {"quantizedColors": 256, "nonWhiteRatio": 0.9},
                 "state": state,
+                "redrawRetries": index * 10,
                 **(
                     {"workspaceRequested": "Modeling", "workspaceAccepted": True}
                     if name == "01-preflight-modeling-click"
                     else {}
                 ),
+                **metadata,
             }
         )
     workspaces = [
@@ -374,6 +592,8 @@ def synthetic_document() -> dict[str, Any]:
         "workspace": "Layout",
         "mode": "OBJECT",
         "selected": True,
+        "selectedCount": 1,
+        "activeObject": "Cube",
         "location": [0.0, 0.0, 0.0],
         "rotation": [0.0, 0.0, 0.0],
         "scale": [1.0, 1.0, 1.0],
@@ -381,6 +601,7 @@ def synthetic_document() -> dict[str, Any]:
         "viewDistance": 2.0,
         "viewLocation": [0.0, 0.0, 0.0],
         "viewRotation": [1.0, 0.0, 0.0, 0.0],
+        "viewPerspective": "PERSP",
     }
     same_pose = []
     for name, candidate in (
@@ -406,8 +627,20 @@ def synthetic_document() -> dict[str, Any]:
                 },
             },
         })
+    step_by_name = {step["name"]: step for step in steps}
+    isolated_views = []
+    for sequence, name in enumerate(ISOLATED_VIEW_STEPS, 1):
+        key, perspective, rotation = isolated_view_states[name]
+        isolated_views.append({
+            "key": key,
+            "expectedEffect": ISOLATED_VIEW_EFFECTS[sequence - 1],
+            "sequence": min(sequence, 4),
+            "perspective": perspective,
+            "rotation": rotation,
+            "sha256": step_by_name[name]["sha256"],
+        })
     return {
-        "schema": "blender-web.p0ij-interaction-stress.v1",
+        "schema": "blender-web.p0ij-interaction-stress.v2",
         "evidenceClass": FALLBACK_EVIDENCE_CLASS,
         "run": None,
         "source": {"path": "capture_diagnostic.mjs", "sha256": "a" * 64},
@@ -420,7 +653,22 @@ def synthetic_document() -> dict[str, Any]:
         },
         "adapter": None,
         "productIdentity": None,
-        "product": {"state": "running", "ticks": 10, "presents": 10},
+        "product": {
+            "state": "running",
+            "ticks": 10,
+            "presents": 10,
+            "viewportContent": 1,
+            "redrawRetries": 500,
+        },
+        "contract": {
+            "isolatedFreeze": {
+                "viewKeys": ISOLATED_VIEW_KEYS,
+                "selectionCounts": [3, 0, 1],
+                "hardwareSelectionMode": "viewport",
+                "operator": "G X 2 Enter; Control+Z",
+                "orbits": 2,
+            },
+        },
         "steps": steps,
         "states": [{}],
         "hardCompletenessWarnings": [],
@@ -431,6 +679,59 @@ def synthetic_document() -> dict[str, Any]:
             "expectedX": [352, 421, 494, 577, 657, 727, 805, 891, 288],
             "domClickX": [352, 421, 494, 577, 657, 727, 805, 891, 288],
             "ghostPressX": [352, 421, 494, 577, 657, 727, 805, 891, 288],
+        },
+        "isolationCanary": {
+            "viewKeys": ISOLATED_VIEW_KEYS,
+            "views": isolated_views,
+            "selectionCounts": [3, 0, 3],
+            "click": {
+                "expectedX": 500,
+                "domX": 500,
+                "ghostX": 500,
+                "selectionMode": "fallback-select-all",
+                "fallbackLivenessInput": "A",
+            },
+            "fallbackSelectionRestore": {
+                "method": "outliner-click",
+                "expectedX": 1150,
+                "expectedY": 106,
+                "expectedGhostY": 613,
+                "domX": 1150,
+                "domY": 106,
+                "ghostX": 1150,
+                "ghostY": 613,
+                "sequence": 24,
+                "selectedCount": 1,
+                "activeObject": "Cube",
+            },
+            "preClickOrbit": {
+                "beforeRotation": [0.92, 0.1, 0.2, 0.3],
+                "afterRotation": [0.8, 0.2, 0.3, 0.4],
+                "beforeSha256": step_by_name["02g-isolated-deselect-all"]["sha256"],
+                "afterSha256": step_by_name["02h-isolated-orbit-before-click"]["sha256"],
+                "redrawRetries": [
+                    step_by_name["02g-isolated-deselect-all"]["redrawRetries"],
+                    step_by_name["02h-isolated-orbit-before-click"]["redrawRetries"],
+                ],
+                "pixelSettleMs": 250,
+            },
+            "operator": {
+                "operation": "G X 2 Enter; Control+Z",
+                "before": [0.0, 0.0, 0.0],
+                "moved": [2.0, 0.0, 0.0],
+                "undone": [0.0, 0.0, 0.0],
+            },
+            "postClickOrbit": {
+                "beforeRotation": [0.8, 0.2, 0.3, 0.4],
+                "afterRotation": [0.7, 0.3, 0.4, 0.5],
+                "beforeSha256": step_by_name["02k-isolated-undo"]["sha256"],
+                "afterSha256": step_by_name["02l-isolated-orbit-after-click"]["sha256"],
+                "redrawRetries": [
+                    step_by_name["02k-isolated-undo"]["redrawRetries"],
+                    step_by_name["02l-isolated-orbit-after-click"]["redrawRetries"],
+                ],
+                "pixelSettleMs": 250,
+            },
         },
         "samePoseCanaries": same_pose,
         "postStressOperatorCanary": {
@@ -448,6 +749,13 @@ def hardware_document() -> dict[str, Any]:
     document["run"] = "apple-r1"
     document["stack"]["platform"] = "darwin"
     document["relevantWarnings"] = []
+    document["isolationCanary"]["click"]["selectionMode"] = "viewport"
+    document["isolationCanary"]["click"]["fallbackLivenessInput"] = None
+    document["isolationCanary"]["fallbackSelectionRestore"] = None
+    document["isolationCanary"]["selectionCounts"] = [3, 0, 1]
+    for name in ("02i-isolated-click-select", "02j-isolated-move", "02k-isolated-undo",
+                 "02l-isolated-orbit-after-click"):
+        step_named(document, name)["state"]["selected_count"] = 1
     document["adapter"] = {
         "contract": ADAPTER_CONTRACT,
         "status": "ACCEPTED",
@@ -491,6 +799,7 @@ def self_check() -> int:
     hardware = hardware_document()
     validate(hardware)
     mutations = (
+        lambda value: value.__setitem__("schema", "blender-web.p0ij-interaction-stress.v1"),
         lambda value: value["product"].__setitem__("state", "error"),
         lambda value: value["hardCompletenessWarnings"].append("incomplete"),
         lambda value: value["pageErrors"].append("pageerror"),
@@ -513,6 +822,24 @@ def self_check() -> int:
                            step["name"].startswith("4"))["state"].__setitem__(
                                "workspace", "Layout"),
         lambda value: value["workspaceInputCanary"]["ghostPressX"].__setitem__(0, 288),
+        lambda value: value["contract"]["isolatedFreeze"].__setitem__("orbits", 1),
+        lambda value: value["isolationCanary"]["viewKeys"].__setitem__(4, "Numpad5"),
+        lambda value: value["isolationCanary"]["views"][3].__setitem__(
+            "perspective", "PERSP"),
+        lambda value: value["isolationCanary"]["views"][1].__setitem__(
+            "sha256", value["isolationCanary"]["views"][0]["sha256"]),
+        lambda value: value["isolationCanary"].__setitem__("selectionCounts", [1, 0, 1]),
+        lambda value: value["isolationCanary"]["click"].__setitem__("ghostX", 501),
+        lambda value: value["isolationCanary"]["click"].__setitem__(
+            "selectionMode", "synthetic-recovery"),
+        lambda value: value["isolationCanary"]["preClickOrbit"].__setitem__(
+            "afterRotation", value["isolationCanary"]["preClickOrbit"]["beforeRotation"]),
+        lambda value: value["isolationCanary"]["postClickOrbit"].__setitem__(
+            "afterSha256", value["isolationCanary"]["postClickOrbit"]["beforeSha256"]),
+        lambda value: value["isolationCanary"]["operator"].__setitem__(
+            "moved", [0.0, 0.0, 0.0]),
+        lambda value: step_named(value, "02g-isolated-deselect-all")["state"].__setitem__(
+            "selected_count", 1),
         lambda value: value["samePoseCanaries"][0]["pixelDiff"].__setitem__(
             "viewChangedFraction", 0.2),
         lambda value: value["samePoseCanaries"][0]["pixelDiff"]["detailRegions"][
@@ -543,6 +870,8 @@ def self_check() -> int:
         lambda value: value["productIdentity"]["servedGeneration"].__setitem__(
             "originalWasmSha256", "0" * 64),
         lambda value: value["productIdentity"]["files"].pop("blender_browser.data"),
+        lambda value: value["isolationCanary"]["click"].__setitem__(
+            "selectionMode", "fallback-select-all"),
         lambda value: value.__setitem__("evidenceClass", FALLBACK_EVIDENCE_CLASS),
     )
     hardware_rejected = 0

@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SYSTEM_HEADER = ROOT / "platform_web/ghost/GHOST_SystemWeb.hh"
 SYSTEM_SOURCE = ROOT / "platform_web/ghost/GHOST_SystemWeb.cc"
 BRIDGE_SOURCE = ROOT / "platform_web/ghost/GHOST_EventBridgeWeb.cc"
+CONTEXT_SOURCE = ROOT / "platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 
 HELPER_DECL = "void requestInputRedrawRetry();"
 HELPER = "void GHOST_SystemWeb::requestInputRedrawRetry()"
@@ -27,6 +28,7 @@ KEY = (
     "const EmscriptenKeyboardEvent &e)"
 )
 REQUEST = "sys.requestInputRedrawRetry();"
+EXPORT = 'extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)'
 
 
 def method(source: str, signature: str) -> str:
@@ -51,7 +53,7 @@ def replace_once(source: str, old: str, new: str) -> str:
     return source.replace(old, new, 1)
 
 
-def validate(header: str, system: str, bridge: str) -> None:
+def validate(header: str, system: str, bridge: str, context: str) -> None:
     if header.count(HELPER_DECL) != 1:
         raise ValueError("system API lost the input redraw-retry declaration")
 
@@ -89,13 +91,17 @@ def validate(header: str, system: str, bridge: str) -> None:
     if bridge.count(REQUEST) != len(callbacks):
         raise ValueError("unexpected input redraw-retry call outside the four input bridges")
 
+    export = method(context, EXPORT)
+    if export.count("ghost_web::redraw_retry_generation()") != 1:
+        raise ValueError("browser diagnostic does not expose the live retry generation")
 
-def self_check(header: str, system: str, bridge: str) -> None:
-    validate(header, system, bridge)
+
+def self_check(header: str, system: str, bridge: str, context: str) -> None:
+    validate(header, system, bridge, context)
     helper = method(system, HELPER)
     callbacks = tuple(method(bridge, signature) for signature in (MOVE, BUTTON, WHEEL, KEY))
-    mutations: list[tuple[str, str, str]] = [
-        (header.replace(HELPER_DECL, "", 1), system, bridge),
+    mutations: list[tuple[str, str, str, str]] = [
+        (header.replace(HELPER_DECL, "", 1), system, bridge, context),
         (
             header,
             replace_once(
@@ -104,6 +110,7 @@ def self_check(header: str, system: str, bridge: str) -> None:
                 helper.replace("ghost_web::request_redraw_retry();", "", 1),
             ),
             bridge,
+            context,
         ),
         (
             header,
@@ -117,10 +124,11 @@ def self_check(header: str, system: str, bridge: str) -> None:
                 ),
             ),
             bridge,
+            context,
         ),
     ]
     for callback in callbacks:
-        mutations.append((header, system, replace_once(bridge, callback, callback.replace(REQUEST, "", 1))))
+        mutations.append((header, system, replace_once(bridge, callback, callback.replace(REQUEST, "", 1)), context))
 
     button = callbacks[1]
     moved_button_request = button.replace(f"  {REQUEST}\n", "", 1)
@@ -134,14 +142,26 @@ def self_check(header: str, system: str, bridge: str) -> None:
             header,
             system,
             replace_once(bridge, button, moved_button_request),
+            context,
         )
     )
-    mutations.append((header, system, bridge + f"\n{REQUEST}\n"))
+    mutations.append((header, system, bridge + f"\n{REQUEST}\n", context))
+    export = method(context, EXPORT)
+    mutations.append((
+        header,
+        system,
+        bridge,
+        replace_once(
+            context,
+            export,
+            export.replace("ghost_web::redraw_retry_generation()", "0", 1),
+        ),
+    ))
 
     rejected = 0
-    for mutated_header, mutated_system, mutated_bridge in mutations:
+    for mutated_header, mutated_system, mutated_bridge, mutated_context in mutations:
         try:
-            validate(mutated_header, mutated_system, mutated_bridge)
+            validate(mutated_header, mutated_system, mutated_bridge, mutated_context)
         except ValueError:
             rejected += 1
     if rejected != len(mutations):
@@ -156,10 +176,11 @@ def main() -> int:
     header = SYSTEM_HEADER.read_text(encoding="utf-8")
     system = SYSTEM_SOURCE.read_text(encoding="utf-8")
     bridge = BRIDGE_SOURCE.read_text(encoding="utf-8")
+    context = CONTEXT_SOURCE.read_text(encoding="utf-8")
     if args.self_check:
-        self_check(header, system, bridge)
+        self_check(header, system, bridge, context)
     else:
-        validate(header, system, bridge)
+        validate(header, system, bridge, context)
         print(
             "P0J_INPUT_REDRAW_RECOVERY_SOURCE_PASS "
             "events=move,button,wheel,key mode=bounded-retry"

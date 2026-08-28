@@ -44,6 +44,8 @@ const REQUIRED_PRODUCT_FILES = Object.freeze([
 ]);
 const SAME_POSE_CHANGED_FRACTION_LIMIT = 0.01;
 const TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002;
+const PIXEL_RECOVERY_TIMEOUT_MS = 12000;
+const ISOLATED_VIEW_KEYS = Object.freeze(["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]);
 
 function isDescendant(parent, candidate) {
   const rel = relative(resolve(parent), resolve(candidate));
@@ -292,7 +294,7 @@ class WM_OT_bwp0s_input_probe(bpy.types.Operator):
         return {'RUNNING_MODAL'}
     def modal(self,context,event):
         global _bwp0s_input_sequence
-        if event.type in {'MOUSEMOVE','LEFTMOUSE','MIDDLEMOUSE','WHEELUPMOUSE','WHEELDOWNMOUSE'}:
+        if event.type in {'MOUSEMOVE','LEFTMOUSE','MIDDLEMOUSE','WHEELUPMOUSE','WHEELDOWNMOUSE','A'}:
             _bwp0s_input_sequence+=1
             payload={
               "sequence":_bwp0s_input_sequence,
@@ -340,6 +342,8 @@ def _bwp0s_poll():
       "mode":obj.mode if obj else None,
       "verts":len(obj.data.vertices) if obj and obj.type == 'MESH' else None,
       "selected":bool(obj.select_get()) if obj else False,
+      "selected_count":len(bpy.context.selected_objects),
+      "active_object":bpy.context.view_layer.objects.active.name if bpy.context.view_layer.objects.active else None,
       "location":_bwp0s_round(obj.location) if obj else None,
       "rotation":_bwp0s_round(obj.rotation_euler) if obj else None,
       "scale":_bwp0s_round(obj.scale) if obj else None,
@@ -350,6 +354,7 @@ def _bwp0s_poll():
       "view_distance":round(float(rv3d.view_distance),5) if rv3d else None,
       "view_location":_bwp0s_round(rv3d.view_location) if rv3d else None,
       "view_rotation":_bwp0s_round(rv3d.view_rotation) if rv3d else None,
+      "view_perspective":rv3d.view_perspective if rv3d else None,
     }
     key=json.dumps({key:value for key,value in state.items() if key not in {"sequence","elapsed_ms"}},
                    sort_keys=True,separators=(",",":"))
@@ -556,7 +561,47 @@ try {
   await page.addInitScript((monitor) => { window.__BW_PYEXPR = monitor; }, PY_MONITOR);
   await page.addInitScript(() => {
     const events = [];
-    for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"]) {
+    const propagationStops = [];
+    for (const method of ["stopPropagation", "stopImmediatePropagation"]) {
+      const native = Event.prototype[method];
+      Object.defineProperty(Event.prototype, method, {
+        configurable: true,
+        writable: true,
+        value(...args) {
+          if (this.type === "keydown" || this.type === "keyup") {
+            propagationStops.push({
+              method,
+              type: this.type,
+              code: this.code || null,
+              target: this.target?.id || this.target?.tagName || null,
+              stack: String(new Error().stack || "").split("\n").slice(1, 6),
+            });
+          }
+          return native.apply(this, args);
+        },
+      });
+    }
+    const recordKeyPhase = (listener) => (event) => {
+      events.push({
+        type: event.type,
+        listener,
+        code: event.code || null,
+        key: event.key || null,
+        eventPhase: event.eventPhase,
+        target: event.target?.id || event.target?.tagName || null,
+        timeStamp: event.timeStamp,
+      });
+    };
+    document.addEventListener("keydown", recordKeyPhase("document-capture"), true);
+    document.addEventListener("keyup", recordKeyPhase("document-capture"), true);
+    document.addEventListener("keydown", recordKeyPhase("document-bubble"), false);
+    document.addEventListener("keyup", recordKeyPhase("document-bubble"), false);
+    window.addEventListener("keydown", recordKeyPhase("window-bubble"), false);
+    window.addEventListener("keyup", recordKeyPhase("window-bubble"), false);
+    for (const type of [
+      "pointerdown", "pointerup", "mousemove", "mousedown", "mouseup", "click", "dblclick",
+      "keydown", "keyup",
+    ]) {
       window.addEventListener(type, (event) => {
         events.push({
           type,
@@ -565,12 +610,32 @@ try {
           buttons: event.buttons,
           clientX: event.clientX,
           clientY: event.clientY,
+          code: event.code || null,
+          key: event.key || null,
+          ctrlKey: event.ctrlKey === true,
+          shiftKey: event.shiftKey === true,
+          altKey: event.altKey === true,
+          metaKey: event.metaKey === true,
           timeStamp: event.timeStamp,
+        });
+      }, true);
+    }
+    for (const type of ["pointerlockchange", "pointerlockerror"]) {
+      document.addEventListener(type, () => {
+        events.push({
+          type,
+          pointerLockOwned: document.pointerLockElement === document.querySelector("canvas"),
+          timeStamp: performance.now(),
         });
       }, true);
     }
     Object.defineProperty(window, "__bwP0DomInputs", {
       value: {snapshot: () => events.map((event) => ({...event}))},
+      configurable: false,
+      writable: false,
+    });
+    Object.defineProperty(window, "__bwP0PropagationStops", {
+      value: {snapshot: () => propagationStops.map((item) => ({...item}))},
       configurable: false,
       writable: false,
     });
@@ -623,6 +688,15 @@ try {
     }
     throw new Error(`timeout waiting for ${label}; latest=${JSON.stringify(latestState())}`);
   };
+  const waitForInputEvent = async (start, predicate, label, timeout = 5000) => {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const event = inputEvents.slice(start).find(predicate);
+      if (event) return event;
+      await page.waitForTimeout(25);
+    }
+    throw new Error(`timeout waiting for ${label}; tail=${JSON.stringify(inputEvents.slice(-12))}`);
+  };
   await waitForState((state) => state.workspace === "Layout" && state.view,
     "initial Layout VIEW_3D");
 
@@ -651,12 +725,22 @@ try {
       state: latestState(),
       ticks: await page.evaluate(() => Number(window.__bwModule?._bw_wm_tick_count?.() ?? -1)),
       presents: await page.evaluate(() => Number(window.__bwModule?._bw_present_count?.() ?? -1)),
+      redrawRetries: await page.evaluate(() =>
+        Number(window.__bwModule?._bw_redraw_retry_count?.() ?? -1)),
       ...metadata,
     };
     steps.push(sample);
     console.log(`P0S_STEP ${name} bytes=${sample.bytes} workspace=${sample.state?.workspace || "none"} ` +
       `cube_in_view=${sample.state?.cube_in_view ?? false} presents=${sample.presents}`);
     return sample;
+  };
+  const waitForCanvasChange = async (beforeSha256, label) => {
+    const started = Date.now();
+    while (Date.now() - started <= PIXEL_RECOVERY_TIMEOUT_MS) {
+      if (sha256(await canvas.screenshot()) !== beforeSha256) return Date.now() - started;
+      await page.waitForTimeout(250);
+    }
+    throw new Error(`${label} stayed pixel-identical for ${PIXEL_RECOVERY_TIMEOUT_MS}ms`);
   };
   const canvasBox = await canvas.boundingBox();
   if (!canvasBox) throw new Error("canvas has no bounding box");
@@ -665,6 +749,18 @@ try {
     return {
       x: canvasBox.x + state.view.x + state.view.width / 2,
       y: canvasBox.y + canvasBox.height - (state.view.y + state.view.height / 2),
+    };
+  };
+  const cubeScreenPoint = (state = latestState()) => {
+    if (!state?.view || !Array.isArray(state.cube_screen) || state.cube_screen.length !== 2 ||
+        state.cube_in_view !== true) {
+      throw new Error(`Cube has no clickable VIEW_3D projection: ${JSON.stringify(state)}`);
+    }
+    return {
+      /* The projected origin is covered by Blender's 3D-cursor overlay. Offset onto the visible
+       * Cube face so this is an object-selection canary, not a cursor-overlay hit test. */
+      x: Math.round(canvasBox.x + state.view.x + state.cube_screen[0] - 32),
+      y: Math.round(canvasBox.y + canvasBox.height - (state.view.y + state.cube_screen[1]) + 18),
     };
   };
   const middleDrag = async (dx, dy, shift = false) => {
@@ -677,9 +773,32 @@ try {
     if (shift) await page.keyboard.up("ShiftLeft");
     await page.waitForTimeout(700);
   };
+  const orderedLeftClick = async (x, y, label, receiptTimeout = 5000) => {
+    const moveStart = inputEvents.length;
+    await page.mouse.move(x, y);
+    await waitForInputEvent(moveStart,
+      (event) => event.type === "MOUSEMOVE" && event.x === Math.round(x),
+      `${label} target move`, receiptTimeout);
+    const pressStart = inputEvents.length;
+    await page.mouse.down({button: "left"});
+    await waitForInputEvent(pressStart,
+      (event) => event.type === "LEFTMOUSE" && event.value === "PRESS" &&
+        event.x === Math.round(x),
+      `${label} press`, receiptTimeout);
+    const releaseStart = inputEvents.length;
+    await page.mouse.up({button: "left"});
+    await waitForInputEvent(releaseStart,
+      (event) => event.type === "LEFTMOUSE" && event.value === "RELEASE" &&
+        event.x === Math.round(x),
+      `${label} release`, receiptTimeout);
+  };
   const attemptWorkspaceClick = async (workspace, x, timeout = 3000) => {
     const stateStart = latestState()?.sequence || 0;
-    await page.mouse.click(x, 13);
+    /* Shading workspace construction can monopolize SwiftShader's WM worker for more than five
+     * seconds after the press. Keep the hardware evidence bar at five seconds; only the named
+     * software fallback gets a longer, still-bounded input-receipt window. */
+    const receiptTimeout = options.hardware ? 5000 : 15000;
+    await orderedLeftClick(x, 13, `workspace ${workspace}`, receiptTimeout);
     try {
       await waitForState((state) => state.sequence > stateStart && state.workspace === workspace,
         `workspace ${workspace}`, timeout);
@@ -730,6 +849,8 @@ try {
     workspace: state?.workspace || null,
     mode: state?.mode || null,
     selected: state?.selected ?? null,
+    selectedCount: state?.selected_count ?? null,
+    activeObject: state?.active_object || null,
     location: state?.location || null,
     rotation: state?.rotation || null,
     scale: state?.scale || null,
@@ -737,6 +858,7 @@ try {
     viewDistance: state?.view_distance ?? null,
     viewLocation: state?.view_location || null,
     viewRotation: state?.view_rotation || null,
+    viewPerspective: state?.view_perspective || null,
   });
   const makeSamePoseCanary = (name, referenceName, candidateName) => {
     const reference = steps.find((step) => step.name === referenceName);
@@ -755,6 +877,36 @@ try {
       pixelDiff: samePosePixelDiff(
         captureBuffers.get(referenceName), captureBuffers.get(candidateName), candidate.state.view,
       ),
+    };
+  };
+  const moveCubeAndUndo = async (label, moveStep, undoStep) => {
+    const before = [...latestState().location];
+    const moveStart = latestState()?.sequence || 0;
+    const center = viewCenter();
+    await page.mouse.move(center.x, center.y);
+    await canvas.focus();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("g");
+    await page.keyboard.press("x");
+    await page.keyboard.type("2");
+    await page.keyboard.press("Enter");
+    const movedState = await waitForState((state) => state.sequence > moveStart &&
+      Math.abs(state.location?.[0] - (before[0] + 2)) < 0.0001,
+    `${label} G X 2`, 10000);
+    await page.waitForTimeout(700);
+    await capture(moveStep);
+    const undoStart = latestState()?.sequence || 0;
+    await page.keyboard.press("Control+z");
+    const undoneState = await waitForState((state) => state.sequence > undoStart &&
+      Math.abs(state.location?.[0] - before[0]) < 0.0001,
+    `${label} transform undo`, 10000);
+    await page.waitForTimeout(700);
+    await capture(undoStep);
+    return {
+      operation: "G X 2 Enter; Control+Z",
+      before,
+      moved: movedState.location,
+      undone: undoneState.location,
     };
   };
   const samePoseCanaries = [];
@@ -789,6 +941,230 @@ try {
       "keyboard return to Layout", 10000);
     await page.waitForTimeout(500);
   }
+
+  /* Replay the driver's tighter total-freeze isolation before the broader cumulative battery:
+   * five stock view transitions, select-all/deselect-all, an orbit, click-select, a native
+   * transform/undo, and another orbit. Every action is bound to Blender-native state so a colorful
+   * but frozen retained canvas cannot pass. */
+  const isolatedViewSteps = [
+    ["Numpad1", "02a-isolated-front"],
+    ["Numpad3", "02b-isolated-right"],
+    ["Numpad7", "02c-isolated-top"],
+    ["Numpad0", "02d-isolated-camera"],
+    ["Numpad4", "02e-isolated-camera-orbit-cancelled"],
+  ];
+  const isolatedCenter = viewCenter();
+  await page.mouse.move(isolatedCenter.x, isolatedCenter.y);
+  await canvas.focus();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  const isolatedViews = [];
+  for (const [key, name] of isolatedViewSteps) {
+    const before = latestState();
+    const sequenceStart = before?.sequence || 0;
+    const rotationBefore = JSON.stringify(before?.view_rotation || null);
+    const perspectiveBefore = before?.view_perspective || null;
+    await canvas.focus();
+    await page.keyboard.press(key);
+    let state;
+    let expectedEffect = "view-change";
+    if (key === "Numpad4" && perspectiveBefore === "CAMERA") {
+      /* Blender's stock VIEW3D_OT_view_orbit returns OPERATOR_CANCELLED in an unlocked camera
+       * view. Preserve the driver's exact key while binding the native no-op rather than
+       * fabricating a transition. The following trusted MMB orbit is the liveness check. */
+      expectedEffect = "cancelled-in-camera-view";
+      await page.waitForTimeout(750);
+      state = latestState();
+      if (state?.view_perspective !== perspectiveBefore ||
+          JSON.stringify(state?.view_rotation || null) !== rotationBefore) {
+        throw new Error("isolated Numpad4 unexpectedly changed the unlocked camera view");
+      }
+    }
+    else if (key === "Numpad0") {
+      /* Camera view publishes an intermediate PERSP state before CAMERA. Do not bind the
+       * diagnostic to that transient state and misattribute the later transition to Numpad4. */
+      state = await waitForState((candidate) => candidate.sequence > sequenceStart &&
+        candidate.view_perspective === "CAMERA",
+      "isolated Numpad0 camera view transition", 10000);
+    }
+    else {
+      state = await waitForState((candidate) => candidate.sequence > sequenceStart &&
+        (JSON.stringify(candidate.view_rotation || null) !== rotationBefore ||
+         candidate.view_perspective !== perspectiveBefore),
+      `isolated ${key} view transition`, 10000);
+    }
+    await page.waitForTimeout(500);
+    const sample = await capture(name, {isolatedInput: key, expectedEffect});
+    isolatedViews.push({
+      key,
+      expectedEffect,
+      /* View transitions can animate through one or more diagnostic states. Bind the native
+       * record to the same settled state as the screenshot, not the first transition sample. */
+      sequence: sample.state.sequence,
+      perspective: sample.state.view_perspective,
+      rotation: sample.state.view_rotation,
+      sha256: sample.sha256,
+    });
+  }
+
+  const selectStart = latestState()?.sequence || 0;
+  await canvas.focus();
+  await page.keyboard.press("a");
+  const selectAllState = await waitForState((state) => state.sequence > selectStart &&
+    state.selected === true && state.selected_count === 3,
+  "isolated select all", 10000);
+  await page.waitForTimeout(500);
+  await capture("02f-isolated-select-all");
+
+  const deselectStart = latestState()?.sequence || 0;
+  await page.keyboard.press("Alt+a");
+  const deselectAllState = await waitForState((state) => state.sequence > deselectStart &&
+    state.selected === false && state.selected_count === 0,
+  "isolated deselect all", 10000);
+  await page.waitForTimeout(500);
+  const beforeClickOrbit = await capture("02g-isolated-deselect-all");
+  const beforeClickOrbitRotation = deselectAllState.view_rotation;
+  await middleDrag(34, 20);
+  const afterClickOrbitState = await waitForState((state) =>
+    state.sequence > deselectAllState.sequence &&
+    JSON.stringify(state.view_rotation || null) !== JSON.stringify(beforeClickOrbitRotation || null),
+  "isolated pre-click orbit", 10000);
+  const preClickOrbitPixelSettleMs = await waitForCanvasChange(
+    beforeClickOrbit.sha256, "isolated pre-click orbit");
+  const afterClickOrbit = await capture("02h-isolated-orbit-before-click");
+
+  const clickPoint = cubeScreenPoint(afterClickOrbitState);
+  const isolatedDomStart = await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.().length || 0);
+  const isolatedNativeStart = inputEvents.length;
+  const clickStart = latestState()?.sequence || 0;
+  await orderedLeftClick(clickPoint.x, clickPoint.y, "isolated viewport Cube");
+  let clickSelectState = null;
+  let selectionMode = "viewport";
+  try {
+    clickSelectState = await waitForState((state) => state.sequence > clickStart &&
+      state.selected === true && state.selected_count === 1 && state.active_object === "Cube",
+    "isolated click-select Cube", 3000);
+  }
+  catch (error) {
+    if (options.hardware) {
+      throw new Error(`hardware viewport click did not select Cube: ${error.message}`);
+    }
+    /* SwiftShader's diagnostic lane can lack Blender's GPU-pick result. Keep the attempted
+     * trusted viewport coordinates in the evidence, then use Blender's stock Select All shortcut
+     * as an independent post-orbit liveness canary. Moving all three default-scene objects is
+     * harmless here: the native Cube location still changes and undo still restores it. Apple
+     * evidence may never take this branch. */
+    selectionMode = "fallback-select-all";
+    const recoveryStart = latestState()?.sequence || 0;
+    await canvas.focus();
+    /* A failed software GPU pick can retain VIEW3D_OT_select until its bounded asynchronous
+     * readback timeout. Its RUNNING_MODAL|PASS_THROUGH status still prevents later modal handlers
+     * from observing the same key event, which made an immediate fallback A a false freeze
+     * signal. Cancel that diagnostic-only pick explicitly; Apple evidence may never take this
+     * branch because it requires the trusted click itself to select Cube. */
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    await page.keyboard.press("a");
+    clickSelectState = await waitForState((state) => state.sequence > recoveryStart &&
+      state.selected === true && state.selected_count === 3 && state.active_object === "Cube",
+    "fallback post-orbit Select All liveness", 10000);
+  }
+  await page.waitForTimeout(500);
+  await capture("02i-isolated-click-select");
+  const isolatedDomClick = (await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.() || [])).slice(isolatedDomStart)
+    .find((event) => event.type === "click" && event.button === 0);
+  const isolatedNativeClick = inputEvents.slice(isolatedNativeStart)
+    .find((event) => event.type === "LEFTMOUSE" && event.value === "PRESS");
+
+  const isolatedOperator = await moveCubeAndUndo(
+    "isolated post-click", "02j-isolated-move", "02k-isolated-undo",
+  );
+  const beforePostClickOrbitState = latestState();
+  const beforePostClickOrbit = steps.find((step) => step.name === "02k-isolated-undo");
+  await middleDrag(-34, 16);
+  const afterPostClickOrbitState = await waitForState((state) =>
+    state.sequence > beforePostClickOrbitState.sequence &&
+    JSON.stringify(state.view_rotation || null) !==
+      JSON.stringify(beforePostClickOrbitState.view_rotation || null),
+  "isolated post-click orbit", 10000);
+  const postClickOrbitPixelSettleMs = await waitForCanvasChange(
+    beforePostClickOrbit.sha256, "isolated post-click orbit");
+  const afterPostClickOrbit = await capture("02l-isolated-orbit-after-click");
+  let fallbackSelectionRestore = null;
+  if (selectionMode === "fallback-select-all") {
+    /* Return the software-only diagnostic to the same Cube-only state required from hardware.
+     * This is an ordinary Outliner click against the fixed 1280x720 default Layout workspace,
+     * not a Python/state mutation. Otherwise NumpadDecimal faithfully frames all three objects
+     * selected by the liveness fallback and invalidates the same-pose visual oracle. */
+    const target = {
+      x: Math.round(canvasBox.x + canvasBox.width - 130),
+      y: Math.round(canvasBox.y + 106),
+    };
+    const domStart = await page.evaluate(() =>
+      window.__bwP0DomInputs?.snapshot?.().length || 0);
+    const nativeStart = inputEvents.length;
+    const stateStart = latestState()?.sequence || 0;
+    await orderedLeftClick(target.x, target.y, "fallback Outliner Cube");
+    const restoredState = await waitForState((state) => state.sequence > stateStart &&
+      state.selected === true && state.selected_count === 1 && state.active_object === "Cube",
+    "fallback Outliner Cube-only restore", 10000);
+    const domClick = (await page.evaluate(() =>
+      window.__bwP0DomInputs?.snapshot?.() || [])).slice(domStart)
+      .find((event) => event.type === "click" && event.button === 0);
+    const nativeClick = inputEvents.slice(nativeStart)
+      .find((event) => event.type === "LEFTMOUSE" && event.value === "PRESS");
+    fallbackSelectionRestore = {
+      method: "outliner-click",
+      expectedX: target.x,
+      expectedY: target.y,
+      expectedGhostY: Math.round(canvasBox.height - (target.y - canvasBox.y) - 1),
+      domX: domClick?.clientX ?? null,
+      domY: domClick?.clientY ?? null,
+      ghostX: nativeClick?.x ?? null,
+      ghostY: nativeClick?.y ?? null,
+      sequence: restoredState.sequence,
+      selectedCount: restoredState.selected_count,
+      activeObject: restoredState.active_object,
+    };
+  }
+  const isolationCanary = {
+    viewKeys: ISOLATED_VIEW_KEYS,
+    views: isolatedViews,
+    selectionCounts: [
+      selectAllState.selected_count,
+      deselectAllState.selected_count,
+      clickSelectState.selected_count,
+    ],
+    click: {
+      expectedX: clickPoint.x,
+      domX: isolatedDomClick?.clientX ?? null,
+      ghostX: isolatedNativeClick?.x ?? null,
+      selectionMode,
+      fallbackLivenessInput: selectionMode === "fallback-select-all" ? "A" : null,
+    },
+    fallbackSelectionRestore,
+    preClickOrbit: {
+      beforeRotation: beforeClickOrbitRotation,
+      afterRotation: afterClickOrbitState.view_rotation,
+      beforeSha256: beforeClickOrbit.sha256,
+      afterSha256: afterClickOrbit.sha256,
+      redrawRetries: [beforeClickOrbit.redrawRetries, afterClickOrbit.redrawRetries],
+      pixelSettleMs: preClickOrbitPixelSettleMs,
+    },
+    operator: isolatedOperator,
+    postClickOrbit: {
+      beforeRotation: beforePostClickOrbitState.view_rotation,
+      afterRotation: afterPostClickOrbitState.view_rotation,
+      beforeSha256: beforePostClickOrbit?.sha256 || null,
+      afterSha256: afterPostClickOrbit.sha256,
+      redrawRetries: [beforePostClickOrbit?.redrawRetries ?? null,
+        afterPostClickOrbit.redrawRetries],
+      pixelSettleMs: postClickOrbitPixelSettleMs,
+    },
+  };
+
   /* Establish a same-run, same-device reference at a deterministic Blender-native pose. This is
    * the visual oracle the post-stress checks use; PNG size and native Cube state alone both missed
    * the driver's broken geometry/text frames. */
@@ -876,31 +1252,9 @@ try {
   /* Directly bind the driver's total-freeze symptom: after cumulative navigation, a stock
    * transform must change Blender-native object state, and undo must restore it. A responsive
    * shell with a frozen WM worker can no longer pass merely because its canvas remains colorful. */
-  const locationBeforeMove = [...latestState().location];
-  const moveStart = latestState()?.sequence || 0;
-  await canvas.focus();
-  await page.keyboard.press("g");
-  await page.keyboard.press("x");
-  await page.keyboard.type("2");
-  await page.keyboard.press("Enter");
-  const movedState = await waitForState((state) => state.sequence > moveStart &&
-    Math.abs(state.location?.[0] - (locationBeforeMove[0] + 2)) < 0.0001,
-  "post-stress G X 2", 10000);
-  await page.waitForTimeout(700);
-  await capture("62a-post-stress-move");
-  const undoStart = latestState()?.sequence || 0;
-  await page.keyboard.press("Control+z");
-  const undoneState = await waitForState((state) => state.sequence > undoStart &&
-    Math.abs(state.location?.[0] - locationBeforeMove[0]) < 0.0001,
-  "post-stress transform undo", 10000);
-  await page.waitForTimeout(700);
-  await capture("62b-post-stress-undo");
-  postStressOperatorCanary = {
-    operation: "G X 2 Enter; Control+Z",
-    before: locationBeforeMove,
-    moved: movedState.location,
-    undone: undoneState.location,
-  };
+  postStressOperatorCanary = await moveCubeAndUndo(
+    "post-stress", "62a-post-stress-move", "62b-post-stress-undo",
+  );
   /* Repeat the same operator without changing its target. If this alone makes the first camera
    * state visible, the preceding six-second frame was stale rather than legitimately different. */
   await page.keyboard.press("NumpadDecimal");
@@ -926,7 +1280,7 @@ try {
   const relevantWarnings = consoleLines.filter((line) =>
     /WGPUShader|WebGPU|reject|validation|device lost|Pointer Lock/i.test(line));
   const diagnostic = {
-    schema: "blender-web.p0ij-interaction-stress.v1",
+    schema: "blender-web.p0ij-interaction-stress.v2",
     evidenceClass: options.hardware ? HARDWARE_EVIDENCE_CLASS : FALLBACK_EVIDENCE_CLASS,
     run: options.run,
     capturedAt: new Date().toISOString(),
@@ -944,6 +1298,13 @@ try {
     adapter,
     productIdentity,
     contract: {
+      isolatedFreeze: {
+        viewKeys: [...ISOLATED_VIEW_KEYS],
+        selectionCounts: [3, 0, 1],
+        hardwareSelectionMode: "viewport",
+        operator: "G X 2 Enter; Control+Z",
+        orbits: 2,
+      },
       stress: {orbit: 10, pan: 10, zoom: 10, workspaceTransitions: 9},
       samePoseChangedFractionLimit: SAME_POSE_CHANGED_FRACTION_LIMIT,
       textRegionChangedFractionLimit: TEXT_REGION_CHANGED_FRACTION_LIMIT,
@@ -956,7 +1317,9 @@ try {
       ticks: await page.evaluate(() => Number(window.__bwModule?._bw_wm_tick_count?.() ?? -1)),
       presents: await page.evaluate(() => Number(window.__bwModule?._bw_present_count?.() ?? -1)),
       viewportContent: await page.evaluate(() =>
-        Number(window.__bwModule?._bw_viewport_content_count?.() ?? -1)),
+        Number(window.__bwModule?._bw_viewport_content_present_count?.() ?? -1)),
+      redrawRetries: await page.evaluate(() =>
+        Number(window.__bwModule?._bw_redraw_retry_count?.() ?? -1)),
     },
     steps,
     states,
@@ -967,6 +1330,7 @@ try {
       domClickX: workspaceDomClicks,
       ghostPressX: workspaceNativeClicks,
     },
+    isolationCanary,
     samePoseCanaries,
     postStressOperatorCanary,
     hardCompletenessWarnings,
@@ -986,13 +1350,29 @@ try {
       item.pixelDiff.viewChangedFraction.toFixed(6)).join(",")}`);
 }
 catch (error) {
+  const pageSnapshot = page ? await page.evaluate(() => ({
+    state: document.querySelector("#state")?.dataset.state || null,
+    activeElement: document.activeElement?.id || document.activeElement?.tagName || null,
+    pointerLock: window.__bwPointerLockBridge?.snapshot?.() || null,
+    focusBridge: window.__bwFocusBridge?.snapshot?.() || null,
+    imeBridge: window.__bwImeBridge?.snapshot?.() || null,
+    callbackRegistrations: Number(
+      window.__bwModule?._bw_callback_registration_attempt_count?.() ?? -1),
+    propagationStops: (window.__bwP0PropagationStops?.snapshot?.() || []).slice(-40),
+    domInputTail: (window.__bwP0DomInputs?.snapshot?.() || []).slice(-100),
+    ticks: Number(window.__bwModule?._bw_wm_tick_count?.() ?? -1),
+    presents: Number(window.__bwModule?._bw_present_count?.() ?? -1),
+    redrawEpisodes: Number(window.__bwModule?._bw_redraw_episode_count?.() ?? -1),
+    redrawRetries: Number(window.__bwModule?._bw_redraw_retry_count?.() ?? -1),
+  })).catch(() => null) : null;
   const failure = {
     error: {name: String(error?.name || "Error"), message: String(error?.message || error)},
     pageErrors,
     lifecycleEvents,
     states: states.slice(-20),
     inputEvents: inputEvents.slice(-100),
-    consoleTail: consoleLines.slice(-100),
+    pageSnapshot,
+    consoleTail: consoleLines.slice(-1000),
   };
   if (evidenceAllocated) {
     writeFileSync(

@@ -70,6 +70,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_episode_count(void)
   return double(ghost_web::redraw_episode_generation());
 }
 
+/* Read-only proof that ordinary input and asynchronously accepted resources publish the bounded
+ * redraw-retry generation. Interaction evidence samples this separately from resize episodes so
+ * a retained-frame recovery cannot pass solely because the source contains the input hook. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)
+{
+  return double(ghost_web::redraw_retry_generation());
+}
+
 /* --- M4.T11 (ADR-007) worker-side device delivery ---------------------------- */
 /* The WebGPU device cannot be acquired synchronously here (emdawnwebgpu needs an
  * event-loop turn or asyncify) and cannot cross realms, so it is acquired

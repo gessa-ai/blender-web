@@ -217,12 +217,11 @@ def validate(
         'line.includes("WGPUWeb-resize-present-barrier:")',
         'line.includes("synchronous-present=1")',
         'line.includes("synchronous-present=0")',
-        "counters.resizeBarrierSuccess !== 2",
-        "counters.resizeBarrierRejected > 8",
-        "counters.resizeBarrier !==\n"
-        "      counters.resizeBarrierSuccess + counters.resizeBarrierRejected",
+        "resizeBarrierSuccess !== 2",
+        "resizeBarrierRejected > 8",
+        "resizeBarrier !== resizeBarrierSuccess + resizeBarrierRejected",
         "single barrier presents differ",
-        "barriers=${counters.resizeBarrierSuccess}/${counters.resizeBarrierRejected}",
+        "barriers=${resizeBarrierSuccess}/${resizeBarrierRejected}",
         "plans=complete,current,contained,view3d-bound",
     ):
         require_once(live, token, "live trace consumer")
@@ -364,18 +363,18 @@ def selfcheck(sources: tuple[str, ...]) -> int:
         ),
         (
             "live",
-            "counters.resizeBarrierSuccess !== 2",
+            "resizeBarrierSuccess !== 2",
             "false",
         ),
         (
             "live",
-            "counters.resizeBarrierRejected > 8",
+            "resizeBarrierRejected > 8",
             "false",
         ),
         (
             "live",
-            "counters.resizeBarrierSuccess + counters.resizeBarrierRejected",
-            "counters.resizeBarrierSuccess",
+            "resizeBarrierSuccess + resizeBarrierRejected",
+            "resizeBarrierSuccess",
         ),
         (
             "live",

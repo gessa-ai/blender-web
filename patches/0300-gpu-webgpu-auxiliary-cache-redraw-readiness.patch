@@ -1,0 +1,217 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -70,6 +70,13 @@
+
+ static CLG_LogRef LOG = {"gpu.webgpu"};
+
++static void request_webgpu_redraw_retry()
++{
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  ghost_web::request_redraw_retry();
++#endif
++}
++
+ webgpu::LatestOwnerHandleRegistry<WGPUContext, WGPUContext::BackendHandles>
+     WGPUContext::s_backend_handles;
+
+@@ -331,6 +338,11 @@
+   return dummy_vertex_buffer_cache_.get_or_create(
+       instance_, device_, cache_key, "dummy vertex buffer creation", [&]() {
+         return webgpu::dummy_vertex_buffer_create(device_);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+ }
+
+@@ -447,6 +459,11 @@
+         wgpu::ShaderModuleDescriptor md;
+         md.nextInChain = &wgsl;
+         return device_.CreateShaderModule(&md);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (selected_module == nullptr) {
+     return false;
+@@ -471,6 +488,11 @@
+         pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
+         pd.fragment = &fragment;
+         return device_.CreateRenderPipeline(&pd);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (pipeline == nullptr) {
+     return false;
+@@ -607,6 +629,11 @@
+         wgpu::ShaderModuleDescriptor module_desc = {};
+         module_desc.nextInChain = &source;
+         return device_.CreateShaderModule(&module_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (depth_blit_module == nullptr) {
+     return false;
+@@ -640,6 +667,11 @@
+         pipeline_desc.fragment = &fragment;
+         pipeline_desc.depthStencil = &depth_stencil;
+         return device_.CreateRenderPipeline(&pipeline_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (pipeline == nullptr) {
+     return false;
+@@ -745,6 +777,11 @@
+         wgpu::ShaderModuleDescriptor module_desc = {};
+         module_desc.nextInChain = &source;
+         return device_.CreateShaderModule(&module_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (depth_upload_module == nullptr) {
+     return false;
+@@ -776,6 +813,11 @@
+         pipeline_desc.fragment = &fragment;
+         pipeline_desc.depthStencil = &depth_stencil;
+         return device_.CreateRenderPipeline(&pipeline_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (pipeline == nullptr) {
+     return false;
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -46,6 +46,13 @@
+   return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+ }
+
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
++}
++
+ static webgpu::WGPUTexture *as_wgpu(Texture *tex)
+ {
+   return static_cast<webgpu::WGPUTexture *>(tex);
+@@ -155,6 +162,11 @@
+         }
+         result.size = size;
+         return result;
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (candidate == nullptr) {
+     return false;
+@@ -262,6 +274,11 @@
+         wgpu::ShaderModuleDescriptor descriptor = {};
+         descriptor.nextInChain = &source;
+         return device.CreateShaderModule(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (module == nullptr) {
+     return false;
+@@ -295,6 +312,11 @@
+         descriptor.multisample.count = sample_count;
+         descriptor.fragment = &fragment;
+         return device.CreateRenderPipeline(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (pipeline == nullptr) {
+     return false;
+@@ -429,6 +451,11 @@
+         wgpu::ShaderModuleDescriptor descriptor = {};
+         descriptor.nextInChain = &source;
+         return device.CreateShaderModule(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (module == nullptr) {
+     return false;
+@@ -472,6 +499,11 @@
+         descriptor.fragment = &fragment;
+         descriptor.depthStencil = &depth_stencil;
+         return device.CreateRenderPipeline(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+   if (pipeline == nullptr) {
+     return false;
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -35,6 +35,10 @@
+
+ #include "BLI_assert.h"
+
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ namespace blender::gpu {
+
+ static WGPUContext *active_context()
+@@ -42,6 +46,13 @@
+   return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+ }
+
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
++}
++
+ static wgpu::ComputePipeline triangle_fan_index_pipeline(WGPUContext &ctx)
+ {
+   const wgpu::Instance instance = ctx.instance_get();
+@@ -118,6 +129,11 @@
+         pipeline_descriptor.compute.module = module;
+         pipeline_descriptor.compute.entryPoint = "main";
+         return device.CreateComputePipeline(&pipeline_descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
+       });
+ }

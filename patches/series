@@ -1203,3 +1203,6 @@
 # 0299: join staged-buffer creation and command validation so browser same-turn submission
 # cannot commit a retained payload after either asynchronous leg rejects.
 0299-gpu-webgpu-staged-update-completion-join.patch
+# 0300: publish one bounded redraw-readiness edge when a persistent auxiliary GPU cache miss
+# becomes usable, so first-use clear/blit/dummy/fan work cannot leave a region stale at idle.
+0300-gpu-webgpu-auxiliary-cache-redraw-readiness.patch

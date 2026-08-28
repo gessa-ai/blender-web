@@ -60,6 +60,7 @@ POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
 BUTTON_CURSOR_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_button_cursor.py"
 INPUT_REDRAW_RECOVERY_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_input_redraw_recovery.py"
+AUXILIARY_CACHE_REDRAW_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py"
 KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
 IME_NONCOMPOSING_KEY_CONTRACT="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/source_contract.py"
 IME_NONCOMPOSING_KEY_TEST="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/ime_keyboard_test.mjs"
@@ -262,6 +263,7 @@ require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
 require_file "$BUTTON_CURSOR_CONTRACT"
 require_file "$INPUT_REDRAW_RECOVERY_CONTRACT"
+require_file "$AUXILIARY_CACHE_REDRAW_CONTRACT"
 require_file "$KEYBOARD_FOCUS_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_TEST"
@@ -1772,6 +1774,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
 "$PYBIN" "$FOCUS_STATE_CONTRACT" "$GHOST_EVENT_BRIDGE_SOURCE" --selfcheck
 "$PYBIN" "$BUTTON_CURSOR_CONTRACT" --self-check
 "$PYBIN" "$INPUT_REDRAW_RECOVERY_CONTRACT" --self-check
+"$PYBIN" "$AUXILIARY_CACHE_REDRAW_CONTRACT" --self-check
 "$PYBIN" "$KEYBOARD_FOCUS_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" \
   "$ROOT/sandbox/m4-keyboard-focus/keyboard_focus_test.mjs" \
@@ -2428,7 +2431,7 @@ if ! grep -q 'AddressSanitizer: heap-use-after-free' "$ASAN_UNSAFE_STDERR"; then
 fi
 
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
-  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 44 ] ||
+  if [ "$(wc -l <"$stdout_file" | tr -d ' ')" -ne 45 ] ||
      ! grep -qx 'CONTRACT primitive_topology PASS cases=11' "$stdout_file" ||
      ! grep -qx 'CONTRACT strip_index_format PASS cases=33 selected=6' "$stdout_file" ||
      ! grep -qx \
@@ -2460,6 +2463,9 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT scoped_handle_cache PASS cases=5 creates=2 pending=deduplicated error_object=rejected retry=published' \
+       "$stdout_file" ||
+     ! grep -qx \
+       'CONTRACT auxiliary_cache_redraw_publication PASS cases=7 creates=4 accepted_edges=2 rejection=none hit=no-rearm' \
        "$stdout_file" ||
      ! grep -qx \
        'CONTRACT ordered_scoped_handle_cache PASS cases=5 creates=2 same_epoch=provisional later_epoch=gated rejection=canceled retry=published' \
@@ -2543,7 +2549,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
      ! grep -qx 'CONTRACT shader_lifetime_cache PASS cases=4096 unique=4096' "$stdout_file" ||
      ! grep -qx 'CONTRACT vertex_alias_cache_key PASS cases=2 aliases=4 unique=2' "$stdout_file" ||
      ! grep -qx \
-       'INTEGRATED_PIPELINE_PASS contracts=43 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 resize_present_barrier_cases=39 ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 ordered_scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
+       'INTEGRATED_PIPELINE_PASS contracts=44 primitives=11 strip_cases=33 multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 window_rects=32 offscreen_rects=21 compute_direct=15 compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 scheduler_failure_followers=100000 scheduler_failed_epochs=100000 resize_present_barrier_cases=39 ghost_window_cases=5 ghost_callback_registration_cases=17 ghost_surface_cases=13 ghost_acquire_cases=12 ghost_device_loss_cases=13 ghost_loss_inflight_cases=10 ghost_present_cases=14 ghost_resize_cases=17 formats=96 i10=12 dummy=32 transient_publications=2 vertex_binding_resolutions=3 bind_group_completeness_cases=6 index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 auxiliary_cache_redraw_cases=7 ordered_scoped_cache_cases=5 context_pipeline_caches=3 context_handle_registry_cases=7 transient_resource_gates=3 compute_bind_group_scope_cases=4 compute_cache_publications=3 load_action_commits=2 load_action_transactions=6 layered_clear_orders=4 shader_lifetimes=4096 alias_keys=2' \
        "$stdout_file"
   then
     echo "ERROR: integrated pipeline evidence differs: $stdout_file" >&2

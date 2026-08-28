@@ -39,6 +39,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_buffer_texture_pending.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_capture_contract.py --self-check
 ```
 
@@ -90,3 +92,9 @@ buffers must wait for their expanded float4 backing rather than binding the smal
 Its device-free PASS likewise binds only that state transition, not pixels.
 The adjacent input-recovery contract also requires the production retry-generation export, so
 hardware evidence proves the callback path fired rather than accepting a source-only hook.
+The auxiliary-cache contract closes a separate first-use scheduling gap across the persistent
+dummy-buffer, clear, blit, upload, empty-attachment, and triangle-fan caches. All 13 producers now
+publish one coalescible redraw-readiness edge only when browser validation accepts a new handle;
+pending work, rejection, null publication, and cache hits publish none. This prevents an accepted
+first-use helper from remaining invisible after its original draw was dropped, but Apple pixels
+remain the authority for P0-I/J closure.

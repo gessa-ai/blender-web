@@ -3315,9 +3315,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   Resource and command validation now form one two-leg completion join; either rejection retains
   the exact bytes for a clean retry without delaying browser submission. The aggregate native/Wasm
   suite, canonical replay, affected object build, CAPTURE relink, and unchanged cumulative/modal/
-  resize fallback diagnostics are green. The exact candidate is `.wasm.orig` SHA-256
+  resize fallback diagnostics are green. **Auxiliary-cache readiness candidate implemented (patch
+  0300):** a full audit then found 13 persistent first-use caches whose callers abandon work while
+  browser validation is pending but whose successful publication emitted no redraw edge: seven
+  context dummy/blit/upload producers, five framebuffer attachment/clear producers, and the
+  triangle-fan compute pipeline. Every producer now requests one coalescible bounded retry only
+  after a non-null accepted publication; pending work, rejection, null publication, and cache hits
+  emit none. An 18-mutation census, seven-case native/Wasm behavior contract, canonical replay, and
+  the three real windowed object builds are green. This is a device-free candidate for partial or
+  stale first-use frames, not Apple pixel closure. The preceding exact candidate is `.wasm.orig`
+  SHA-256
   `6b868aaf8522` (118,979,921 bytes). Neither device-free result hardware-closes P0-I/J. Apple must
-  rerun the exact candidate. See
+  rerun the newly relinked exact candidate. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,

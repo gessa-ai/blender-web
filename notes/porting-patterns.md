@@ -1994,3 +1994,20 @@ and must abandon the join before the caller's ordinary failure path runs. Exerci
 validation-ordered cancellation and browser's already-submitted path in one native/Wasm contract.
 See `upstream/source/blender/gpu/webgpu/wgpu_buffer.cc` and
 `sandbox/wgpu-buffer-integrated-smoke/integrated_buffer_update_test.cc`.
+
+## Class 135 — every accepted lazy helper needs a redraw-readiness edge
+
+Signature: a persistent cache returns no handle while browser validation is pending, so the
+calling draw abandons a clear, blit, upload, compatibility attachment, dummy buffer, or topology
+helper. Validation later accepts and caches the handle, but no ordinary input or window event is
+required to arrive afterward. A comment that the caller will retry on a later frame is therefore
+not a scheduling guarantee: the accepted helper can remain invisible indefinitely. Attach one
+publication callback to every such cache producer and coalesce a bounded redraw retry only for a
+new non-null accepted handle. Pending creation, rejection, null publication, and cache hits must
+emit no edge, preventing an unavailable helper or hot cache from extending the retry ceiling.
+Freeze the full producer census rather than patching only the shader family seen in one capture,
+and keep hardware pixels as the closure authority. See
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_batch.cc`, and
+`sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py`.

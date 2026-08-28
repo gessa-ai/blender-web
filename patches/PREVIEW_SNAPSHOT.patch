@@ -31818,10 +31818,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..86cfb44e7183e1c3cfddf6cb674707a16ec14920
+index 0000000000000000000000000000000000000000..c0d9c49315ceb1f437fbd7ae7496a2bbfc5047e7
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,1045 @@
+@@ -0,0 +1,1061 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -31859,11 +31859,22 @@ index 0000000000000000000000000000000000000000..86cfb44e7183e1c3cfddf6cb674707a1
 +
 +#include "BLI_assert.h"
 +
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
 +namespace blender::gpu {
 +
 +static WGPUContext *active_context()
 +{
 +  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
 +}
 +
 +static wgpu::ComputePipeline triangle_fan_index_pipeline(WGPUContext &ctx)
@@ -31942,6 +31953,11 @@ index 0000000000000000000000000000000000000000..86cfb44e7183e1c3cfddf6cb674707a1
 +        pipeline_descriptor.compute.module = module;
 +        pipeline_descriptor.compute.entryPoint = "main";
 +        return device.CreateComputePipeline(&pipeline_descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +}
 +
@@ -36517,10 +36533,10 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579d6acf0e5
+index 0000000000000000000000000000000000000000..1401b7bd07827c1daec55f1bd14aea93ebccdbb5
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1407 @@
+@@ -0,0 +1,1449 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -36592,6 +36608,13 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +namespace blender::gpu {
 +
 +static CLG_LogRef LOG = {"gpu.webgpu"};
++
++static void request_webgpu_redraw_retry()
++{
++#if defined(__EMSCRIPTEN__) && !defined(WITH_HEADLESS)
++  ghost_web::request_redraw_retry();
++#endif
++}
 +
 +webgpu::LatestOwnerHandleRegistry<WGPUContext, WGPUContext::BackendHandles>
 +    WGPUContext::s_backend_handles;
@@ -36854,6 +36877,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +  return dummy_vertex_buffer_cache_.get_or_create(
 +      instance_, device_, cache_key, "dummy vertex buffer creation", [&]() {
 +        return webgpu::dummy_vertex_buffer_create(device_);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +}
 +
@@ -36970,6 +36998,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +        wgpu::ShaderModuleDescriptor md;
 +        md.nextInChain = &wgsl;
 +        return device_.CreateShaderModule(&md);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (selected_module == nullptr) {
 +    return false;
@@ -36994,6 +37027,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +        pd.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
 +        pd.fragment = &fragment;
 +        return device_.CreateRenderPipeline(&pd);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (pipeline == nullptr) {
 +    return false;
@@ -37130,6 +37168,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +        wgpu::ShaderModuleDescriptor module_desc = {};
 +        module_desc.nextInChain = &source;
 +        return device_.CreateShaderModule(&module_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (depth_blit_module == nullptr) {
 +    return false;
@@ -37163,6 +37206,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +        pipeline_desc.fragment = &fragment;
 +        pipeline_desc.depthStencil = &depth_stencil;
 +        return device_.CreateRenderPipeline(&pipeline_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (pipeline == nullptr) {
 +    return false;
@@ -37268,6 +37316,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +        wgpu::ShaderModuleDescriptor module_desc = {};
 +        module_desc.nextInChain = &source;
 +        return device_.CreateShaderModule(&module_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (depth_upload_module == nullptr) {
 +    return false;
@@ -37299,6 +37352,11 @@ index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579
 +        pipeline_desc.fragment = &fragment;
 +        pipeline_desc.depthStencil = &depth_stencil;
 +        return device_.CreateRenderPipeline(&pipeline_desc);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (pipeline == nullptr) {
 +    return false;
@@ -38709,10 +38767,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b863260fc
+index 0000000000000000000000000000000000000000..7d10bd581afd9e02afa91af28867c277540c8658
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,1990 @@
+@@ -0,0 +1,2022 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -38759,6 +38817,13 @@ index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b
 +static WGPUContext *active_context()
 +{
 +  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
 +}
 +
 +static webgpu::WGPUTexture *as_wgpu(Texture *tex)
@@ -38870,6 +38935,11 @@ index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b
 +        }
 +        result.size = size;
 +        return result;
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (candidate == nullptr) {
 +    return false;
@@ -38977,6 +39047,11 @@ index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b
 +        wgpu::ShaderModuleDescriptor descriptor = {};
 +        descriptor.nextInChain = &source;
 +        return device.CreateShaderModule(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (module == nullptr) {
 +    return false;
@@ -39010,6 +39085,11 @@ index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b
 +        descriptor.multisample.count = sample_count;
 +        descriptor.fragment = &fragment;
 +        return device.CreateRenderPipeline(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (pipeline == nullptr) {
 +    return false;
@@ -39144,6 +39224,11 @@ index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b
 +        wgpu::ShaderModuleDescriptor descriptor = {};
 +        descriptor.nextInChain = &source;
 +        return device.CreateShaderModule(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (module == nullptr) {
 +    return false;
@@ -39187,6 +39272,11 @@ index 0000000000000000000000000000000000000000..12862c2669075697b0816f9c44b4380b
 +        descriptor.fragment = &fragment;
 +        descriptor.depthStencil = &depth_stencil;
 +        return device.CreateRenderPipeline(&descriptor);
++      },
++      [](auto published) {
++        if (published != nullptr) {
++          request_webgpu_redraw_retry();
++        }
 +      });
 +  if (pipeline == nullptr) {
 +    return false;

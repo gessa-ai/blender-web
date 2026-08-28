@@ -205,6 +205,27 @@ keeps the exact retained bytes retryable instead of allowing a false commit. The
 archive, CAPTURE relink, and unchanged cumulative/modal/resize fallback diagnostics are green.
 Hardware pixels remain the closure authority.
 
+## Auxiliary first-use cache readiness
+
+The remaining persistent-cache audit found a sibling scheduling gap below shader bind assembly.
+`ScopedHandleCache::get_or_create()` returns no usable handle while browser validation is pending,
+so its caller abandons that clear, blit, upload, dummy-buffer, empty-attachment, or triangle-fan
+operation. Shader, layout, pipeline, and ordinary buffer publication already emitted a bounded
+redraw-readiness edge after successful validation. Thirteen auxiliary producers did not: seven in
+`WGPUContext`, five in `WGPUFrameBuffer`, and one in `WGPUBatch`. Their comments relied on a later
+frame without arranging for one, so a lazily accepted helper could remain absent until unrelated
+input.
+
+Patch 0300 attaches the cache's existing publication callback to all 13 producers. A newly accepted
+non-null handle requests one coalescible retry through `ghost_web::request_redraw_retry()`; pending
+creation, rejection, null publication, and a cache hit request none. The callback therefore cannot
+turn a permanently pending or repeatedly used cache into an unbounded redraw source. A seven-case
+native/Wasm behavior contract proves those edges, while an 18-mutation source contract freezes the
+complete producer census and numbered-patch identity. The real windowed WebGPU context,
+framebuffer, and batch translation units compile cleanly. This is a hardware candidate for the
+filed partial/stale-frame symptoms, not pixel closure; the exact Apple original-freeze,
+cumulative-interaction, modal-operator, and P0-E regression batteries remain mandatory.
+
 ## Evidence and acceptance
 
 - Apple screenshots: `~/bw-logs/mac-capture-evidence-20260827-extrude-artifact/`.
@@ -298,6 +319,13 @@ Hardware pixels remain the closure authority.
   `ledger/buildlogs/20260828T054310-2827012.log`,
   `ledger/buildlogs/20260828T054325-2827114.log`, and
   `ledger/buildlogs/20260828T054603-2829207.log`.
+- Auxiliary-cache fail-first, final source mutation contract, canonical replay, integrated
+  native/Wasm behavior, and the three affected windowed object builds:
+  `ledger/buildlogs/20260828T060219-2841463.log`,
+  `ledger/buildlogs/20260828T060445-2842855.log`,
+  `ledger/buildlogs/20260828T061015-2846772.log`,
+  `ledger/buildlogs/20260828T061026-2846888.log`, and
+  `ledger/buildlogs/20260828T061105-2849218.log`.
 
 The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
 `67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data

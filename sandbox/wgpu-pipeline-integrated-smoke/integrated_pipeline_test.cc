@@ -878,6 +878,84 @@ bool scoped_handle_cache_contract()
   return true;
 }
 
+bool auxiliary_cache_redraw_publication_contract()
+{
+  bw::ScopedHandleCache<uint32_t, CacheHandleProbe> cache;
+  std::function<void(bool)> settle;
+  int creates = 0;
+  int redraw_edges = 0;
+
+  const auto fetch = [&](const uint32_t key, const int identity) {
+    return cache.get_or_create_scoped(
+        key,
+        []() {},
+        [&]() {
+          creates++;
+          return CacheHandleProbe(identity);
+        },
+        [&](auto completion) { settle = std::move(completion); },
+        [&](CacheHandleProbe published) {
+          if (published != nullptr) {
+            redraw_edges++;
+          }
+        });
+  };
+
+  CacheHandleProbe result = fetch(7u, 41);
+  const CacheHandleProbe duplicate = fetch(7u, 43);
+  if (!require(result == nullptr && duplicate == nullptr && cache.pending(7u) && creates == 1 &&
+                   redraw_edges == 0 && bool(settle),
+               "pending auxiliary cache publication does not request redraw"))
+  {
+    return false;
+  }
+
+  settle(false);
+  if (!require(!cache.pending(7u) && cache.size() == 0 && redraw_edges == 0,
+               "rejected auxiliary cache publication does not request redraw"))
+  {
+    return false;
+  }
+
+  result = fetch(7u, 73);
+  settle(true);
+  if (!require(result == nullptr && cache.lookup(7u).identity() == 73 && creates == 2 &&
+                   redraw_edges == 1,
+               "accepted auxiliary cache publication requests one redraw"))
+  {
+    return false;
+  }
+
+  result = fetch(7u, 79);
+  if (!require(result.identity() == 73 && creates == 2 && redraw_edges == 1,
+               "auxiliary cache hit does not rearm redraw"))
+  {
+    return false;
+  }
+
+  result = fetch(11u, 0);
+  settle(true);
+  if (!require(result == nullptr && !cache.pending(11u) && cache.size() == 1 && creates == 3 &&
+                   redraw_edges == 1,
+               "null auxiliary cache candidate does not request redraw"))
+  {
+    return false;
+  }
+
+  result = fetch(13u, 83);
+  settle(true);
+  if (!require(result == nullptr && cache.lookup(13u).identity() == 83 && cache.size() == 2 &&
+                   creates == 4 && redraw_edges == 2,
+               "independent auxiliary cache publication requests one redraw"))
+  {
+    return false;
+  }
+
+  std::puts("CONTRACT auxiliary_cache_redraw_publication PASS cases=7 creates=4 "
+            "accepted_edges=2 rejection=none hit=no-rearm");
+  return true;
+}
+
 bool ordered_scoped_handle_cache_contract()
 {
   bw::ScopedHandleCache<uint32_t, CacheHandleProbe> cache;
@@ -4562,6 +4640,7 @@ int main()
       !index_buffer_handle_resolution_contract() ||
       !shader_module_set_cache_contract() ||
       !scoped_handle_cache_contract() ||
+      !auxiliary_cache_redraw_publication_contract() ||
       !ordered_scoped_handle_cache_contract() ||
       !context_owned_pipeline_cache_contract() ||
       !context_backend_handle_registry_contract() ||
@@ -4591,7 +4670,7 @@ int main()
     return 1;
   }
   std::puts(
-      "INTEGRATED_PIPELINE_PASS contracts=43 primitives=11 strip_cases=33 "
+      "INTEGRATED_PIPELINE_PASS contracts=44 primitives=11 strip_cases=33 "
       "multiview_allocations=2 dummy_buffer_creations=3 indirect_spans=19 direct_draws=16 viewport_scissors=28 "
       "window_rects=32 offscreen_rects=21 compute_direct=15 "
       "compute_indirect=13 compute_command_cases=6 buffer_command_cases=6 "
@@ -4601,6 +4680,7 @@ int main()
       "dummy=32 transient_publications=2 vertex_binding_resolutions=3 "
       "bind_group_completeness_cases=6 "
       "index_binding_resolutions=3 shader_module_set_cases=4 scoped_cache_cases=5 "
+      "auxiliary_cache_redraw_cases=7 "
       "ordered_scoped_cache_cases=5 "
       "context_pipeline_caches=3 "
       "context_handle_registry_cases=7 "

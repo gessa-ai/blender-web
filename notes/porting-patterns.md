@@ -2014,3 +2014,21 @@ and keep hardware pixels as the closure authority. See
 `upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_batch.cc`, and
 `sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py`.
+
+## Class 136 — readback-backed bindings have a separate readiness dependency
+
+Signature: a typed sampler-buffer frontend has a valid primary GPU buffer, but formats requiring
+expansion cannot construct their eventual binding until an asynchronous browser readback settles.
+An empty first `MapAsync` result is neither a synchronous absence nor proof that Blender failed to
+bind the slot. Report that exact readback as pending, retain the eventual expanded resource plus
+its external dependency in the context, and publish one coalescible redraw edge only when the
+cache entry settles successfully. Default cache consumers and exact ticket owners must not inherit
+that edge; failure, cancellation, and repeated cache hits emit none. Keep the hard completeness
+gate for genuinely absent resources, and diagnose every distinct pending shader/set signature so
+repeated boot traffic cannot hide an interaction-only variant. Prove the pending-to-ready
+transition with the real frontend extraction on native and wasm32, while leaving pixel closure to
+repeated conformant-hardware runs. See
+`upstream/source/blender/gpu/webgpu/wgpu_buffer.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_readback.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc`, and
+`sandbox/p0-interaction-stress/verify_buffer_texture_readback_pending.py`.

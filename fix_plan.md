@@ -3325,8 +3325,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   the three real windowed object builds are green. This is a device-free candidate for partial or
   stale first-use frames, not Apple pixel closure. The exact relinked patch-0300 candidate is
   `.wasm.orig` SHA-256 `32881203c7ba` (118,977,585 bytes). Neither device-free result
-  hardware-closes P0-I/J. Apple must
-  rerun the newly relinked exact candidate. See
+  hardware-closes P0-I/J. **Buffer-texture readback-readiness candidate implemented (patch
+  0301):** float1-3 sampler buffers have a second first-use window after their primary allocation
+  becomes valid: the browser cache begins `MapAsync`, returns no bytes, and formerly gave the
+  frontend neither an exact Pending classification nor a retry after settlement. The read path now
+  reports that dependency, the context retains the eventual expanded float4 binding, and only this
+  opted-in successful cache settlement requests one coalescible retry. Default/exact-ticket
+  readbacks, failure, cancellation, and cache hits emit none. Distinct pending shader/set
+  signatures are logged once under a 128-signature ceiling; the hard missing/extra gate remains
+  unchanged. Source mutations, canonical replay, exact native/Wasm buffer parity, affected archive,
+  CAPTURE preflight/relink/no-work, the final 41-step fallback interaction replay, modal retry, and
+  shrink/restore recovery are green with zero hard warnings/page errors. The exact candidate is
+  `.wasm.orig` SHA-256 `2ba96011987aeeca87b3ab84052e3dcdeaf7098eaf5809c268399ae9d69b0d6f`
+  (118,983,520 bytes). A strengthened camera canary caught one earlier fallback run retaining stale
+  pixels until the next input despite native CAMERA state; the instrumented final run emitted no
+  pending/readback signature, so that observation is not attributed to patch 0301 and remains one
+  more reason device-free pixels cannot close P0-I/J. Apple must rerun the newly relinked exact
+  candidate as a repeated hardware series. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,

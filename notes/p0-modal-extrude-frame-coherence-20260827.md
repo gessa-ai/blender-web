@@ -226,6 +226,32 @@ framebuffer, and batch translation units compile cleanly. This is a hardware can
 filed partial/stale-frame symptoms, not pixel closure; the exact Apple original-freeze,
 cumulative-interaction, modal-operator, and P0-E regression batteries remain mandatory.
 
+## Buffer-texture readback readiness
+
+The final binding-frontend audit exposed a second phase inside float1-3 sampler-buffer expansion.
+After the primary VBO is valid, `WGPUVertexBuffer::bind_as_texture()` asks `Buffer::read()` for the
+source bytes used to build the float4 backing. Browser `MapAsync` starts on that first call and the
+cache returns no bytes until a later turn. The old interface could not distinguish that precise
+Pending state from a synchronous absence, and successful cache settlement published no redraw
+edge. The eventual slot could therefore remain missing until unrelated input even though neither
+allocation nor bind intent was wrong.
+
+Patch 0301 carries the exact readback ticket state through `Buffer::read()`, records the eventual
+expanded buffer plus an external pending dependency, and upgrades only opted-in cache reads to
+request one coalescible retry after successful settlement. Exact ticket owners and ordinary cache
+consumers retain their existing scheduling contract; failed/canceled settlement and cache hits do
+not request redraw. The hard completeness predicate is unchanged. A separate bounded diagnostic
+records every distinct Pending shader/surviving/assembled/pending signature once, so repeated boot
+variants cannot consume the interaction census before a lazy shader appears.
+
+The final exact fallback run passes all 41 original-freeze/cumulative steps, 90 native states, 201
+presents, 9/9 workspace transitions, the move/undo and same-pose pixel canaries, and an empty hard
+warning/page-error census. The modal four-operator rerun and shrink/restore recovery also pass. One
+earlier strengthened-camera run exposed native CAMERA state while the canvas retained the prior
+perspective until the next key; the instrumented final run emitted no Pending/readback diagnostic,
+so that intermittent fallback observation is not evidence for or against this patch. It remains a
+useful warning against treating a single software-adapter pixel run as P0-I/J closure.
+
 ## Evidence and acceptance
 
 - Apple screenshots: `~/bw-logs/mac-capture-evidence-20260827-extrude-artifact/`.
@@ -342,6 +368,29 @@ cumulative-interaction, modal-operator, and P0-E regression batteries remain man
   `ledger/buildlogs/20260828T061321-2850604.log`,
   `ledger/buildlogs/20260828T062418-2858804.log`, and
   `ledger/buildlogs/20260828T062145-2856610.log`.
+- Patch-0301 fail-first, final source mutation contract, canonical replay, and affected archive:
+  `ledger/buildlogs/20260828T071635-2902535.log`,
+  `ledger/buildlogs/20260828T083816-2955390.log`,
+  `ledger/buildlogs/20260828T082349-2943755.log`, and
+  `ledger/buildlogs/20260828T082239-2943089.log`.
+- Final exact native/Wasm aggregate, CAPTURE preflight/relink/no-work, interaction replay/analyzer,
+  modal close flake plus unchanged clean retry/analyzer, and resize recovery:
+  `ledger/buildlogs/20260828T083131-2948647.log`,
+  `ledger/buildlogs/20260828T083131-2948662.log`,
+  `ledger/buildlogs/20260828T082715-2945938.log`,
+  `ledger/buildlogs/20260828T083155-2949520.log`,
+  `ledger/buildlogs/20260828T083203-2949646.log`,
+  `ledger/buildlogs/20260828T083503-2951331.log`,
+  `ledger/buildlogs/20260828T083522-2951532.log`,
+  `ledger/buildlogs/20260828T083541-2951966.log`,
+  `ledger/buildlogs/20260828T083616-2953061.log`, and
+  `ledger/buildlogs/20260828T083624-2953115.log`.
+- Focused M4, corrected container-backed regression, capture/profile self-checks, and REUSE 6.2.0:
+  `ledger/buildlogs/20260828T083705-2953793.log`,
+  `ledger/buildlogs/20260828T083743-2954370.log`,
+  `ledger/buildlogs/20260828T083131-2948653.log`,
+  `ledger/buildlogs/20260828T083131-2948648.log`, and
+  `ledger/buildlogs/20260828T083825-2955609.log`.
 
 The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
 `67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data
@@ -362,6 +411,11 @@ manifest `7acc3bfa0912`.
 The patch-0300 CAPTURE generation is bound by JS SHA-256 `4de9b95b0e7d`, split Wasm
 `e8cc732ef28c`, `.wasm.orig` `32881203c7ba` (118,977,585 bytes), data `095d0ba748c3`, and split
 manifest `0f60d338dc84`.
+
+The patch-0301 CAPTURE generation is bound by JS SHA-256 `c8e0c4a3ce3a`, split Wasm
+`4f9d89f0269e`, `.wasm.orig` `2ba96011987a` (118,983,520 bytes), data `095d0ba748c3`, and split
+manifest `212f566b14d0`. Patch 0301 is SHA-256 `c82739d3a50b`; the canonical source snapshot is
+SHA-256 `fd4268c16bd2` across 20,258 entries.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

@@ -6,7 +6,9 @@
 This device-free contract treats the canvas and Blender's enabled hidden IME textarea as one
 logical GHOST focus domain. Internal begin/end handoffs publish no window activation changes,
 while focus moving to an ordinary page control or away from the browser still publishes exactly
-one deactivate/reactivate pair.
+one deactivate/reactivate pair. If the shell focused the canvas before callback registration, the
+seeded state publishes one initial activation after window-manager admission so Blender does not
+remain permanently inactive while later callbacks are deduplicated.
 
 Build and serve the real WasmFS + `PROXY_TO_PTHREAD` harness, then run the focused checks:
 

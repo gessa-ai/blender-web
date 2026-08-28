@@ -3291,21 +3291,32 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   intent while first-use allocation was pending. Vertex and index binds now preserve that exact
   pending intent. The relinked unchanged stress sequence has zero hard warnings/page errors,
   coherent semantic pixels through Frame Selected plus final orbit, and a stable 3-to-6-second
-  settle. It still accepts 0/8 post-stress state-changing workspace clicks even though the
-  identical preflight click succeeds; that cumulative input/modal-state defect is explicitly open
-  and is not hidden inside the geometry-bind PASS. Apple pixels remain required for both the filed transient
+  settle. The predecessor's reported 0/8 post-stress workspace result was investigated separately
+  as P0-J: it combined a real missing initial-window-activation defect with an automation tooltip
+  artifact, and the corrected candidate now passes 9/9 state-changing transitions device-free.
+  That does not hardware-close either item. Apple pixels remain required for both the filed transient
   artifact battery and closure. Current-generation acceptance additionally requires
   `incompleteBindGroups=[]`. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
-  the exact Modeling-tab coordinate changes Blender's native active workspace before navigation,
-  but after 10 orbit + 10 Shift-pan + 10 wheel-zoom interactions, none of the eight other workspace
-  coordinates changes the native workspace; all remain Layout. This separates a cumulative
-  pointer/modal/hit-test failure from P0-I's polyline bind drops and from a visual screenshot
-  heuristic. Reproduce with `sandbox/p0-interaction-stress/capture_diagnostic.mjs`; inspect the
-  active modal handler, captured-pointer retirement, and header event admission before changing
-  coordinates or redraw code. Closure requires repeated trusted Apple input switching every tab
-  after the navigation battery, with scene/text pixels intact and P0-D/E/F regressions green.
+  the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,
+  while the original post-stress automation observed 0/8 later transitions. **Initial-activation
+  candidate implemented/pending hardware:** DOM capture and a pass-through Blender modal probe
+  proved worker-batched button presses were assigned later queued cursor coordinates. The shell had
+  already focused the canvas when callbacks registered, so `browser_focus_active_` was seeded true
+  without emitting `GHOST_kEventWindowActivate`; Blender kept `wmWindow::active == 0` and every
+  button-down re-queried GHOST's later global cursor instead of consuming the ordered cursor event.
+  `createWindow()` now publishes the seeded activation only after window-manager admission, and
+  button events no longer overwrite mouse-move-owned cursor state. The original 0/8 result was also
+  amplified by waiting on an already-active Layout no-op until its tooltip consumed the next click;
+  the corrected fail-closed diagnostic dismisses transient tooltips, waits for each real workspace
+  construction, and requires nine native transitions plus exact DOM/GHOST press coordinates. The
+  relinked fallback product passes 9/9 after 10 orbit + 10 Shift-pan + 10 zoom, stable settle plus a
+  pixel-changing final orbit, and zero hard warnings/page/lifecycle errors. Integrated focus,
+  pointer, lifecycle, and WebGPU/GHOST regressions are green. Closure still requires repeated
+  trusted Apple input on the original total-freeze and navigation/workspace sequences, with
+  scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
+  `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

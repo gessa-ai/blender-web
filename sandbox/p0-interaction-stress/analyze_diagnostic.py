@@ -101,17 +101,35 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         "final orbit did not change pixels",
     )
 
-    workspace_steps = [
+    workspace_steps = sorted([
         step for name, step in steps.items() if len(name) >= 3 and name[:2].isdigit() and name[0] == "4"
-    ]
+    ], key=lambda step: step["name"])
     require(len(workspace_steps) == 9, "post-stress workspace attempt census is incomplete")
-    workspace_transitions = [
-        step
-        for step in workspace_steps
-        if step.get("workspaceBefore") != step.get("workspaceRequested")
+    expected_workspaces = [
+        "Modeling", "Sculpting", "UV Editing", "Texture Paint", "Shading",
+        "Animation", "Rendering", "Compositing", "Layout",
     ]
-    require(len(workspace_transitions) == 8, "post-stress transition census is incomplete")
+    require(
+        [step.get("workspaceRequested") for step in workspace_steps] == expected_workspaces,
+        "post-stress workspace target order changed",
+    )
+    workspace_transitions = [step for step in workspace_steps
+                             if step.get("workspaceBefore") != step.get("workspaceRequested")]
+    require(len(workspace_transitions) == 9, "post-stress transition census is incomplete")
     workspace_accepted = sum(step.get("workspaceAccepted") is True for step in workspace_transitions)
+    require(workspace_accepted == 9, "post-stress workspace transitions did not all succeed")
+    for expected, step in zip(expected_workspaces, workspace_steps, strict=True):
+        require(
+            isinstance(step.get("state"), dict) and step["state"].get("workspace") == expected,
+            f"post-stress native workspace differs for {expected}",
+        )
+
+    canary = document.get("workspaceInputCanary")
+    require(isinstance(canary, dict), "workspace button-coordinate canary is absent")
+    expected_x = [352, 421, 494, 577, 657, 727, 805, 891, 288]
+    require(canary.get("expectedX") == expected_x, "workspace coordinate canary changed")
+    require(canary.get("domClickX") == expected_x, "DOM workspace click coordinates differ")
+    require(canary.get("ghostPressX") == expected_x, "GHOST workspace press coordinates differ")
 
     relevant = document.get("relevantWarnings")
     require(isinstance(relevant, list), "relevant warning census is absent")
@@ -148,15 +166,24 @@ def synthetic_document() -> dict[str, Any]:
                 ),
             }
         )
-    for index in range(9):
+    workspaces = [
+        "Modeling", "Sculpting", "UV Editing", "Texture Paint", "Shading",
+        "Animation", "Rendering", "Compositing", "Layout",
+    ]
+    for index, workspace in enumerate(workspaces):
         steps.append(
             {
                 "name": f"4{index}-Workspace",
-                "workspaceBefore": "Layout",
-                "workspaceRequested": "Layout" if index == 0 else f"Workspace-{index}",
-                "workspaceAccepted": False,
+                "workspaceBefore": "Layout" if index == 0 else workspaces[index - 1],
+                "workspaceRequested": workspace,
+                "workspaceAccepted": True,
                 "semanticPixels": {"quantizedColors": 256, "nonWhiteRatio": 0.9},
-                "state": {"cube_in_view": True, "selected": True, "view": {}},
+                "state": {
+                    "workspace": workspace,
+                    "cube_in_view": True,
+                    "selected": True,
+                    "view": {},
+                },
             }
         )
     return {
@@ -167,6 +194,11 @@ def synthetic_document() -> dict[str, Any]:
         "relevantWarnings": ["[bw] Pointer Lock request rejected; continuing without lock"],
         "lifecycleEvents": [],
         "pageErrors": [],
+        "workspaceInputCanary": {
+            "expectedX": [352, 421, 494, 577, 657, 727, 805, 891, 288],
+            "domClickX": [352, 421, 494, 577, 657, 727, 805, 891, 288],
+            "ghostPressX": [352, 421, 494, 577, 657, 727, 805, 891, 288],
+        },
     }
 
 
@@ -183,6 +215,9 @@ def self_check() -> int:
         lambda value: value["steps"][6].__setitem__("sha256", "not-settled"),
         lambda value: value["steps"][7].__setitem__("sha256", "settled"),
         lambda value: value["relevantWarnings"].clear(),
+        lambda value: value["steps"][8].__setitem__("workspaceAccepted", False),
+        lambda value: value["steps"][8]["state"].__setitem__("workspace", "Layout"),
+        lambda value: value["workspaceInputCanary"]["ghostPressX"].__setitem__(0, 288),
     )
     rejected = 0
     for mutate in mutations:
@@ -218,7 +253,8 @@ def main() -> int:
         "P0I_PENDING_GEOMETRY_BIND_RUNTIME_PASS "
         f"steps={result['steps']} states={result['states']} presents={result['presents']} "
         "hard_warnings=0 page_errors=0 "
-        f"workspace_transitions={result['workspace_accepted']}/{result['workspace_attempted']}(open-separate)"
+        f"workspace_transitions={result['workspace_accepted']}/{result['workspace_attempted']} "
+        "button_coords=dom-ghost-matched"
     )
     return 0
 

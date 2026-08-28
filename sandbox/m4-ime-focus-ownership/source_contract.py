@@ -106,6 +106,18 @@ def validate(header: str, source: str, live_test: str) -> None:
     ):
         require_once(registration, token, "focus listener transaction")
 
+    create_window = method(source, "GHOST_IWindow *GHOST_SystemWeb::createWindow(")
+    for token in (
+        "wm->addWindow(valid_window);",
+        "wm->setActiveWindow(valid_window);",
+        "if (browser_focus_active_)",
+        "ghost_web_bridge::on_focus(*this, true);",
+    ):
+        require_once(create_window, token, "initial focus publication")
+    if create_window.index("wm->setActiveWindow(valid_window);") > create_window.index(
+            "ghost_web_bridge::on_focus(*this, true);"):
+        raise ValueError("initial focus is published before window-manager admission")
+
     removal = method(source, "bool remove_html5_callback_prefix(const char *canvas,")
     compact = " ".join(removal.split()).replace("( ", "(")
     for token in (
@@ -164,6 +176,8 @@ def selfcheck(header: str, source: str, live_test: str) -> None:
                               "EMSCRIPTEN_RESULT_SUCCESS"), live_test),
         (header, replace_once(source,
                               "browser_focus_active_ = browserFocusIsOwned();", ""), live_test),
+        (header, mutate_method(source, "GHOST_IWindow *GHOST_SystemWeb::createWindow(",
+                              "ghost_web_bridge::on_focus(*this, true);", ""), live_test),
         (header, replace_once(source,
                               "remove_html5_callback_prefix(canvas, win, callback_user_data_, kWebCallbackCount)",
                               "remove_html5_callback_prefix(canvas, win, callback_user_data_, 13)"),
@@ -196,7 +210,7 @@ def main() -> int:
     selfcheck(header, source, live_test) if args.selfcheck else validate(header, source, live_test)
     print(
         "IME_FOCUS_OWNERSHIP_CONTRACT PASS domain=canvas,textarea "
-        "external=control,window transitions=deduplicated listeners=16 mutations=17"
+        "external=control,window transitions=deduplicated+initial listeners=16 mutations=18"
     )
     return 0
 

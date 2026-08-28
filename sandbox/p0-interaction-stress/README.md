@@ -8,7 +8,11 @@ SPDX-License-Identifier: CC0-1.0
 `capture_diagnostic.mjs` reproduces the filed 10-orbit, 10-pan, 10-zoom sequence against the real
 windowed Wasm product. It couples screenshots to Blender-native workspace, region, scene, and Cube
 projection state so an off-screen object is not mistaken for a dropped geometry draw. It also
-censuses every hard bind-group completeness warning rather than naming one expected shader.
+censuses every hard bind-group completeness warning rather than naming one expected shader. The
+post-stress header pass requires nine state-changing workspace clicks while proving that DOM click
+and GHOST press coordinates are identical. Moving back into the canvas between transitions
+prevents a tooltip from turning the automation's settle delay into a false input failure; the
+fallback diagnostic also allows the real workspace layout time instead of queuing later clicks.
 
 The Linux run deliberately exercises the Apple-verified pointer-lock rejection fallback and forces
 SwiftShader. It is diagnostic-only and binds no hardware or pixel receipt.
@@ -27,9 +31,9 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
 
 The analyzer requires a running product, semantic pixels through the final orbit, Blender-native
 Cube presence, stable three-to-six-second settle pixels, zero page/lifecycle errors, and zero hard
-completeness warnings. It reports the eight post-stress state-changing workspace-click attempts
-but deliberately does not make that separate input-state defect part of the pending-geometry-bind
-PASS. The already-active Layout click is not misreported as a failed workspace transition.
+completeness warnings. It also requires all nine post-stress workspace transitions and the full
+DOM-to-GHOST button-coordinate canary. An already-active tab is deliberately excluded because it
+is not a workspace transition.
 
 The source contract verifies that vertex and index buffers preserve SSBO binding intent while
 first-use allocation is pending, and that numbered patch 0297 carries both changes. The original

@@ -226,7 +226,10 @@ void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)
 void on_mouse_button(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenMouseEvent &e)
 {
   sys.noteModifierFlags(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey);
-  sys.noteCursor(e.targetX, e.targetY);
+  /* Cursor position is owned by the ordered mouse-move stream. With
+   * PROXY_TO_PTHREAD, several DOM button events can wait behind one worker
+   * turn while Emscripten's event storage advances; re-caching targetX/Y here
+   * can roll the correct move position backward to another queued click. */
   const GHOST_TButton button = button_from_dom(e.button);
   if (button == GHOST_kButtonMaskNone) {
     return;

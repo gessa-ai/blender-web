@@ -1811,6 +1811,15 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
           wm->addWindow(valid_window);
           wm->setActiveWindow(valid_window);
         }
+        /* Callback registration can occur after the shell has already focused
+         * the canvas. Its live-DOM seed suppresses a duplicate HTML focus
+         * callback, so publish the initial GHOST activation only after the
+         * window manager owns the window. Without this event Blender leaves
+         * wmWindow::active false and re-queries a later global cursor position
+         * on every queued button-down. */
+        if (browser_focus_active_) {
+          ghost_web_bridge::on_focus(*this, true);
+        }
         /* Deliver an initial size/expose event, exactly as the native back-ends do when a
          * window is first mapped (SDL posts SDL_WINDOWEVENT_EXPOSED/SIZE_CHANGED; X11 posts
          * MapNotify + ConfigureNotify) — that first event is what makes Blender's WM build the

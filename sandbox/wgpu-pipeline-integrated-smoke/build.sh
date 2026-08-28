@@ -58,6 +58,7 @@ WINDOW_TITLE_CONTRACT="$HERE/window_title_contract.py"
 FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
+BUTTON_CURSOR_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_button_cursor.py"
 KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
 IME_NONCOMPOSING_KEY_CONTRACT="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/source_contract.py"
 IME_NONCOMPOSING_KEY_TEST="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/ime_keyboard_test.mjs"
@@ -258,6 +259,7 @@ require_file "$WINDOW_TITLE_CONTRACT"
 require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
+require_file "$BUTTON_CURSOR_CONTRACT"
 require_file "$KEYBOARD_FOCUS_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_TEST"
@@ -1766,6 +1768,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$GHOST_SYSTEM_SOURCE" "$DIAGNOSTICS_BOOTSTRAP_SOURCE" \
   "$ROOT/platform_web/ghost/harness/pointer_lock_test.mjs" --selfcheck
 "$PYBIN" "$FOCUS_STATE_CONTRACT" "$GHOST_EVENT_BRIDGE_SOURCE" --selfcheck
+"$PYBIN" "$BUTTON_CURSOR_CONTRACT" --self-check
 "$PYBIN" "$KEYBOARD_FOCUS_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" \
   "$ROOT/sandbox/m4-keyboard-focus/keyboard_focus_test.mjs" \

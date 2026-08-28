@@ -1,0 +1,97 @@
+<!--
+SPDX-FileCopyrightText: 2026 blender-web contributors
+SPDX-License-Identifier: CC0-1.0
+-->
+
+# P0-J cumulative input: initial web-window activation
+
+## Finding
+
+The post-navigation workspace failure was an input-order defect, not a redraw-episode gap. Browser
+capture showed the expected DOM clicks, but Blender sometimes received a button press at a later
+queued click's position. One representative sequence was DOM/GHOST move `288 -> 352`, followed by
+a Layout press reported at `352`; later batched presses all collapsed to the last queued position.
+That could enter a tooltip, rename, or other modal handler and make later pointer and keyboard input
+appear frozen.
+
+Two mechanisms combined:
+
+1. `registerCanvasCallbacks()` sampled an already-focused shell canvas into
+   `browser_focus_active_` but intentionally emitted no initial `GHOST_kEventWindowActivate`.
+   Registration occurs before `createWindow()` admits the new window to `GHOST_WindowManager`, and
+   no later focus callback arrives when the canvas was already focused. Blender therefore kept
+   `wmWindow::active == 0` for the entire session.
+2. Every inactive button-down takes `wm_window.cc`'s defensive refresh path and queries GHOST's
+   global cursor. With several proxied events queued on the WM worker, that global position can
+   already belong to a later click. `on_mouse_button()` also re-cached delayed button-event
+   coordinates, making the global source less trustworthy.
+
+Translating button `clientX/clientY` was tested and rejected: the whole worker-delayed
+`EmscriptenMouseEvent` can reflect a later buffered event. It is not an independent source of the
+current click.
+
+## Fix
+
+`createWindow()` now publishes the seeded initial focus through `ghost_web_bridge::on_focus()` only
+after the window manager has admitted and activated the window. This delivers the missing GHOST
+activation and makes Blender process subsequent queued cursor/button events in order.
+
+Cursor position is now owned only by the ordered mouse-move stream. Button callbacks still update
+modifier and physical-button state and publish button events, but cannot overwrite the cursor with
+a delayed event struct.
+
+The focus-domain source contract requires the initial post-admission activation. A new
+`verify_button_cursor.py` mutation contract requires move-owned cursor publication and is wired into
+the integrated WebGPU/GHOST smoke driver.
+
+## Diagnostic correction
+
+The original `0/8` workspace observation was amplified by the automation clicking the already
+active Layout tab, waiting on that intentional no-op, and leaving Blender's “Active workspace…”
+tooltip open. Each later slow test click could then dismiss a tooltip rather than switch a
+workspace. The corrected diagnostic:
+
+- measures only nine state-changing workspace transitions;
+- moves into the canvas and presses Escape between measured tab clicks;
+- permits fallback-adapter workspace construction to finish before issuing another click; and
+- compares every DOM click x-coordinate with the corresponding Blender/GHOST press coordinate.
+
+This is a test-method correction, not a product relaxation: all nine native workspace states are
+required and any coordinate mismatch fails closed.
+
+## Verification
+
+- Fail-first initial-focus contract: `20260828T013104-2648361`.
+- Final focus/button source contracts: `20260828T013118-2648443` and
+  `20260828T013118-2648444`.
+- Real proxy-to-worker IME focus and drag/release regressions: `20260828T013141-2648668` and
+  `20260828T013141-2648669`.
+- Locked CAPTURE relink: `20260828T013151-2649391`.
+- Exact fallback product, 10 orbit + 10 Shift-pan + 10 zoom, nine workspace transitions, settled
+  Frame Selected, and final orbit: `20260828T014029-2653939`; fail-closed analyzer:
+  `20260828T015004-2661153` (self-check `20260828T015004-2661152`).
+- Integrated WebGPU/GHOST smoke: `20260828T014411-2656583`; post-commit locked no-work relink:
+  `20260828T015059-2661591`.
+
+The final product stayed running through 2,760 WM ticks and 137 presentations. Workspace state was
+`Modeling -> Sculpting -> UV Editing -> Texture Paint -> Shading -> Animation -> Rendering ->
+Compositing -> Layout`; DOM and GHOST x-coordinates were byte-for-byte equal at
+`[352,421,494,577,657,727,805,891,288]`. There were zero hard bind-group warnings, page errors, or
+browser lifecycle errors. The three- and six-second settle hashes match, while the final orbit hash
+differs.
+
+Relinked CAPTURE identities:
+
+- `blender_browser.js`: `763dba372ec3` (707,729 bytes)
+- `blender_browser.wasm`: `9023e97150f7` (120,324,908 bytes)
+- `blender_browser.wasm.orig`: `a87d0c5cc09b` (118,976,413 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `587cdca663c7` (13,294 bytes)
+
+## Remaining boundary
+
+This host uses a software fallback adapter and binds no pixel or hardware-input receipt. P0-J stays
+pending hardware until the driver repeats the original Apple M4 Pro total-freeze sequence and the
+trusted 30-navigation/workspace battery, confirms native actions and scene/text pixels remain live,
+and keeps P0-D/E/F plus the broader P0-I artifact regression green. No APPLY/public bundle, profile,
+receipt, tag, or launch claim is promoted by this candidate.

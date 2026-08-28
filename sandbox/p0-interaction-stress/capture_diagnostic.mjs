@@ -39,11 +39,43 @@ const pageErrors = [];
 const lifecycleEvents = [];
 const states = [];
 const steps = [];
+const inputEvents = [];
 
 const PY_MONITOR = String.raw`
 import bpy,json,os,time
 from bpy_extras import view3d_utils
 _bwp0s={"last":None,"started":time.perf_counter(),"sequence":0}
+_bwp0s_input_sequence=0
+class WM_OT_bwp0s_input_probe(bpy.types.Operator):
+    bl_idname="wm.bwp0s_input_probe"
+    bl_label="P0 input probe"
+    bl_options={'INTERNAL'}
+    def invoke(self,context,event):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+    def modal(self,context,event):
+        global _bwp0s_input_sequence
+        if event.type in {'MOUSEMOVE','LEFTMOUSE','MIDDLEMOUSE','WHEELUPMOUSE','WHEELDOWNMOUSE'}:
+            _bwp0s_input_sequence+=1
+            payload={
+              "sequence":_bwp0s_input_sequence,
+              "elapsed_ms":round((time.perf_counter()-_bwp0s["started"])*1000,3),
+              "type":event.type,
+              "value":event.value,
+              "x":event.mouse_x,"y":event.mouse_y,
+              "prev_x":event.mouse_prev_x,"prev_y":event.mouse_prev_y,
+              "region_x":event.mouse_region_x,"region_y":event.mouse_region_y,
+              "shift":event.shift,"ctrl":event.ctrl,"alt":event.alt,"oskey":event.oskey,
+              "area":context.area.type if context.area else None,
+              "region":context.region.type if context.region else None,
+            }
+            os.write(2,("P0S_INPUT "+json.dumps(payload,sort_keys=True,separators=(",",":"))+"\n").encode())
+        return {'PASS_THROUGH'}
+def _bwp0s_start_input_probe():
+    if bpy.context.window is None: return 0.05
+    bpy.ops.wm.bwp0s_input_probe('INVOKE_DEFAULT')
+    return None
+bpy.utils.register_class(WM_OT_bwp0s_input_probe)
 def _bwp0s_round(values):
     return [round(float(value),5) for value in values]
 def _bwp0s_poll():
@@ -65,6 +97,7 @@ def _bwp0s_poll():
       "sequence":_bwp0s["sequence"],
       "elapsed_ms":round((time.perf_counter()-_bwp0s["started"])*1000,3),
       "workspace":window.workspace.name if window.workspace else None,
+      "modal_operators":[operator.bl_idname for operator in window.modal_operators],
       "screen":window.screen.name,
       "areas":[item.type for item in window.screen.areas],
       "mode":obj.mode if obj else None,
@@ -87,6 +120,7 @@ def _bwp0s_poll():
         os.write(2,("P0S_STATE "+json.dumps(state,sort_keys=True,separators=(",",":"))+"\n").encode())
     return 0.05
 bpy.app.timers.register(_bwp0s_poll,first_interval=0.0,persistent=True)
+bpy.app.timers.register(_bwp0s_start_input_probe,first_interval=0.0,persistent=True)
 `.trim();
 
 function sha256(bytes) {
@@ -145,12 +179,37 @@ try {
     });
   });
   await page.addInitScript((monitor) => { window.__BW_PYEXPR = monitor; }, PY_MONITOR);
+  await page.addInitScript(() => {
+    const events = [];
+    for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick"]) {
+      window.addEventListener(type, (event) => {
+        events.push({
+          type,
+          detail: event.detail,
+          button: event.button,
+          buttons: event.buttons,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          timeStamp: event.timeStamp,
+        });
+      }, true);
+    }
+    Object.defineProperty(window, "__bwP0DomInputs", {
+      value: {snapshot: () => events.map((event) => ({...event}))},
+      configurable: false,
+      writable: false,
+    });
+  });
   page.on("console", (message) => {
     const line = message.text();
     consoleLines.push(line);
     const match = /^P0S_STATE (\{.*\})$/.exec(line);
     if (match) {
       states.push(JSON.parse(match[1]));
+    }
+    const inputMatch = /^P0S_INPUT (\{.*\})$/.exec(line);
+    if (inputMatch) {
+      inputEvents.push(JSON.parse(inputMatch[1]));
     }
   });
   page.on("pageerror", (error) => pageErrors.push(`${error.name}: ${error.message}`));
@@ -299,8 +358,13 @@ try {
   }
   await capture("30-after-zoom");
 
+  /* Require nine genuine state transitions. An already-active tab is excluded:
+   * waiting on that intentional no-op leaves its tooltip open and makes the
+   * next automated click a tooltip dismissal rather than a workspace action. */
+  const workspaceDomStart = await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.().length || 0);
+  const workspaceNativeStart = inputEvents.length;
   const workspaceTabs = [
-    ["Layout", 288],
     ["Modeling", 352],
     ["Sculpting", 421],
     ["UV Editing", 494],
@@ -309,22 +373,34 @@ try {
     ["Animation", 727],
     ["Rendering", 805],
     ["Compositing", 891],
+    ["Layout", 288],
   ];
   for (let index = 0; index < workspaceTabs.length; index++) {
     const [workspace, x] = workspaceTabs[index];
+    await page.mouse.move(canvasBox.x + canvasBox.width / 2,
+      canvasBox.y + canvasBox.height / 2);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
     const workspaceBefore = latestState()?.workspace || null;
-    const accepted = await attemptWorkspaceClick(workspace, x, 1200);
+    const accepted = await attemptWorkspaceClick(workspace, x, 15000);
     await page.waitForTimeout(700);
     await capture(`4${index}-${workspace.replaceAll(" ", "")}`, {workspaceRequested: workspace,
       workspaceBefore, workspaceAccepted: accepted});
   }
+  await page.waitForTimeout(100);
+  const workspaceDomClicks = (await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.() || [])).slice(workspaceDomStart)
+    .filter((event) => event.type === "click" && event.clientY === 13)
+    .map((event) => event.clientX);
+  const workspaceNativeClicks = inputEvents.slice(workspaceNativeStart)
+    .filter((event) => event.type === "LEFTMOUSE" && event.value === "PRESS")
+    .map((event) => event.x);
 
   await page.waitForTimeout(5000);
   await capture("50-after-idle");
 
   /* Return to Layout, then distinguish a legitimately off-screen Cube from a dropped mesh draw.
    * NumpadDecimal is Blender's stock Frame Selected command and does not mutate scene data. */
-  await page.mouse.click(288, 13);
   await waitForState((state) => state.workspace === "Layout" && state.view,
     "return to Layout", 10000);
   await page.waitForTimeout(700);
@@ -365,6 +441,13 @@ try {
     },
     steps,
     states,
+    inputEvents,
+    domInputEvents: await page.evaluate(() => window.__bwP0DomInputs?.snapshot?.() || []),
+    workspaceInputCanary: {
+      expectedX: workspaceTabs.map(([, x]) => x),
+      domClickX: workspaceDomClicks,
+      ghostPressX: workspaceNativeClicks,
+    },
     hardCompletenessWarnings,
     relevantWarnings: relevantWarnings.slice(-300),
     lifecycleEvents,
@@ -381,6 +464,7 @@ catch (error) {
     pageErrors,
     lifecycleEvents,
     states: states.slice(-20),
+    inputEvents: inputEvents.slice(-100),
     consoleTail: consoleLines.slice(-100),
   };
   writeFileSync(resolve(outDir, "diagnostic-failure.json"), `${JSON.stringify(failure, null, 2)}\n`);

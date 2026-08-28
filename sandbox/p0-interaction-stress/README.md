@@ -71,6 +71,20 @@ node sandbox/p0-interaction-stress/capture_diagnostic.mjs \
   sandbox/p0-interaction-stress/hardware-evidence/mac-m4pro-p0ij-<label>/diagnostic.json
 ```
 
+P0-I/J closure requires repeated clean hardware runs, not one lucky pass. After producing at least
+two fresh immutable runs against the same candidate, validate them together:
+
+```sh
+.host-tools/bin/python3.13 sandbox/p0-interaction-stress/analyze_diagnostic.py \
+  --hardware-series \
+  sandbox/p0-interaction-stress/hardware-evidence/mac-m4pro-p0ij-<label-1>/diagnostic.json \
+  sandbox/p0-interaction-stress/hardware-evidence/mac-m4pro-p0ij-<label-2>/diagnostic.json
+```
+
+The series check reruns every single-receipt assertion and rejects duplicate run labels or capture
+timestamps, non-hardware evidence, and any change in producer, pinned browser stack, accepted Apple
+adapter, local/served generation, or five-file product inventory between runs.
+
 Hardware mode is Apple-only and pins Node 22.16.0, Playwright 1.61.1, PNGJS 7.0.0, and Chromium
 149.0.7827.55. It prefers `adapter.info.isFallbackAdapter`, rejects absent/fallback/software
 adapters, verifies local and served split manifests against the requested `wasm.orig`, and creates

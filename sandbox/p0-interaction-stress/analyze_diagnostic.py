@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -86,6 +87,16 @@ def is_sha256(value: object) -> bool:
         and len(value) == SHA256_LENGTH
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def is_utc_timestamp(value: object) -> bool:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    return parsed.tzinfo == timezone.utc
 
 
 def validate_evidence_binding(document: dict[str, Any]) -> str:
@@ -485,6 +496,51 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
     }
 
 
+def validate_hardware_series(documents: list[dict[str, Any]]) -> dict[str, int]:
+    """Require repeated Apple evidence from one exact product generation.
+
+    Each document must first pass the complete single-run contract. The cross-run checks keep a
+    repeated acceptance claim from mixing product generations, browser stacks, producers, or
+    adapters, and require independently labeled/captured runs rather than duplicate evidence.
+    """
+    require(len(documents) >= 2, "hardware series requires at least two runs")
+    results = [validate(document) for document in documents]
+    require(all(result["hardware"] == 1 for result in results),
+            "hardware series contains non-hardware evidence")
+
+    runs = [document.get("run") for document in documents]
+    require(len(set(runs)) == len(runs), "hardware series run labels are not unique")
+    captured_at = [document.get("capturedAt") for document in documents]
+    require(all(is_utc_timestamp(value) for value in captured_at),
+            "hardware series capture timestamps are absent or invalid")
+    require(len(set(captured_at)) == len(captured_at),
+            "hardware series capture timestamps are not unique")
+
+    baseline = documents[0]
+    baseline_identity = baseline["productIdentity"]
+    for index, document in enumerate(documents[1:], 2):
+        prefix = f"hardware run {index}"
+        require(document.get("source") == baseline.get("source"),
+                f"{prefix} producer identity differs")
+        require(document.get("stack") == baseline.get("stack"),
+                f"{prefix} browser stack differs")
+        require(document.get("adapter") == baseline.get("adapter"),
+                f"{prefix} adapter identity differs")
+        identity = document["productIdentity"]
+        for field in ("files", "generation", "servedGeneration"):
+            require(identity.get(field) == baseline_identity.get(field),
+                    f"{prefix} product {field} differs")
+
+    return {
+        "runs": len(documents),
+        "steps": sum(result["steps"] for result in results),
+        "states": sum(result["states"] for result in results),
+        "presents": sum(result["presents"] for result in results),
+        "workspace_accepted": sum(result["workspace_accepted"] for result in results),
+        "workspace_attempted": sum(result["workspace_attempted"] for result in results),
+    }
+
+
 def synthetic_document() -> dict[str, Any]:
     steps = []
     stable_hashes = {
@@ -747,6 +803,7 @@ def hardware_document() -> dict[str, Any]:
     document = synthetic_document()
     document["evidenceClass"] = HARDWARE_EVIDENCE_CLASS
     document["run"] = "apple-r1"
+    document["capturedAt"] = "2026-08-28T00:00:01.000Z"
     document["stack"]["platform"] = "darwin"
     document["relevantWarnings"] = []
     document["isolationCanary"]["click"]["selectionMode"] = "viewport"
@@ -798,6 +855,10 @@ def self_check() -> int:
     validate(baseline)
     hardware = hardware_document()
     validate(hardware)
+    hardware_second = copy.deepcopy(hardware)
+    hardware_second["run"] = "apple-r2"
+    hardware_second["capturedAt"] = "2026-08-28T00:00:02.000Z"
+    validate_hardware_series([hardware, hardware_second])
     mutations = (
         lambda value: value.__setitem__("schema", "blender-web.p0ij-interaction-stress.v1"),
         lambda value: value["product"].__setitem__("state", "error"),
@@ -884,10 +945,36 @@ def self_check() -> int:
             hardware_rejected += 1
         else:
             raise DiagnosticError("hardware self-check mutation was accepted")
+    series_mutations = (
+        lambda values: values.pop(),
+        lambda values: values[1].__setitem__("run", values[0]["run"]),
+        lambda values: values[1].__setitem__("capturedAt", values[0]["capturedAt"]),
+        lambda values: values[1].__setitem__("capturedAt", "not-a-timestampZ"),
+        lambda values: values[1].__setitem__("evidenceClass", FALLBACK_EVIDENCE_CLASS),
+        lambda values: values[1]["source"].__setitem__("sha256", "0" * 64),
+        lambda values: values[1]["stack"].__setitem__("nodeVersion", "v22.17.0"),
+        lambda values: values[1]["adapter"]["info"].__setitem__("device", "Other Apple GPU"),
+        lambda values: values[1]["productIdentity"]["files"][
+            "blender_browser.data"].__setitem__("sha256", "0" * 64),
+        lambda values: values[1]["productIdentity"]["generation"].__setitem__(
+            "instrumentedWasmSha256", "0" * 64),
+        lambda values: values[1]["productIdentity"]["servedGeneration"].__setitem__(
+            "javascriptSha256", "0" * 64),
+    )
+    series_rejected = 0
+    for mutate in series_mutations:
+        candidates = [copy.deepcopy(hardware), copy.deepcopy(hardware_second)]
+        mutate(candidates)
+        try:
+            validate_hardware_series(candidates)
+        except DiagnosticError:
+            series_rejected += 1
+        else:
+            raise DiagnosticError("hardware-series self-check mutation was accepted")
     print(
         "P0IJ_INTERACTION_STRESS_SELFCHECK_PASS "
-        f"positive=2 negative={rejected + hardware_rejected} "
-        f"hardware_negative={hardware_rejected}"
+        f"positive=3 negative={rejected + hardware_rejected + series_rejected} "
+        f"hardware_negative={hardware_rejected} series_negative={series_rejected}"
     )
     return 0
 
@@ -895,8 +982,38 @@ def self_check() -> int:
 def main() -> int:
     if sys.argv[1:] == ["--self-check"]:
         return self_check()
+    if sys.argv[1:2] == ["--hardware-series"]:
+        paths = [Path(value) for value in sys.argv[2:]]
+        if len(paths) < 2:
+            raise DiagnosticError(
+                "usage: analyze_diagnostic.py --hardware-series diagnostic-1.json "
+                "diagnostic-2.json [...]"
+            )
+        resolved_paths = [path.resolve() for path in paths]
+        require(len(set(resolved_paths)) == len(resolved_paths),
+                "hardware series repeats an evidence path")
+        documents = []
+        for path in paths:
+            try:
+                document = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                raise DiagnosticError(f"could not read {path}: {error}") from error
+            require(isinstance(document, dict), f"diagnostic root is not an object: {path}")
+            documents.append(document)
+        result = validate_hardware_series(documents)
+        print(
+            "P0IJ_INTERACTION_STRESS_HARDWARE_SERIES_PASS "
+            f"runs={result['runs']} steps={result['steps']} states={result['states']} "
+            f"presents={result['presents']} hard_warnings=0 page_errors=0 "
+            f"workspace_transitions={result['workspace_accepted']}/"
+            f"{result['workspace_attempted']} exact_generation=1"
+        )
+        return 0
     if len(sys.argv) > 2:
-        raise DiagnosticError("usage: analyze_diagnostic.py [diagnostic.json|--self-check]")
+        raise DiagnosticError(
+            "usage: analyze_diagnostic.py [diagnostic.json|--self-check|"
+            "--hardware-series diagnostic-1.json diagnostic-2.json [...]]"
+        )
     path = (
         Path(sys.argv[1])
         if len(sys.argv) == 2

@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 blender-web contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# P0-I cumulative-interaction diagnostic
+# P0-I/J cumulative-interaction diagnostic and Apple acceptance producer
 
 `capture_diagnostic.mjs` reproduces the filed 10-orbit, 10-pan, 10-zoom sequence against the real
 windowed Wasm product. It couples screenshots to Blender-native workspace, region, scene, and Cube
@@ -14,8 +14,8 @@ and GHOST press coordinates are identical. Moving back into the canvas between t
 prevents a tooltip from turning the automation's settle delay into a false input failure; the
 fallback diagnostic also allows the real workspace layout time instead of queuing later clicks.
 
-The Linux run deliberately exercises the Apple-verified pointer-lock rejection fallback and forces
-SwiftShader. It is diagnostic-only and binds no hardware or pixel receipt.
+The default Linux run deliberately exercises the Apple-verified pointer-lock rejection fallback
+and forces SwiftShader. It is diagnostic-only and binds no hardware or pixel receipt.
 
 Serve an already-linked product and run the capture plus both contracts:
 
@@ -27,6 +27,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/analyze_diagnostic.py
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_source.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_capture_contract.py --self-check
 ```
 
 The analyzer requires a running product, semantic pixels through the final orbit, Blender-native
@@ -34,6 +36,33 @@ Cube presence, stable three-to-six-second settle pixels, zero page/lifecycle err
 completeness warnings. It also requires all nine post-stress workspace transitions and the full
 DOM-to-GHOST button-coordinate canary. An already-active tab is deliberately excluded because it
 is not a workspace transition.
+
+The strengthened P0-J path establishes a same-run front-view/Frame-Selected reference, restores
+that exact Blender-native pose after the cumulative battery and again after the final orbit, then
+compares actual pixels. The full VIEW_3D must stay within a 1% changed-pixel ceiling; narrower
+viewport-header, toolbar-icon, Outliner-text, and workspace-label regions use a 0.2% ceiling. This
+detects the filed missing Cube/grid, clipped leading text, missing icons, and retained grey bars
+without relying on PNG byte size. A real `G X 2 Enter` followed by `Control+Z` must also change and
+restore Blender's native Cube location after the stress sequence.
+
+On the driver-operated Apple host, run the same producer in hardware mode against an already-served
+CAPTURE generation:
+
+```sh
+node sandbox/p0-interaction-stress/capture_diagnostic.mjs \
+  --hardware --port 8123 \
+  --run mac-m4pro-p0ij-<label> \
+  --bin-dir build-wasm-windowed-opt/bin \
+  --expected-wasm-orig-sha256 <64-lowercase-hex>
+.host-tools/bin/python3.13 sandbox/p0-interaction-stress/analyze_diagnostic.py \
+  sandbox/p0-interaction-stress/hardware-evidence/mac-m4pro-p0ij-<label>/diagnostic.json
+```
+
+Hardware mode is Apple-only and pins Node 22.16.0, Playwright 1.61.1, PNGJS 7.0.0, and Chromium
+149.0.7827.55. It prefers `adapter.info.isFallbackAdapter`, rejects absent/fallback/software
+adapters, verifies local and served split manifests against the requested `wasm.orig`, and creates
+the immutable evidence directory only after those checks pass. Pointer lock may succeed or take the
+single bounded rejection fallback; either path must leave zero page errors.
 
 The source contract verifies that vertex and index buffers preserve SSBO binding intent while
 first-use allocation is pending, and that numbered patch 0297 carries both changes. The original

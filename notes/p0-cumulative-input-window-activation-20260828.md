@@ -373,3 +373,38 @@ The direct M4 verifier therefore remains honestly red at the unsupported hardwar
 (`ledger/buildlogs/20260828T110357-3053068.log`). The authoritative pinned-container regression
 keeps M0 green at 6/6 and preserves every named M1-M8 strict/APPLY/hardware/product boundary
 (`ledger/buildlogs/20260828T110808-3055769.log`; suite timestamp 2026-08-28T11:08:12Z).
+
+## Bind the suppressed-present seam in the Apple producer
+
+Commit `56bd212` strengthens the existing P0-I/J capture without changing runtime source or product
+bytes. After establishing the same-run front/Frame-Selected reference, it drives two immediate
+`Numpad3 -> Numpad7 -> Numpad0 -> Numpad1` cycles. Each trusted key must reach its learned
+Blender-native perspective/rotation, but the producer deliberately does not wait for intermediate
+pixel settlement. It then requires the final retained frame to settle within the existing bounded
+12-second window, remain byte-identical for another three seconds, advance both the uncapped
+validated-present counter and the input-retry generation, and match a third same-pose full/detail
+region diff. This directly exercises the coalescing behavior introduced by `868bd86` on the next
+driver-operated Apple series instead of relying only on isolated transitions.
+
+The analyzer failed first before the producer and fixture carried the burst
+(`ledger/buildlogs/20260828T112009-3064291.log`). Its final synthetic contract, actual captured
+document, producer/source/recovery seams, and pinned REUSE 6.2.0 are green
+(`ledger/buildlogs/20260828T112931-3069739.log`,
+`ledger/buildlogs/20260828T112931-3069748.log`,
+`ledger/buildlogs/20260828T112931-3069757.log`,
+`ledger/buildlogs/20260828T112931-3069766.log`,
+`ledger/buildlogs/20260828T112931-3069775.log`, and
+`ledger/buildlogs/20260828T112935-3069789.log`). The real fallback run is
+`ledger/buildlogs/20260828T112218-3065518.log`: 43 screenshots, 123 native states, 297 validated
+presents, eight ordered DOM/native burst transitions, presents 83 -> 108, retries 883 -> 899,
+5,037 ms final settlement, three zero-difference known-pose canaries, and zero hard warnings or page
+errors. This software result binds the contract only.
+
+The CAPTURE inventory remains byte-identical: JS `c8e0c4a3ce3a`, Wasm `03f17d6862a2`,
+`.wasm.orig` `96cb55a62707` (118,983,629 bytes), data `095d0ba748c3`, and manifest
+`497deb8505be`. Direct M4 therefore remains honestly hardware-pixel RED
+(`ledger/buildlogs/20260828T113140-3072157.log`). The authoritative container-backed regression
+restores M0 6/6 and preserves the named M1-M8 boundaries
+(`ledger/buildlogs/20260828T113046-3071062.log`; suite timestamp 2026-08-28T11:30:50Z). P0-I/J
+still require at least two clean Apple runs of this exact generation plus modal, P0-D/E/F, and
+resize pixels before closure.

@@ -3356,9 +3356,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   census, and zero page errors; modal four-operator and shrink/restore regressions also pass. The
   exact candidate is `.wasm.orig` SHA-256
   `96cb55a627071c9cbcfcdeb6926c79d78bddf0dafb972eb437f37bee2f73afe8`
-  (118,983,629 bytes). Apple must rerun it as a repeated hardware series; device-free pixels still
-  cannot close P0-I/J. See
-  `notes/p0-modal-extrude-frame-coherence-20260827.md`.
+  (118,983,629 bytes). **Rapid suppressed-present canary implemented (`56bd212`):** the same
+  producer now drives two back-to-back Numpad3/7/0/1 native view cycles without waiting for
+  intermediate pixel settlement, then requires the final known pose to settle within 12 seconds,
+  hold for three seconds, advance both validated presentation and input-retry generations, and
+  match a third same-pose region diff. The exact fallback generation passes eight trusted DOM/native
+  transitions, settles in 5,037 ms, and has zero changed pixels in all three known-pose canaries.
+  No product byte changed. Apple must rerun it as a repeated hardware series; device-free pixels
+  still cannot close P0-I/J. See
+  `notes/p0-modal-extrude-frame-coherence-20260827.md` and
+  `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,
   while the original post-stress automation observed 0/8 later transitions. **Initial-activation
@@ -3421,7 +3428,11 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   cumulative battery (98 states, 292 presents, 9/9 workspaces, two exact same-pose comparisons,
   move/undo, no hard warning/page error), the modal four-operator analyzer, and coherent
   shrink/restore. It is bound by `.wasm.orig` `96cb55a62707` (118,983,629 bytes).
-  This is a stronger pending-hardware candidate, not closure. Closure still requires repeated
+  **Rapid hardware canary implemented (`56bd212`):** two immediate Numpad3/7/0/1 cycles now stress
+  the coalesced suppressed-present path and bind eight trusted DOM inputs to strictly increasing
+  native transitions, advancing presentation/retry counters, a bounded held final frame, and a
+  third same-pose pixel comparison. The unchanged fallback product passes; this is a stronger
+  pending-hardware candidate, not closure. Closure still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.

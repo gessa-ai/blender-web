@@ -109,6 +109,10 @@ class GHOST_SystemWeb : public GHOST_System {
     }
   }
 
+  /** Publish one coalescible bounded redraw retry for accepted ordinary input.
+   * This deliberately does not start the resize-only drawable episode/barrier. */
+  void requestInputRedrawRetry();
+
   const std::string &canvasSelector() const
   {
     return canvas_selector_;

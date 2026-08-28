@@ -124,6 +124,20 @@ int main()
     return 1;
   }
 
+  const uint64_t before_coalesced_input = ghost_web::redraw_retry_generation();
+  ghost_web::request_redraw_retry();
+  ghost_web::request_redraw_retry();
+  ghost_web::request_redraw_retry();
+  const uint64_t after_coalesced_input = ghost_web::redraw_retry_generation();
+  if (!require(after_coalesced_input == before_coalesced_input + 3u,
+               "multiple input callbacks publish monotonic retry ownership") ||
+      !require(recovery_tick() && retry_generation_seen == after_coalesced_input &&
+                   heartbeat == 53,
+               "one WM tick coalesces input callbacks without resetting an active budget"))
+  {
+    return 1;
+  }
+
   /* A resize may arrive on the final tick of an older readiness episode while its replacement
    * surface/backbuffer is still validating. The resize request can spend that final update before
    * the new extent is drawable; the later coherent commit must therefore start its own budget. */
@@ -665,9 +679,9 @@ int main()
 
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
-      "late=immediate drops=bounded readiness=rearmed resize_commit=fresh "
+      "late=immediate drops=bounded readiness=rearmed input=coalesced-bounded resize_commit=fresh "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 66 ? 0 : 1;
+  return checks == 68 ? 0 : 1;
 }

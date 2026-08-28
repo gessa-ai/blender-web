@@ -219,6 +219,7 @@ void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)
     }
   }
   sys.noteCursor(x, y);
+  sys.requestInputRedrawRetry();
   sys.pushEvent(std::make_unique<GHOST_EventCursor>(
       sys.getMilliSeconds(), GHOST_kEventCursorMove, win, x, y, GHOST_TABLET_DATA_NONE));
 }
@@ -236,6 +237,7 @@ void on_mouse_button(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenMo
   }
   const bool down = (em_event_type == EMSCRIPTEN_EVENT_MOUSEDOWN);
   sys.noteButton(button, down);
+  sys.requestInputRedrawRetry();
   GHOST_IWindow *win = sys.activeWindow();
   sys.pushEvent(std::make_unique<GHOST_EventButton>(
       sys.getMilliSeconds(),
@@ -251,6 +253,11 @@ void on_wheel(GHOST_SystemWeb &sys, const EmscriptenWheelEvent &e)
   sys.noteCursor(e.mouse.targetX, e.mouse.targetY);
   GHOST_IWindow *win = sys.activeWindow();
   const uint64_t t = sys.getMilliSeconds();
+
+  if (e.deltaY == 0.0 && e.deltaX == 0.0) {
+    return;
+  }
+  sys.requestInputRedrawRetry();
 
   /* DOM deltaY > 0 means scrolling DOWN; GHOST wheel value is +1 for up. Emit one
    * discrete step per event (Blender treats wheel value as notches, not pixels). */
@@ -273,6 +280,7 @@ void on_key(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenKeyboardEve
    * press cannot be mistaken for the left-side fallback. */
   sys.noteModifierKey(key, down);
   sys.noteModifierFlags(e.ctrlKey, e.shiftKey, e.altKey, e.metaKey);
+  sys.requestInputRedrawRetry();
   GHOST_IWindow *win = sys.activeWindow();
 
   char utf8[6] = {0};

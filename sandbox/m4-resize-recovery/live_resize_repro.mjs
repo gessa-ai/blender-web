@@ -281,6 +281,10 @@ try {
   const query = new URLSearchParams({
     args: "--debug-events",
     pyexpr: `exec(${JSON.stringify(pythonTrace)})`,
+    /* Semantic VIEW_3D readiness now retires the boot recovery heartbeat as soon as the first
+     * complete frame presents. Keep this diagnostic's idle WM polling fast enough to reach its
+     * existing 200-tick pre-resize boundary without injecting user input or extending timeout. */
+    ka_idle: "16",
   });
   await page.goto(`http://127.0.0.1:${port}/windowed.html?${query}`, {waitUntil: "domcontentloaded"});
   await page.waitForFunction(() => document.querySelector("#state")?.dataset.state === "running", null,
@@ -291,12 +295,44 @@ try {
                              {timeout: 30000, polling: 100});
   await page.waitForTimeout(1000);
   const initial = await sample(page);
+  /* The initial shell sizing now completes through the same semantic frame barrier as later
+   * resizes. Keep its evidence and errors, but compare resize-only counters from this settled
+   * boundary so boot admission cannot masquerade as a third shrink/restore barrier. */
+  const resizeCounterBaseline = {
+    resizeApplied: counters.resizeApplied,
+    resizeBarrier: counters.resizeBarrier,
+    resizeBarrierSuccess: counters.resizeBarrierSuccess,
+    resizeBarrierRejected: counters.resizeBarrierRejected,
+    wmResizeProcessed: counters.wmResizeProcessed,
+  };
   await page.setViewportSize({width: 1100, height: 640});
   const shrunk = await waitForResizeFrame(page, 1100, 640, initial);
   await page.setViewportSize({width: 1280, height: 720});
   const restored = await waitForResizeFrame(page, 1280, 720, shrunk);
 
-  const evidence = {initial, shrunk, restored, counters, resizeLayouts, resizeTraces, lines};
+  const resizeApplied = counters.resizeApplied - resizeCounterBaseline.resizeApplied;
+  const resizeBarrier = counters.resizeBarrier - resizeCounterBaseline.resizeBarrier;
+  const resizeBarrierSuccess =
+    counters.resizeBarrierSuccess - resizeCounterBaseline.resizeBarrierSuccess;
+  const resizeBarrierRejected =
+    counters.resizeBarrierRejected - resizeCounterBaseline.resizeBarrierRejected;
+  const wmResizeProcessed = counters.wmResizeProcessed - resizeCounterBaseline.wmResizeProcessed;
+
+  const evidence = {
+    initial,
+    shrunk,
+    restored,
+    counters,
+    resizeCounterBaseline,
+    resizeApplied,
+    resizeBarrier,
+    resizeBarrierSuccess,
+    resizeBarrierRejected,
+    wmResizeProcessed,
+    resizeLayouts,
+    resizeTraces,
+    lines,
+  };
   const failures = [];
   if (!dimensionsMatch(initial, 1280, 720)) failures.push("initial canvas extent mismatch");
   if (!dimensionsMatch(shrunk, 1100, 640)) failures.push("shrunk canvas extent mismatch");
@@ -316,18 +352,17 @@ try {
       shrinkRedrawPresents > 3 || restoreRedrawPresents > 3) {
     failures.push(`single barrier presents differ: ${shrinkRedrawPresents}/${restoreRedrawPresents}`);
   }
-  if (counters.resizeApplied < 3) failures.push("shell backing resize was not observed");
-  if (counters.resizeBarrierSuccess !== 2) {
-    failures.push(`successful resize barrier count=${counters.resizeBarrierSuccess}`);
+  if (resizeApplied < 2) failures.push("shell backing resize was not observed");
+  if (resizeBarrierSuccess !== 2) {
+    failures.push(`successful resize barrier count=${resizeBarrierSuccess}`);
   }
-  if (counters.resizeBarrierRejected > 8) {
-    failures.push(`rejected resize barrier log bound=${counters.resizeBarrierRejected}`);
+  if (resizeBarrierRejected > 8) {
+    failures.push(`rejected resize barrier log bound=${resizeBarrierRejected}`);
   }
-  if (counters.resizeBarrier !==
-      counters.resizeBarrierSuccess + counters.resizeBarrierRejected) {
-    failures.push(`unclassified resize barrier count=${counters.resizeBarrier}`);
+  if (resizeBarrier !== resizeBarrierSuccess + resizeBarrierRejected) {
+    failures.push(`unclassified resize barrier count=${resizeBarrier}`);
   }
-  if (counters.wmResizeProcessed < 2) failures.push("WM resize processing was not observed");
+  if (wmResizeProcessed < 2) failures.push("WM resize processing was not observed");
   const traceEpochs = [
     {episode: shrunk.episodes, extent: [1100, 640], label: "shrink"},
     {episode: restored.episodes, extent: [1280, 720], label: "restore"},
@@ -347,11 +382,11 @@ try {
     console.error(JSON.stringify(evidence, null, 2));
     throw new Error(`BW_M4_RESIZE_RECOVERY_FAIL ${failures.join("; ")}`);
   }
-  console.log(`BW_M4_RESIZE_RECOVERY_PASS resize=${counters.resizeApplied} ` +
-              `wm=${counters.wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
+  console.log(`BW_M4_RESIZE_RECOVERY_PASS resize=${resizeApplied} ` +
+              `wm=${wmResizeProcessed} ticks=${initial.ticks}/${shrunk.ticks}/${restored.ticks} ` +
               `presents=${initial.presents}/${shrunk.presents}/${restored.presents} ` +
               `episodes=${initial.episodes}/${shrunk.episodes}/${restored.episodes} ` +
-              `barriers=${counters.resizeBarrierSuccess}/${counters.resizeBarrierRejected} ` +
+              `barriers=${resizeBarrierSuccess}/${resizeBarrierRejected} ` +
               `redrawPresents=${shrinkRedrawPresents}/${restoreRedrawPresents} ` +
               `trace=${resizeTraces.length} plans=complete,current,contained,view3d-bound`);
 }

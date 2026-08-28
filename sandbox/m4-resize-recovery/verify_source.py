@@ -294,11 +294,15 @@ def validate(
         "ghost_web::redraw_episode_generation()",
         "const ghost_web::RedrawTraceSnapshot completed_frame =\n"
         "      ghost_web::redraw_trace_snapshot();",
+        "const bool viewport_content_pending =",
+        "const bool frame_complete =",
+        "ghost_web::viewport_content_trace_complete(completed_frame, episode)",
+        "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
         "ghost_window_ != nullptr",
         "ghost_web::redraw_present_frame_matches_episode(",
         "redraw_present_frame_episode_, episode",
         "ghost_web::redraw_trace_active(episode)",
-        "ghost_web::redraw_present_trace_complete(completed_frame, episode)",
+        "      frame_complete &&",
         "ghost_web::schedule_redraw_present_barrier(\n"
         "          episode, completed_frame)",
         "queue_scheduler_.enqueue(",
@@ -309,7 +313,7 @@ def validate(
         if end_frame.count(token) != 1:
             errors.append(f"resize present queue barrier differs: {token}")
     if end_frame and all(token in end_frame for token in end_frame_tokens):
-        positions = tuple(end_frame.index(token) for token in end_frame_tokens[1:9])
+        positions = tuple(end_frame.index(token) for token in end_frame_tokens[1:13])
         if positions != tuple(sorted(positions)):
             errors.append("resize present barrier can capture an incomplete window frame tail")
 

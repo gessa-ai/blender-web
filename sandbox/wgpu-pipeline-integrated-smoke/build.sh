@@ -59,6 +59,7 @@ FULLSCREEN_STATE_CONTRACT="$HERE/fullscreen_state_contract.py"
 POINTER_LOCK_CONTRACT="$HERE/pointer_lock_contract.py"
 FOCUS_STATE_CONTRACT="$HERE/focus_state_contract.py"
 BUTTON_CURSOR_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_button_cursor.py"
+INPUT_REDRAW_RECOVERY_CONTRACT="$ROOT/sandbox/p0-interaction-stress/verify_input_redraw_recovery.py"
 KEYBOARD_FOCUS_CONTRACT="$ROOT/sandbox/m4-keyboard-focus/source_contract.py"
 IME_NONCOMPOSING_KEY_CONTRACT="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/source_contract.py"
 IME_NONCOMPOSING_KEY_TEST="$ROOT/sandbox/m4-ime-noncomposing-key-bridge/ime_keyboard_test.mjs"
@@ -260,6 +261,7 @@ require_file "$FULLSCREEN_STATE_CONTRACT"
 require_file "$POINTER_LOCK_CONTRACT"
 require_file "$FOCUS_STATE_CONTRACT"
 require_file "$BUTTON_CURSOR_CONTRACT"
+require_file "$INPUT_REDRAW_RECOVERY_CONTRACT"
 require_file "$KEYBOARD_FOCUS_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_CONTRACT"
 require_file "$IME_NONCOMPOSING_KEY_TEST"
@@ -1769,6 +1771,7 @@ require_fixed_count 1 'ghost_web::DrawingContextMode::DeviceOnly' "$GHOST_SYSTEM
   "$ROOT/platform_web/ghost/harness/pointer_lock_test.mjs" --selfcheck
 "$PYBIN" "$FOCUS_STATE_CONTRACT" "$GHOST_EVENT_BRIDGE_SOURCE" --selfcheck
 "$PYBIN" "$BUTTON_CURSOR_CONTRACT" --self-check
+"$PYBIN" "$INPUT_REDRAW_RECOVERY_CONTRACT" --self-check
 "$PYBIN" "$KEYBOARD_FOCUS_CONTRACT" \
   "$GHOST_SYSTEM_SOURCE" \
   "$ROOT/sandbox/m4-keyboard-focus/keyboard_focus_test.mjs" \
@@ -2377,7 +2380,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=66 periodic=15 late=immediate drops=bounded readiness=rearmed resize_commit=fresh present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=68 periodic=15 late=immediate drops=bounded readiness=rearmed input=coalesced-bounded resize_commit=fresh present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

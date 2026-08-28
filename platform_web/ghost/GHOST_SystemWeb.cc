@@ -1445,6 +1445,15 @@ void reconcile_modifier_pair(GHOST_ModifierKeys &keys,
 
 }  // namespace
 
+void GHOST_SystemWeb::requestInputRedrawRetry()
+{
+  /* Input can expose a region whose first-use browser resource was not ready during the
+   * preceding bounded burst. Reuse the readiness generation: processEvents() coalesces all
+   * callbacks observed in one WM tick, and redraw_recovery_tick() resets only a completed
+   * budget, so active gestures cannot extend the hard ceiling indefinitely. */
+  ghost_web::request_redraw_retry();
+}
+
 void GHOST_SystemWeb::noteModifierFlags(const bool ctrl,
                                         const bool shift,
                                         const bool alt,

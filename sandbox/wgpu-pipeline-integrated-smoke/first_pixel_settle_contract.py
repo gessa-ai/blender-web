@@ -448,18 +448,38 @@ def validate(
         "ghost_web::request_present_replay();",
     ):
         require_once(present_backbuffer, token, "suppressed-present telemetry publication")
-    defer_at = present_backbuffer.index("if (present_settlement_.defer_if_pending())")
+    overlap_at = present_backbuffer.index(
+        "const bool validation_scope_pending = present_settlement_.defer_if_pending();"
+    )
+    validate_at = present_backbuffer.index(
+        "const bool validate_transaction = !validation_scope_pending;"
+    )
     suppressed_at = present_backbuffer.index("ghost_web::note_present_suppressed();")
-    suppressed_return_at = present_backbuffer.find("return false;", suppressed_at)
+    backbuffer_at = present_backbuffer.index("ensureBackbuffer();")
+    begin_at = present_backbuffer.index(
+        "if (validate_transaction) {\n    present_settlement_.begin();"
+    )
+    encode_scope_at = present_backbuffer.index(
+        "[device, validate_transaction]() {\n            if (validate_transaction)"
+    )
+    unscoped_complete_at = present_backbuffer.index(
+        "if (validate_transaction) {\n              popErrorScopes(device, \"present command encoding\""
+    )
     settlement_at = present_backbuffer.index(
-        "const bool retry_after_settlement = owner.present_settlement_.complete();"
+        "const bool retry_after_settlement =\n"
+        "                  validate_transaction ? owner.present_settlement_.complete() : false;"
     )
     replay_request_at = present_backbuffer.index("ghost_web::request_present_replay();")
     settlement_tail = present_backbuffer[settlement_at:]
     if "owner.presentBackbuffer()" in settlement_tail:
         raise ValueError("settlement replay still acquires a surface outside the WM draw boundary")
-    if not (defer_at < suppressed_at < suppressed_return_at < settlement_at < replay_request_at):
-        raise ValueError("suppressed-present telemetry does not bind defer and WM replay request")
+    if "return false;" in present_backbuffer[suppressed_at:backbuffer_at]:
+        raise ValueError("validation overlap still suppresses the synchronous WM present")
+    if not (
+        overlap_at < validate_at < suppressed_at < backbuffer_at < begin_at < encode_scope_at
+        < unscoped_complete_at < settlement_at < replay_request_at
+    ):
+        raise ValueError("validation overlap does not bind unscoped WM present and final replay")
 
     update_case = wm_window_source.find("case GHOST_kEventWindowUpdate:")
     case_end = wm_window_source.find("break;", update_case)
@@ -681,6 +701,12 @@ def selfcheck(
             PRESENT_BACKBUFFER_MARKER,
             "ghost_web::request_present_replay();",
             "",
+        ),
+        mutate_method(
+            context_source,
+            PRESENT_BACKBUFFER_MARKER,
+            "const bool validate_transaction = !validation_scope_pending;",
+            "const bool validate_transaction = true;",
         ),
         mutate_method(
             context_source,

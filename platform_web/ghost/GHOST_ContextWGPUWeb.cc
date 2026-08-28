@@ -1008,9 +1008,15 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   if (!deviceIsUsable() || surface_ == nullptr) {
     return false;
   }
-  if (present_settlement_.defer_if_pending()) {
+  const bool validation_scope_pending = present_settlement_.defer_if_pending();
+  const bool validate_transaction = !validation_scope_pending;
+  if (validation_scope_pending) {
+    /* PopErrorScope callbacks can lag several WM frames after their scopes were synchronously
+     * removed from the device stack. Keep one such transaction as the diagnostic owner, but do
+     * not suppress later surface copies while only its callback is pending: every overlapping
+     * WM frame still acquires, encodes, and submits in its own browser turn without nested scopes.
+     * Settlement requests one final scoped WM replay for validated evidence. */
     ghost_web::note_present_suppressed();
-    return false;
   }
 
   /* A rejected resize remains requested. Every later frame can recreate it, so
@@ -1096,9 +1102,15 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint32_t requested_height = requested_height_;
   const uint32_t backbuffer_width = backbuffer_w_;
   const uint32_t backbuffer_height = backbuffer_h_;
-  present_settlement_.begin();
+  if (validate_transaction) {
+    present_settlement_.begin();
+  }
   ghost_web::present_frame_encode_submit_scoped(
-          [device]() { pushErrorScopes(device); },
+          [device, validate_transaction]() {
+            if (validate_transaction) {
+              pushErrorScopes(device);
+            }
+          },
           [source_texture]() { return source_texture.CreateView(); },
           [target_texture]() { return target_texture.CreateView(); },
           [device, bind_group_layout](const wgpu::TextureView &source_view) {
@@ -1128,10 +1140,19 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
             pass.SetBindGroup(0, bind_group);
             pass.Draw(3);
           },
-          [device](auto completion) {
-            popErrorScopes(device, "present command encoding", std::move(completion));
+          [device, validate_transaction](auto completion) {
+            if (validate_transaction) {
+              popErrorScopes(device, "present command encoding", std::move(completion));
+            }
+            else {
+              completion(true);
+            }
           },
-          [device]() { pushErrorScopes(device); },
+          [device, validate_transaction]() {
+            if (validate_transaction) {
+              pushErrorScopes(device);
+            }
+          },
           [lifetime, device_state, queue](const wgpu::CommandBuffer &command_buffer) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb & /*owner*/) {
               if (ghost_web::device_state_allows_callback_work(device_state)) {
@@ -1139,8 +1160,13 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
               }
             });
           },
-          [device](auto completion) {
-            popErrorScopes(device, "present queue submission", std::move(completion));
+          [device, validate_transaction](auto completion) {
+            if (validate_transaction) {
+              popErrorScopes(device, "present queue submission", std::move(completion));
+            }
+            else {
+              completion(true);
+            }
           },
           [lifetime,
            device_state,
@@ -1155,9 +1181,11 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            requested_width,
            requested_height,
            backbuffer_width,
-           backbuffer_height](const bool valid) {
+           backbuffer_height,
+           validate_transaction](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
-              const bool retry_after_settlement = owner.present_settlement_.complete();
+              const bool retry_after_settlement =
+                  validate_transaction ? owner.present_settlement_.complete() : false;
               if (!ghost_web::device_state_allows_callback_work(device_state)) {
                 return;
               }
@@ -1283,7 +1311,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
           });
   /* The browser auto-presents `st.texture` when this rAF tick yields. Acquire, render-pass
    * encoding, and queue submission happen synchronously above; only the two error-scope results
-   * settle later. Newer swaps coalesce behind present_settlement_; settlement publishes one
-   * WM-owned update so the fresh surface blit remains inside the synchronous draw boundary. */
+   * settle later. While one scoped transaction owns those callbacks, later WM frames still submit
+   * unscoped surface copies in-turn. Settlement publishes one final scoped WM-owned update. */
   return true;
 }

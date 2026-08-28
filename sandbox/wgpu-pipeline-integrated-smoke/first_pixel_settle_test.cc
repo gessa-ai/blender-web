@@ -42,7 +42,7 @@ int main()
                "a fresh present settlement latch is idle") ||
       !require(!present_settlement.defer_if_pending() &&
                    !present_settlement.retry_requested(),
-               "an idle latch does not suppress or schedule a present"))
+               "an idle latch leaves the next present scoped"))
   {
     return 1;
   }
@@ -51,10 +51,10 @@ int main()
                "begin publishes exactly one pending present") ||
       !require(present_settlement.defer_if_pending() &&
                    present_settlement.retry_requested(),
-               "a suppressed swap requests a settlement retry") ||
+               "an unscoped overlap requests a final scoped retry") ||
       !require(present_settlement.defer_if_pending() &&
                    present_settlement.retry_requested(),
-               "multiple suppressed swaps coalesce behind one retry") ||
+               "multiple unscoped overlaps coalesce behind one retry") ||
       !require(present_settlement.complete() && !present_settlement.pending() &&
                    !present_settlement.retry_requested(),
                "settlement consumes the coalesced retry exactly once") ||

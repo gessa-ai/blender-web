@@ -439,3 +439,30 @@ composites, zero hard completeness warnings, and zero page errors
 (`ledger/buildlogs/20260828T110032-3050686.log`,
 `ledger/buildlogs/20260828T110116-3051290.log`). This remains software diagnostic evidence; Apple
 must still verify thin guides, clean HUD settle, and no retained bar or scene/text corruption.
+
+## Modal battery joined to the exact cumulative producer
+
+The two earlier context closes are not reproducible on the current product: the dedicated modal
+capture and analyzer pass from a fresh context (`ledger/buildlogs/20260828T125132-3137441.log`,
+`ledger/buildlogs/20260828T125203-3137862.log`). The exact Apple/fallback producer now continues
+after its cumulative P0-J canaries with the filed interaction sequence: enter Edit mode, start
+`E Z`, capture the live `MESH_OT_extrude_region_move`, confirm through one trusted DOM click, hold
+screenshots at 0.5/3/6 seconds, then capture and cancel constrained `G X`, `R Z`, and `S X` modal
+operators. It exits to Object mode and requires native topology to increase from 8 to 16 vertices.
+
+The consumer does not mistake the legitimate small Adjust Last Operation panel for the filed
+full-width grey artifact. Inside the live VIEW_3D region it rejects a neutral quantized run covering
+at least 70% of the width for 12 consecutive rows, matching the reported 20-65-pixel retained bar.
+It separately requires the 3-to-6-second view pixels to remain within 1%; the 0.5-to-3-second delta
+is recorded but may include the ordinary transform-status transition. Synthetic fixtures and 75
+negative mutations freeze the producer/consumer boundary
+(`ledger/buildlogs/20260828T134029-3175719.log`,
+`ledger/buildlogs/20260828T133959-3175216.log`).
+
+The final unified fallback run is green (`ledger/buildlogs/20260828T132522-3163291.log`, consumer
+`ledger/buildlogs/20260828T133959-3175215.log`): modal topology is `8 -> 16`, the 3- and 6-second
+views are identical, each structural sample has zero wide rows (longest neutral run 395 pixels
+against a required 734), presentation continues, and the backend-wide hard-warning and page-error
+censuses are empty. This stronger exact producer still binds no Apple pixels. Closure requires at
+least two driver-operated Apple runs showing thin constraint guides, no retained grey bar, intact
+scene/text/UI pixels, and the existing P0-D/E/F plus resize regressions.

@@ -3372,7 +3372,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   batteries pass with identical camera/no-op pixels, positive rapid suppression/WM-replay deltas,
   three exact known poses, and zero hard warnings/page errors; shrink/restore remains green. Two
   modal-probe attempts hit the same context-close blocker at `armed-probe-8` and are recorded, not
-  promoted. Apple must rerun it as a repeated hardware series; device-free pixels
+  promoted. **Unified modal/overlap-present candidate implemented/pending hardware:** a fresh
+  dedicated modal run falsifies the context close as a current deterministic blocker, and the
+  exact cumulative producer now owns `E Z` confirm plus constrained move/rotate/scale, native
+  topology `8 -> 16`, 0.5/3/6-second settle captures, and a structural detector for the filed
+  full-width neutral bar. That extension found the WM replay candidate could still suppress 13
+  newer swaps while one popped error-scope callback lagged and retain a stale camera frame.
+  One transaction now owns diagnostic scopes while overlapping WM frames submit their surface
+  copies unscoped in-turn; settlement retains one final scoped WM replay. The final 53-step
+  fallback battery passes all same-pose and modal checks, with zero wide retained rows, hard
+  completeness warnings, or page/lifecycle errors. Exact `.wasm.orig` is `5fea52ef8bc9`
+  (118,985,639 bytes). Apple must rerun it as a repeated hardware series; device-free pixels
   still cannot close P0-I/J. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md` and
   `notes/p0-cumulative-input-window-activation-20260828.md`.
@@ -3450,7 +3460,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   validated. Settlement now queues a distinct, non-heartbeat-capped WM WindowUpdate and consumes it
   only after barrier admission. Two fresh fallback runs pass the full 43-step battery with exact
   camera/no-op and all same-pose pixels, positive rapid suppression/replay deltas, and empty hard
-  warning/page-error censuses; the Apple repeated-series gate remains unchanged. See
+  warning/page-error censuses. **Overlapping-validation correction implemented/pending hardware:**
+  the unified modal extension reproduced a remaining stale camera frame while presents,
+  suppression, and WM replay all advanced. Error-scope results can lag multiple WM frames after
+  the scopes have already been popped; those callbacks no longer block later surface copies.
+  Overlapping WM presents submit unscoped in their own synchronous turns, and the owning scoped
+  transaction still schedules one final WM replay. The final exact 53-step/150-state fallback run
+  passes 9/9 workspaces, all known-pose checks, modal topology and settle checks, move/undo, and
+  empty hard-warning/page-error censuses. CAPTURE `.wasm.orig` is `5fea52ef8bc9`
+  (118,985,639 bytes). The Apple repeated-series gate remains unchanged. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

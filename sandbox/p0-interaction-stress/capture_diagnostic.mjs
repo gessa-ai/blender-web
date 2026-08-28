@@ -44,6 +44,9 @@ const REQUIRED_PRODUCT_FILES = Object.freeze([
 ]);
 const SAME_POSE_CHANGED_FRACTION_LIMIT = 0.01;
 const TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002;
+const MODAL_SETTLE_CHANGED_FRACTION_LIMIT = 0.01;
+const MODAL_WIDE_NEUTRAL_RUN_FRACTION = 0.7;
+const MODAL_MAX_WIDE_NEUTRAL_ROWS = 11;
 const PIXEL_RECOVERY_TIMEOUT_MS = 12000;
 const PIXEL_STABLE_WINDOW_MS = 3000;
 const PIXEL_STABLE_SAMPLE_MS = 250;
@@ -486,6 +489,61 @@ function samePosePixelDiff(referenceBytes, candidateBytes, view) {
       changedFraction: detailCounts[name].samples ?
         detailCounts[name].changed / detailCounts[name].samples : 1,
     }])),
+  };
+}
+
+function wideNeutralBarMetrics(bytes, view) {
+  const png = PNG.sync.read(bytes);
+  const roi = {
+    x0: Math.max(0, Math.floor(view.x)),
+    x1: Math.min(png.width, Math.ceil(view.x + view.width)),
+    y0: Math.max(0, Math.floor(png.height - (view.y + view.height))),
+    y1: Math.min(png.height, Math.ceil(png.height - view.y)),
+  };
+  const minimumRun = Math.ceil((roi.x1 - roi.x0) * MODAL_WIDE_NEUTRAL_RUN_FRACTION);
+  let wideRows = 0;
+  let currentWideRows = 0;
+  let maxConsecutiveWideRows = 0;
+  let longestRun = 0;
+  for (let y = roi.y0; y < roi.y1; y++) {
+    let rowLongest = 0;
+    let run = 0;
+    let runBin = -1;
+    for (let x = roi.x0; x < roi.x1; x++) {
+      const offset = (y * png.width + x) * 4;
+      const red = png.data[offset];
+      const green = png.data[offset + 1];
+      const blue = png.data[offset + 2];
+      const neutral = Math.max(red, green, blue) - Math.min(red, green, blue) <= 6 &&
+        red >= 40 && red <= 220;
+      const bin = neutral ? ((red >> 3) << 10) | ((green >> 3) << 5) | (blue >> 3) : -1;
+      if (bin >= 0 && bin === runBin) {
+        run++;
+      }
+      else {
+        run = bin >= 0 ? 1 : 0;
+        runBin = bin;
+      }
+      rowLongest = Math.max(rowLongest, run);
+    }
+    longestRun = Math.max(longestRun, rowLongest);
+    if (rowLongest >= minimumRun) {
+      wideRows++;
+      currentWideRows++;
+      maxConsecutiveWideRows = Math.max(maxConsecutiveWideRows, currentWideRows);
+    }
+    else {
+      currentWideRows = 0;
+    }
+  }
+  return {
+    roi,
+    minimumRunFraction: MODAL_WIDE_NEUTRAL_RUN_FRACTION,
+    minimumRun,
+    maxAllowedConsecutiveRows: MODAL_MAX_WIDE_NEUTRAL_ROWS,
+    longestRun,
+    wideRows,
+    maxConsecutiveWideRows,
   };
 }
 
@@ -1377,6 +1435,105 @@ try {
     "post-orbit-known-pose", "03b-reference-pose-6s", "65b-post-orbit-known-pose-6s",
   ));
 
+  /* P0-I is a first-use modal fidelity failure on the same golden path as P0-J. Keep it in the
+   * exact Apple producer so repeated hardware evidence cannot close the cumulative freeze while
+   * silently skipping the constraint-guide and post-confirm settle surfaces. Run this last: the
+   * confirmed extrusion intentionally changes topology, after every same-pose P0-J oracle has
+   * already completed. */
+  const modalOperatorActive = (state = latestState()) =>
+    (state?.modal_operators || []).some((name) => name !== "WM_OT_bwp0s_input_probe");
+  const waitForModalOperator = async (active, label, afterSequence) =>
+    waitForState((state) => state.sequence > afterSequence &&
+      modalOperatorActive(state) === active, label, 10000);
+  const modalCenter = viewCenter();
+  await page.mouse.move(modalCenter.x, modalCenter.y);
+  await canvas.focus();
+  await page.keyboard.press("Escape");
+  const modalBaseline = await capture("69-modal-baseline");
+  const editStart = latestState()?.sequence || 0;
+  await page.keyboard.press("Tab");
+  await waitForState((state) => state.sequence > editStart && state.mode === "EDIT",
+    "modal battery edit mode", 10000);
+  const editMode = await capture("70-edit-mode");
+
+  const extrudeStart = latestState()?.sequence || 0;
+  await page.keyboard.press("e");
+  await page.keyboard.press("z");
+  await waitForModalOperator(true, "modal extrude operator", extrudeStart);
+  await page.mouse.move(modalCenter.x + 100, modalCenter.y - 110, {steps: 10});
+  await page.waitForTimeout(500);
+  const modalExtrude = await capture("70a-modal-extrude");
+  const confirmDomStart = await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.().length || 0);
+  await page.mouse.down({button: "left"});
+  await page.mouse.up({button: "left"});
+  await waitForModalOperator(false, "modal extrude confirmation", extrudeStart);
+  const confirmDomEvents = (await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.() || [])).slice(confirmDomStart);
+  await page.waitForTimeout(500);
+  const modalSettle500 = await capture("70b-modal-settle-500ms");
+  await page.waitForTimeout(2500);
+  const modalSettle3s = await capture("70c-modal-settle-3s");
+  await page.waitForTimeout(3000);
+  const modalSettle6s = await capture("70d-modal-settle-6s");
+
+  const exerciseModalTransform = async (name, operator, axis, dx, dy) => {
+    await page.mouse.move(modalCenter.x, modalCenter.y);
+    const start = latestState()?.sequence || 0;
+    await page.keyboard.press(operator);
+    await page.keyboard.press(axis);
+    const active = await waitForModalOperator(true, `${name} operator`, start);
+    await page.mouse.move(modalCenter.x + dx, modalCenter.y + dy, {steps: 8});
+    await page.waitForTimeout(350);
+    const sample = await capture(name, {modalOperator: active.modal_operators});
+    const cancelStart = latestState()?.sequence || 0;
+    await page.keyboard.press("Escape");
+    await waitForModalOperator(false, `${name} cancellation`, cancelStart);
+    await page.waitForTimeout(250);
+    return sample;
+  };
+  const modalMove = await exerciseModalTransform("71-modal-move-x", "g", "x", 120, 40);
+  const modalRotate = await exerciseModalTransform("72-modal-rotate-z", "r", "z", 90, -80);
+  const modalScale = await exerciseModalTransform("73-modal-scale-x", "s", "x", 110, 30);
+  const objectStart = latestState()?.sequence || 0;
+  await page.keyboard.press("Tab");
+  const modalObject = await waitForState((state) => state.sequence > objectStart &&
+    state.mode === "OBJECT" && state.verts > modalBaseline.state.verts,
+  "confirmed modal extrusion topology", 10000);
+  const modalFinal = await capture("74-modal-object-confirmed");
+  const settle500To3s = samePosePixelDiff(
+    captureBuffers.get(modalSettle500.name), captureBuffers.get(modalSettle3s.name),
+    modalSettle3s.state.view,
+  );
+  const settle3To6s = samePosePixelDiff(
+    captureBuffers.get(modalSettle3s.name), captureBuffers.get(modalSettle6s.name),
+    modalSettle6s.state.view,
+  );
+  settle500To3s.limit = MODAL_SETTLE_CHANGED_FRACTION_LIMIT;
+  settle3To6s.limit = MODAL_SETTLE_CHANGED_FRACTION_LIMIT;
+  const settle3sBars = wideNeutralBarMetrics(
+    captureBuffers.get(modalSettle3s.name), modalSettle3s.state.view);
+  const settle6sBars = wideNeutralBarMetrics(
+    captureBuffers.get(modalSettle6s.name), modalSettle6s.state.view);
+  const modalArtifactCanary = {
+    operations: ["E Z confirm", "G X cancel", "R Z cancel", "S X cancel"],
+    steps: [modalBaseline.name, editMode.name, modalExtrude.name, modalSettle500.name,
+      modalSettle3s.name, modalSettle6s.name, modalMove.name, modalRotate.name,
+      modalScale.name, modalFinal.name],
+    beforeVerts: modalBaseline.state.verts,
+    afterVerts: modalObject.verts,
+    confirmInput: {
+      presses: confirmDomEvents.filter((event) => event.type === "mousedown" &&
+        event.button === 0).length,
+      releases: confirmDomEvents.filter((event) => event.type === "mouseup" &&
+        event.button === 0).length,
+    },
+    settle500To3s,
+    settle3To6s,
+    settle3sBars,
+    settle6sBars,
+  };
+
   const hardCompletenessWarnings = consoleLines.filter((line) =>
     /assembled group-0 resources do not match surviving WGSL bindings/i.test(line));
   const pendingCompletenessDiagnostics = consoleLines.filter((line) =>
@@ -1421,6 +1578,13 @@ try {
       samePoseChangedFractionLimit: SAME_POSE_CHANGED_FRACTION_LIMIT,
       textRegionChangedFractionLimit: TEXT_REGION_CHANGED_FRACTION_LIMIT,
       postStressOperator: "G X 2 Enter; Control+Z",
+      modalArtifacts: {
+        operations: ["E Z confirm", "G X cancel", "R Z cancel", "S X cancel"],
+        settleSamplesMs: [500, 3000, 6000],
+        maxStableChangedFraction: MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+        wideNeutralRunFraction: MODAL_WIDE_NEUTRAL_RUN_FRACTION,
+        maxWideNeutralRows: MODAL_MAX_WIDE_NEUTRAL_ROWS,
+      },
       incompleteBindGroups: 0,
       pageErrors: 0,
     },
@@ -1451,6 +1615,7 @@ try {
     },
     isolationCanary,
     rapidViewBurstCanary,
+    modalArtifactCanary,
     samePoseCanaries,
     postStressOperatorCanary,
     hardCompletenessWarnings,

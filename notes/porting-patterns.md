@@ -2048,3 +2048,17 @@ an exact draw-stage witness, and repeated same-native-state pixels; aggregate pr
 cannot distinguish a stale replay. See `platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
 `platform_web/ghost/GHOST_SystemWeb.cc`, `platform_web/ghost/GHOST_WebDisplayState.hh`, and
 `sandbox/p0-interaction-stress/`.
+
+## Class 138 — validation callback latency must not suppress later WM presents
+
+Signature: one surface copy has already popped its WebGPU error scopes, but their asynchronous
+result callbacks lag several complete WM frames. Treating that callback latency as exclusive
+ownership of the entire presentation path discards every newer swap; a single eventual replay then
+has to publish an arbitrarily long run of changed backbuffer content and can retain a stale frame.
+Keep one transaction as the diagnostic-scope owner, but let overlapping WM frames acquire, encode,
+and submit unscoped surface copies synchronously in their own browser turns. Record those overlaps
+on the same coalesced latch and request one final scoped WM replay when the owner settles. Never
+acquire a surface texture from the callback, never nest error scopes under the pending owner, and
+prove the seam with same-native-state pixel canaries rather than aggregate present counts. See
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
+`platform_web/ghost/GHOST_WGPUTransaction.hh`, and `sandbox/p0-interaction-stress/`.

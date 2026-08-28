@@ -49,6 +49,16 @@ REQUIRED_STEPS = (
     "64b-post-orbit-6s",
     "65a-post-orbit-known-pose-3s",
     "65b-post-orbit-known-pose-6s",
+    "69-modal-baseline",
+    "70-edit-mode",
+    "70a-modal-extrude",
+    "70b-modal-settle-500ms",
+    "70c-modal-settle-3s",
+    "70d-modal-settle-6s",
+    "71-modal-move-x",
+    "72-modal-rotate-z",
+    "73-modal-scale-x",
+    "74-modal-object-confirmed",
 )
 ISOLATED_VIEW_KEYS = ["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]
 ISOLATED_VIEW_STEPS = (
@@ -71,6 +81,9 @@ PNGJS_VERSION = "7.0.0"
 CHROMIUM_VERSION = "149.0.7827.55"
 SAME_POSE_CHANGED_FRACTION_LIMIT = 0.01
 TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002
+MODAL_SETTLE_CHANGED_FRACTION_LIMIT = 0.01
+MODAL_WIDE_NEUTRAL_RUN_FRACTION = 0.7
+MODAL_MAX_WIDE_NEUTRAL_ROWS = 11
 DASHED_STAGE_COUNT = 12
 SHA256_LENGTH = 64
 REQUIRED_PRODUCT_FILES = {
@@ -300,6 +313,13 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         "stableWindowMs": 3000,
         "heldWindowMs": 3000,
     }, "suppressed-present burst contract differs")
+    require(contract.get("modalArtifacts") == {
+        "operations": ["E Z confirm", "G X cancel", "R Z cancel", "S X cancel"],
+        "settleSamplesMs": [500, 3000, 6000],
+        "maxStableChangedFraction": MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+        "wideNeutralRunFraction": MODAL_WIDE_NEUTRAL_RUN_FRACTION,
+        "maxWideNeutralRows": MODAL_MAX_WIDE_NEUTRAL_ROWS,
+    }, "modal artifact contract differs")
     isolated = document.get("isolationCanary")
     require(isinstance(isolated, dict), "isolated freeze canary is absent")
     require(isolated.get("viewKeys") == ISOLATED_VIEW_KEYS,
@@ -567,6 +587,84 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
             require(0 <= fraction <= TEXT_REGION_CHANGED_FRACTION_LIMIT,
                     f"{name}: {region_name} differs from the reference")
 
+    modal = document.get("modalArtifactCanary")
+    require(isinstance(modal, dict), "modal artifact canary is absent")
+    require(modal.get("operations") == ["E Z confirm", "G X cancel", "R Z cancel", "S X cancel"],
+            "modal operation family differs")
+    modal_step_names = [
+        "69-modal-baseline", "70-edit-mode", "70a-modal-extrude",
+        "70b-modal-settle-500ms", "70c-modal-settle-3s", "70d-modal-settle-6s",
+        "71-modal-move-x", "72-modal-rotate-z", "73-modal-scale-x",
+        "74-modal-object-confirmed",
+    ]
+    require(modal.get("steps") == modal_step_names, "modal screenshot binding differs")
+    baseline_modal_state = steps["69-modal-baseline"]["state"]
+    final_modal_state = steps["74-modal-object-confirmed"]["state"]
+    require(baseline_modal_state.get("mode") == "OBJECT" and
+            baseline_modal_state.get("verts") == 8,
+            "modal battery did not start from the default Object-mode Cube")
+    require(modal.get("beforeVerts") == baseline_modal_state.get("verts") and
+            type(modal.get("afterVerts")) is int and
+            modal["afterVerts"] > modal["beforeVerts"],
+            "modal extrusion topology did not increase")
+    require(final_modal_state.get("mode") == "OBJECT" and
+            final_modal_state.get("verts") == modal.get("afterVerts"),
+            "modal final native topology differs")
+    require(steps["70-edit-mode"]["state"].get("mode") == "EDIT",
+            "modal battery did not enter Edit mode")
+
+    def has_modal_action_operator(value: object) -> bool:
+        return isinstance(value, list) and any(
+            isinstance(name, str) and name != "WM_OT_bwp0s_input_probe" for name in value
+        )
+
+    def has_transform_operator(value: object) -> bool:
+        return isinstance(value, list) and any(
+            isinstance(name, str) and name.startswith("TRANSFORM_OT_") for name in value
+        )
+
+    require(has_modal_action_operator(
+        steps["70a-modal-extrude"]["state"].get("modal_operators")),
+            "extrude constraint was not captured while its transform was modal")
+    for name in ("70b-modal-settle-500ms", "70c-modal-settle-3s",
+                 "70d-modal-settle-6s"):
+        require(not has_modal_action_operator(steps[name]["state"].get("modal_operators")),
+                f"{name}: confirmed extrusion remained modal")
+    for name in ("71-modal-move-x", "72-modal-rotate-z", "73-modal-scale-x"):
+        require(has_transform_operator(steps[name].get("modalOperator")),
+                f"{name}: constrained transform operator evidence is absent")
+    require(modal.get("confirmInput") == {"presses": 1, "releases": 1},
+            "modal confirmation input census differs")
+
+    for field in ("settle500To3s", "settle3To6s"):
+        diff = modal.get(field)
+        require(isinstance(diff, dict), f"modal {field} pixel diff is absent")
+        require(diff.get("limit") == MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+                f"modal {field} pixel-diff limit changed")
+        fraction = diff.get("viewChangedFraction")
+        require(isinstance(fraction, (int, float)) and not isinstance(fraction, bool),
+                f"modal {field} changed fraction is invalid")
+        require(0 <= fraction <= 1, f"modal {field} changed fraction is out of range")
+    settle_3_to_6s = modal["settle3To6s"]
+    require(settle_3_to_6s.get("viewChangedFraction") <=
+            MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+            "modal three-to-six-second pixels did not remain stable")
+    for field in ("settle3sBars", "settle6sBars"):
+        bars = modal.get(field)
+        require(isinstance(bars, dict), f"modal {field} structural result is absent")
+        require(bars.get("minimumRunFraction") == MODAL_WIDE_NEUTRAL_RUN_FRACTION and
+                bars.get("maxAllowedConsecutiveRows") == MODAL_MAX_WIDE_NEUTRAL_ROWS,
+                f"modal {field} structural thresholds changed")
+        require(type(bars.get("minimumRun")) is int and bars["minimumRun"] > 0 and
+                type(bars.get("longestRun")) is int and bars["longestRun"] >= 0 and
+                type(bars.get("maxConsecutiveWideRows")) is int,
+                f"modal {field} structural metrics are invalid")
+        require(bars["maxConsecutiveWideRows"] <= MODAL_MAX_WIDE_NEUTRAL_ROWS,
+                f"modal {field} contains a retained wide neutral bar")
+    require(steps["70d-modal-settle-6s"].get("presents") >
+            steps["70a-modal-extrude"].get("presents"),
+            "modal settle did not advance validated presentation")
+
     _, moved, undone = validate_move_undo(
         document.get("postStressOperatorCanary"), "post-stress",
     )
@@ -621,6 +719,7 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         "workspace_accepted": workspace_accepted,
         "workspace_attempted": len(workspace_transitions),
         "isolated_views": len(views),
+        "modal_operations": len(modal["operations"]),
         "hardware": int(evidence_class == HARDWARE_EVIDENCE_CLASS),
     }
 
@@ -687,6 +786,8 @@ def synthetic_document() -> dict[str, Any]:
     canonical_state = {
         "workspace": "Layout",
         "mode": "OBJECT",
+        "verts": 8,
+        "modal_operators": [],
         "cube_in_view": True,
         "selected": True,
         "selected_count": 1,
@@ -753,6 +854,26 @@ def synthetic_document() -> dict[str, Any]:
         if name in known_pose_steps:
             state["view_perspective"] = "ORTHO"
             state["view_rotation"] = [0.7071, -0.7071, 0.0, 0.0]
+        if name in {
+            "70-edit-mode", "70a-modal-extrude", "70b-modal-settle-500ms",
+            "70c-modal-settle-3s", "70d-modal-settle-6s", "71-modal-move-x",
+            "72-modal-rotate-z", "73-modal-scale-x",
+        }:
+            state["mode"] = "EDIT"
+        if name == "70a-modal-extrude":
+            state["modal_operators"] = [
+                "MESH_OT_extrude_region_move", "WM_OT_bwp0s_input_probe"
+            ]
+        if name in {"71-modal-move-x", "72-modal-rotate-z", "73-modal-scale-x"}:
+            metadata["modalOperator"] = [
+                "WM_OT_bwp0s_input_probe",
+                "TRANSFORM_OT_rotate" if name == "72-modal-rotate-z" else
+                ("TRANSFORM_OT_resize" if name == "73-modal-scale-x" else
+                 "TRANSFORM_OT_translate"),
+            ]
+            state["modal_operators"] = copy.deepcopy(metadata["modalOperator"])
+        if name == "74-modal-object-confirmed":
+            state["verts"] = 16
         steps.append(
             {
                 "name": name,
@@ -902,6 +1023,13 @@ def synthetic_document() -> dict[str, Any]:
                 "stableWindowMs": 3000,
                 "heldWindowMs": 3000,
             },
+            "modalArtifacts": {
+                "operations": ["E Z confirm", "G X cancel", "R Z cancel", "S X cancel"],
+                "settleSamplesMs": [500, 3000, 6000],
+                "maxStableChangedFraction": MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+                "wideNeutralRunFraction": MODAL_WIDE_NEUTRAL_RUN_FRACTION,
+                "maxWideNeutralRows": MODAL_MAX_WIDE_NEUTRAL_ROWS,
+            },
         },
         "steps": steps,
         "states": [{}],
@@ -998,6 +1126,40 @@ def synthetic_document() -> dict[str, Any]:
             "pixelSettleMs": 3000,
         },
         "samePoseCanaries": same_pose,
+        "modalArtifactCanary": {
+            "operations": ["E Z confirm", "G X cancel", "R Z cancel", "S X cancel"],
+            "steps": [
+                "69-modal-baseline", "70-edit-mode", "70a-modal-extrude",
+                "70b-modal-settle-500ms", "70c-modal-settle-3s",
+                "70d-modal-settle-6s", "71-modal-move-x", "72-modal-rotate-z",
+                "73-modal-scale-x", "74-modal-object-confirmed",
+            ],
+            "beforeVerts": 8,
+            "afterVerts": 16,
+            "confirmInput": {"presses": 1, "releases": 1},
+            "settle500To3s": {
+                "limit": MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+                "viewChangedFraction": 0.0,
+            },
+            "settle3To6s": {
+                "limit": MODAL_SETTLE_CHANGED_FRACTION_LIMIT,
+                "viewChangedFraction": 0.0,
+            },
+            "settle3sBars": {
+                "minimumRunFraction": MODAL_WIDE_NEUTRAL_RUN_FRACTION,
+                "minimumRun": 70,
+                "maxAllowedConsecutiveRows": MODAL_MAX_WIDE_NEUTRAL_ROWS,
+                "longestRun": 50,
+                "maxConsecutiveWideRows": 0,
+            },
+            "settle6sBars": {
+                "minimumRunFraction": MODAL_WIDE_NEUTRAL_RUN_FRACTION,
+                "minimumRun": 70,
+                "maxAllowedConsecutiveRows": MODAL_MAX_WIDE_NEUTRAL_ROWS,
+                "longestRun": 50,
+                "maxConsecutiveWideRows": 0,
+            },
+        },
         "postStressOperatorCanary": {
             "operation": "G X 2 Enter; Control+Z",
             "before": [0.0, 0.0, 0.0],
@@ -1153,6 +1315,17 @@ def self_check() -> int:
             "moved", [0.0, 0.0, 0.0]),
         lambda value: value["postStressOperatorCanary"].__setitem__(
             "undone", [2.0, 0.0, 0.0]),
+        lambda value: value["contract"]["modalArtifacts"].__setitem__(
+            "maxStableChangedFraction", 0.5),
+        lambda value: value["modalArtifactCanary"].__setitem__("afterVerts", 8),
+        lambda value: value["modalArtifactCanary"]["settle500To3s"].__setitem__(
+            "viewChangedFraction", 1.2),
+        lambda value: value["modalArtifactCanary"]["settle3To6s"].__setitem__(
+            "viewChangedFraction", 0.2),
+        lambda value: value["modalArtifactCanary"]["settle6sBars"].__setitem__(
+            "maxConsecutiveWideRows", 12),
+        lambda value: step_named(value, "70a-modal-extrude")["state"].__setitem__(
+            "modal_operators", []),
     )
     rejected = 0
     for mutate in mutations:

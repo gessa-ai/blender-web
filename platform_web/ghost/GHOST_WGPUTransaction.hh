@@ -406,10 +406,11 @@ inline bool surface_resize_present_coherent(const bool configured,
 }
 
 /**
- * Coalesce swap requests that arrive while a browser present transaction waits for asynchronous
- * validation scopes. The in-flight command samples the backbuffer before those later draws, so
- * settlement must request one fresh WM-owned redraw/present whenever at least one newer swap was
- * suppressed. Surface acquire stays inside the synchronous WM swap boundary, never this callback.
+ * Coalesce scoped-validation replay requests while one browser present transaction waits for
+ * asynchronous error callbacks. Its scopes have already been popped from the device stack, so
+ * later WM frames remain safe to present synchronously without nested scopes. Settlement still
+ * requests one fresh scoped WM-owned redraw/present whenever an unscoped overlap occurred.
+ * Surface acquire stays inside the synchronous WM swap boundary, never the validation callback.
  */
 class PresentSettlementLatch {
  public:
@@ -423,7 +424,7 @@ class PresentSettlementLatch {
     return retry_requested_;
   }
 
-  /** Return true when the caller must defer this swap behind the in-flight transaction. */
+  /** Return true when another transaction owns validation scopes for this present. */
   bool defer_if_pending()
   {
     if (!pending_) {

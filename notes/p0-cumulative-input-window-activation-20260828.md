@@ -452,3 +452,51 @@ probe blocked rather than silently substituting a pass.
 These are SwiftShader diagnostics, not closure. P0-I/J still require at least two clean Apple
 hardware-series receipts for this exact generation plus the modal and P0-D/E/F/resize pixel
 gauntlets.
+
+## Do not suppress newer WM presents behind validation callbacks
+
+The WM-owned replay candidate still had an intermittent loss window. Extending the exact producer
+through the filed modal sequence exposed it on the ordinary camera canary before the modal battery:
+Blender-native state had already reached camera view, presents advanced `11 -> 15`, suppressed swaps
+advanced `35 -> 48`, and replay generation advanced `6 -> 7`, but the screenshot still showed the
+previous perspective. A cancelled Numpad4 then changed neither native state nor the suppressed
+counter and finally exposed the correct camera frame
+(`ledger/buildlogs/20260828T130608-3146124.log`, consumer
+`ledger/buildlogs/20260828T130951-3149040.log`). This was a real stale frame, not a camera-state or
+shader-completeness ambiguity.
+
+The remaining inversion was inside `presentBackbuffer()`. `PopErrorScope` removes its scope from
+the WebGPU device synchronously, but its result callback may lag several complete WM frames. The
+settlement latch treated that callback latency as if the whole present transaction were still
+using the device stack and returned before every overlapping surface copy. One eventual replay was
+therefore responsible for publishing an arbitrarily long run of newer backbuffer contents.
+
+The candidate keeps exactly one scoped transaction as the validation owner. While its callbacks
+are pending, every later WM frame still acquires the current surface texture, encodes the
+persistent-backbuffer copy, and submits it in that same browser turn; those overlapping copies do
+not push nested diagnostic scopes. They mark the existing coalesced latch, and settlement requests
+one final scoped WM replay. Surface acquisition never moves into an asynchronous callback and the
+P0-H-safe WM boundary remains intact. The fail-first source contract rejects the old early return
+(`ledger/buildlogs/20260828T131421-3150996.log`); the final integrated native/Wasm presentation
+suite is green (`ledger/buildlogs/20260828T133515-3169576.log`).
+
+The final exact fallback capture and consumer pass 53 screenshot steps, 150 native-state samples,
+764 validated presents, 9/9 workspace transitions, all three known-pose canaries, the post-stress
+move/undo, and the complete modal battery with zero hard completeness warnings or page/lifecycle
+errors (`ledger/buildlogs/20260828T132522-3163291.log`, final consumer
+`ledger/buildlogs/20260828T133959-3175215.log`). Camera and cancelled-no-op pixels are now exactly
+the same SHA-256 `b2b6ac378aa7`; the final run records 433 overlaps and 129 scoped replays without a
+retained stale frame. This is diagnostic software evidence only.
+
+The locked CAPTURE relink and immediate no-work proof are
+`ledger/buildlogs/20260828T133327-3168646.log` and
+`ledger/buildlogs/20260828T133432-3169160.log`. Exact identities are JS
+`5915a76607af` (708,496 bytes), instrumented Wasm `d83b37c3f5f` (120,334,304 bytes),
+`.wasm.orig` `5fea52ef8bc9` (118,985,639 bytes), data `095d0ba748c3` (168,637,598 bytes),
+and manifest `a0fc17c7d4d5` (13,436 bytes). CAPTURE preflight and split-identity self-check are green
+(`ledger/buildlogs/20260828T133440-3169223.log`,
+`ledger/buildlogs/20260828T133440-3169224.log`). Direct M4 remains honestly hardware-pixel RED and
+container-backed regression restores M0 6/6 while preserving the named M1-M8 strict/APPLY/product
+boundaries (`ledger/buildlogs/20260828T133532-3171007.log`,
+`ledger/buildlogs/20260828T133543-3171817.log`). P0-I/J remain open until at least two clean Apple
+hardware-series runs also pass modal, P0-D/E/F, and resize pixels.

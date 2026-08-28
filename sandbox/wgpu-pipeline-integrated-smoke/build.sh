@@ -2152,14 +2152,16 @@ if configuration_positions != sorted(configuration_positions):
     raise SystemExit("ERROR: surface configuration is not validated before resize publication")
 
 for needle in (
-    "if (present_settlement_.defer_if_pending()) {",
+    "const bool validation_scope_pending = present_settlement_.defer_if_pending();",
+    "const bool validate_transaction = !validation_scope_pending;",
     "ghost_web::note_present_suppressed();",
+    "if (validate_transaction) {\n    present_settlement_.begin();",
     "present_settlement_.begin();",
     "ghost_web::present_frame_encode_submit_scoped(",
     'popErrorScopes(device, "present command encoding"',
     'popErrorScopes(device, "present queue submission"',
     "queue.Submit(1, &command_buffer);",
-    "const bool retry_after_settlement = owner.present_settlement_.complete();",
+    "validate_transaction ? owner.present_settlement_.complete() : false;",
     "if (retry_after_settlement) {",
     "ghost_web::request_present_replay();",
     "if (!valid) {",
@@ -2169,11 +2171,13 @@ for needle in (
         raise SystemExit(f"ERROR: present transaction lacks one exact boundary: {needle}")
 
 source_positions = [
-    present.index("if (present_settlement_.defer_if_pending()) {"),
+    present.index("const bool validation_scope_pending = present_settlement_.defer_if_pending();"),
+    present.index("const bool validate_transaction = !validation_scope_pending;"),
     present.index("ghost_web::note_present_suppressed();"),
+    present.index("ensureBackbuffer();"),
     present.index("present_settlement_.begin();"),
     present.index("queue.Submit(1, &command_buffer);"),
-    present.index("const bool retry_after_settlement = owner.present_settlement_.complete();"),
+    present.index("validate_transaction ? owner.present_settlement_.complete() : false;"),
     present.index("if (retry_after_settlement) {"),
     present.index("ghost_web::request_present_replay();"),
     present.index("if (!valid) {"),
@@ -2181,8 +2185,13 @@ source_positions = [
 ]
 if source_positions != sorted(source_positions):
     raise SystemExit("ERROR: present submission/commit boundaries are reordered")
+if "return false;" in present[
+    present.index("ghost_web::note_present_suppressed();"):
+    present.index("ensureBackbuffer();")
+]:
+    raise SystemExit("ERROR: validation overlap still suppresses a synchronous WM present")
 if "owner.presentBackbuffer()" in present[present.index(
-    "const bool retry_after_settlement = owner.present_settlement_.complete();"):]:
+    "validate_transaction ? owner.present_settlement_.complete() : false;"):]:
     raise SystemExit("ERROR: present settlement still acquires outside the WM draw boundary")
 
 for needle, expected in (

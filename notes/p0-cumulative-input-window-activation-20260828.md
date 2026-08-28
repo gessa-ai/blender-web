@@ -572,3 +572,48 @@ No relink or runtime byte changed. Direct M4 remains honestly RED at the Apple p
 named M1-M8 strict/APPLY/product boundaries (`20260828T232156-3516324`). P0-I/J remain open until
 the driver runs this discriminator on the conformant Apple adapter and the existing composed
 same-generation gauntlet passes.
+
+## Bind the verdict to the terminal GHOST input edges
+
+The five supplied Apple series establish less elapsed time than the accompanying permanent-freeze
+description implied. In every series `h-deselect-all.png` differs from `i-orbit-before-click.png`,
+so the first orbit was accepted and painted. The five identical files from
+`i-orbit-before-click.png` through `m-g-confirmed.png` span only 1.396 seconds by their retained
+timestamps (09:49:00.789 through 09:49:02.185). They prove a same-cadence retained frame, but contain
+no terminal worker-delivery or later settle observation.
+
+The first focused producer had a corresponding false-acceptance gap: any intermediate changed
+sample after the first orbit could satisfy `action-drain`, even while the later opposite orbit and
+G/confirm events remained queued. A pass-through Blender modal probe also cannot close that gap by
+itself because an active `VIEW3D_OT_rotate` consumes its matching release before a later modal
+handler can observe it.
+
+Commit `5cad54c` moves the discriminator to the correct boundary. Transition-only counters now
+advance after proxied button callbacks update `GHOST_SystemWeb` state; key callbacks publish their
+own press/release totals, and an atomic held-button mask exposes a terminal press whose release has
+not reached the WM worker. The producer snapshots the trusted DOM tail and requires the complete
+post-deselect sequence (two MMB press/release pairs, two left press/release pairs, and the G
+press/release), a zero left/middle held mask, a drained Blender modal stack, changed pixels, and
+advancing WM tick/present/input-retry counters. The independent recovery orbit must add another
+balanced MMB pair and satisfy the same drain predicate. Apple retains the 12-second bound;
+SwiftShader gets 30 seconds only in the explicitly non-receipt fallback lane.
+
+The 81-case native/Wasm display-state contract and the complete integrated GHOST/WebGPU source
+suite pass (`ledger/buildlogs/20260828T234415-3535343.log`). The locked relink and committed-state
+no-work proof are `ledger/buildlogs/20260828T234517-3537308.log` and
+`ledger/buildlogs/20260828T234911-3540705.log`. Most importantly, the committed-state exact fallback
+replay reproduces all five identical rapid action frames and then proves they were backlog, not a
+terminal freeze (`ledger/buildlogs/20260828T234941-3540978.log`): action drain completes after
+5,725 ms with left `2/2`, middle `2/2`, key `10/10`, held mask zero, ticks 158, presents 64,
+retries 713, and only the diagnostic modal remaining. A fresh recovery orbit completes after
+1,744 ms with middle `3/3`, changed native rotation and pixels, ticks 163, presents 68, retries 727,
+and zero page/lifecycle errors. These are software-adapter diagnostics and bind no Apple pixel
+verdict.
+
+The relinked CAPTURE generation is JS `cae158a06338` (709,160 bytes), Wasm `8d6928a6545d`
+(120,334,720 bytes), `.wasm.orig` `b326a3be5331` (118,986,006 bytes), data `095d0ba748c3`
+(168,637,598 bytes), and manifest `ddf56d15022d` (13,612 bytes). P0-I/J remain open: the driver must
+run this terminal-edge discriminator on Apple and the existing same-generation hardware gauntlet
+must still pass. A hardware timeout will now say whether the loss is before GHOST delivery, in a
+stuck modal, or below a fully drained WM/present path instead of inviting another speculative
+runtime change.

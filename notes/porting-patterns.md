@@ -2076,3 +2076,17 @@ and native event tail; otherwise the next hardware pass still cannot localize th
 fallback or incompletely identified adapters before labeling a run as hardware, and never let this
 focused diagnostic replace the immutable semantic-pixel receipt. See
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.
+
+## Class 140 — bind input-drain claims to the terminal native edge
+
+Signature: an exact rapid sequence includes several actions after the first visibly changed frame,
+but the diagnostic accepts any earlier post-baseline pixel change as proof that the whole sequence
+drained. DOM capture proves only browser generation, while a pass-through Blender modal handler can
+miss releases consumed by an earlier modal operator. Count state-changing press/release callbacks
+at the GHOST worker boundary instead, retain a held-button mask, and compare against a baseline
+taken immediately before the rapid sequence. Require every terminal action's expected edges, a
+cleared mask, a clean Blender modal stack, pixels, WM progress, presentation, and redraw ownership
+in the same bounded sample. Then require a separately baselined recovery action. Keep the counters
+diagnostic-only and transition-based so duplicate/synthetic releases do not manufacture delivery.
+See `platform_web/ghost/GHOST_WebDisplayState.hh`, `platform_web/ghost/GHOST_SystemWeb.cc`, and
+`sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

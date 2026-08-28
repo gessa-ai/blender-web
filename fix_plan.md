@@ -3486,7 +3486,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   fallback product passes; its independent recovery orbit took 6,555 ms, proving only that the
   350 ms cadence is not a sufficient drain verdict. This changes no runtime byte and does not
   contradict or close the driver's 5/5 Apple observation. Hardware must run the discriminator and
-  the existing same-generation gauntlet before P0-I/J can close. See
+  the existing same-generation gauntlet before P0-I/J can close. **Terminal GHOST-edge
+  discriminator implemented (`5cad54c`):** the first focused producer could falsely accept an
+  earlier click while the opposite orbit and G/confirm remained queued, and a pass-through Blender
+  modal probe cannot observe releases consumed by an active rotate operator. Transition-only
+  worker-side button/key counters plus a held-button mask now require both complete MMB pairs, both
+  complete left-click pairs, G down/up, a cleared left/middle mask, clean modal stack, changed
+  pixels, and advancing WM/present/retry counters before action drain can pass. The independent
+  recovery orbit is separately baselined. The relinked fallback product reproduces all five
+  byte-identical rapid frames, then drains after 5,725 ms with balanced GHOST edges and repaints a
+  fresh orbit after 1,744 ms with zero page/lifecycle errors. This is diagnostic software evidence,
+  not a hardware closure; Apple retains the strict 12-second bound and must run this exact
+  generation plus the composed gauntlet. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

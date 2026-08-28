@@ -90,6 +90,8 @@ struct Trace {
 
   size_t next_sequence = 0;
   size_t binds = 0;
+  size_t pending_binds = 0;
+  size_t hard_missing_binds = 0;
   std::vector<uint8_t> bound_bytes;
   std::vector<Write> writes;
 };
@@ -140,6 +142,23 @@ class Buffer {
   bool valid() const
   {
     return valid_;
+  }
+
+  bool creation_pending_or_retryable() const
+  {
+    return creation_pending_ || pending_.retryable();
+  }
+
+  void mark_creation_pending()
+  {
+    valid_ = false;
+    creation_pending_ = true;
+  }
+
+  void settle_creation(const bool accepted)
+  {
+    creation_pending_ = false;
+    valid_ = accepted;
   }
 
   size_t size() const
@@ -271,6 +290,7 @@ class Buffer {
   std::string target_;
   size_t capacity_ = 0;
   bool valid_ = false;
+  bool creation_pending_ = false;
   bool defer_updates_ = false;
   std::vector<uint8_t> device_bytes_;
   std::deque<std::function<void(bool)>> completions_;
@@ -308,8 +328,24 @@ class WGPUContext {
     return scheduler_;
   }
 
-  void buffer_ssbo_bind(int, webgpu::Buffer *buffer, BufferSSBOBindKind)
+  void buffer_ssbo_bind(int,
+                        webgpu::Buffer *buffer,
+                        BufferSSBOBindKind,
+                        const webgpu::Buffer *pending_dependency = nullptr)
   {
+    const bool dependency_pending =
+        pending_dependency != nullptr &&
+        pending_dependency->creation_pending_or_retryable();
+    if (dependency_pending ||
+        (!buffer->valid() && buffer->creation_pending_or_retryable()))
+    {
+      trace_->pending_binds++;
+      return;
+    }
+    if (!buffer->valid()) {
+      trace_->hard_missing_binds++;
+      return;
+    }
     trace_->binds++;
     trace_->bound_bytes = buffer->device_bytes();
   }
@@ -407,6 +443,16 @@ class VertexFrontendHarness {
   void settle_texture(const bool accepted)
   {
     buffer_texture_buffer_.settle_next(accepted);
+  }
+
+  void mark_primary_creation_pending()
+  {
+    buffer_.mark_creation_pending();
+  }
+
+  void settle_primary_creation(const bool accepted)
+  {
+    buffer_.settle_creation(accepted);
   }
 
   bool dirty() const
@@ -636,16 +682,48 @@ bool float_texture_generation_contract()
                             "expanded B acceptance publishes the B binding");
 }
 
+bool pending_float_texture_bind_intent_contract()
+{
+  constexpr std::array<float, 2> sentinel = {4.25f, -9.5f};
+  const std::vector<uint8_t> source = bytes_of(sentinel);
+  const std::vector<uint8_t> expanded = expanded_float_bytes(sentinel);
+  Trace trace;
+  vertex_generation_contract::WGPUContext context(trace);
+  vertex_generation_contract::active_context_value = &context;
+  VertexFrontendHarness vertex(
+      trace, vertex_generation_contract::GPU_USAGE_DYNAMIC, 1, source, source, false);
+
+  vertex.mark_primary_creation_pending();
+  vertex.bind_as_texture(9);
+  if (!require_generation(trace.pending_binds == 1 && trace.binds == 0 &&
+                              trace.hard_missing_binds == 0,
+                          "float sampler binding survives primary allocation pending"))
+  {
+    return false;
+  }
+
+  vertex.settle_primary_creation(true);
+  vertex.bind_as_texture(9);
+  vertex_generation_contract::active_context_value = nullptr;
+  return require_generation(trace.pending_binds == 1 && trace.binds == 1 &&
+                                trace.hard_missing_binds == 0 &&
+                                trace.bound_bytes == expanded,
+                            "accepted primary allocation publishes expanded sampler binding");
+}
+
 }  // namespace
 
 bool run_vertex_upload_generation_contracts()
 {
-  if (!ordinary_generation_contract() || !float_texture_generation_contract()) {
+  if (!ordinary_generation_contract() || !float_texture_generation_contract() ||
+      !pending_float_texture_bind_intent_contract())
+  {
     vertex_generation_contract::active_context_value = nullptr;
     return false;
   }
   std::puts(
-      "CONTRACT vertex-upload-generation PASS cases=2 writes=5 order=A:B final=B");
+      "CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B "
+      "pending_intent=1");
   return true;
 }
 

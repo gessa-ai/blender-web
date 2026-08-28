@@ -3296,7 +3296,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   artifact, and the corrected candidate now passes 9/9 state-changing transitions device-free.
   That does not hardware-close either item. Apple pixels remain required for both the filed transient
   artifact battery and closure. Current-generation acceptance additionally requires
-  `incompleteBindGroups=[]`. See
+  `incompleteBindGroups=[]`. **Buffer-texture sibling candidate implemented (patch 0298):** the
+  final binding-frontend audit found `WGPUVertexBuffer::bind_as_texture()` still discarded intent
+  while its first-use primary allocation was pending. Float1-3 sampler buffers cannot simply bind
+  that primary resource because their surviving layout requires a separately expanded float4
+  backing. The context now records the eventual correctly shaped buffer plus a distinct pending
+  dependency, classifies only that exact mapped ID as `Pending`, and still requires the eventual
+  buffer to be valid before emitting a bind-group entry. Rejection or a genuinely absent final
+  backing remains hard `Incomplete`; the completeness gate is unchanged. Fail-first/final exact
+  native/Wasm behavior, source mutations, canonical replay, affected archive build, CAPTURE relink,
+  and the 41-step fallback interaction replay are green with an empty hard-warning census. The
+  broader buffer suite independently retains its pre-existing `readback submit ordering` failure;
+  neither device-free result hardware-closes P0-I/J. Apple must rerun the exact candidate. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,

@@ -1950,3 +1950,19 @@ completed budget starts one fresh bounded burst. Bind unsupported/zero events, m
 bridge, prove native/Wasm coalescing and ceiling parity, and retain trusted hardware pixels as the
 closure bar. See `platform_web/ghost/GHOST_EventBridgeWeb.cc`,
 `platform_web/ghost/GHOST_WebDisplayState.hh`, and `sandbox/p0-interaction-stress/`.
+
+## Class 132 — a pending bind may depend on a different eventual resource
+
+Signature: a typed frontend preserves ordinary SSBO intent during asynchronous allocation, but its
+buffer-texture variant still drops the slot or binds the wrong backing. Some texture-buffer formats
+require expansion before binding (for example float1-3 sources represented by float4 storage), so
+the allocation currently pending and the resource that must eventually enter the bind group are
+not necessarily the same object. Preserve both identities: record the eventual correctly shaped
+resource and a separate pending dependency. Resource assembly may classify the exact mapped ID as
+pending while the dependency is retryable, but it must require the eventual resource to be valid
+before emitting a live entry. Never substitute the unexpanded source just to make the set complete;
+rejection or an absent final backing remains a hard incomplete draw. Prove the primary-pending and
+expanded-publication transition in exact native/Wasm behavior, then retain hardware pixels as the
+closure bar. See `upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
+`sandbox/wgpu-buffer-integrated-smoke/`.

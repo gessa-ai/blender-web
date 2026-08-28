@@ -36472,10 +36472,10 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e94fa87edb
+index 0000000000000000000000000000000000000000..ff2986c593017a057d68224350028579d6acf0e5
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1393 @@
+@@ -0,0 +1,1407 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37524,6 +37524,7 @@ index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e9
 +   * without giving geometry buffers unconditional priority over StorageBufs. */
 +  struct StorageCandidate {
 +    const webgpu::Buffer *buffer;
++    const webgpu::Buffer *pending_dependency;
 +    uint64_t serial;
 +    int slot;
 +  };
@@ -37531,7 +37532,8 @@ index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e9
 +  auto consider_storage_candidate = [&](int slot,
 +                                        shader::ShaderCreateInfo::Resource::BindType type,
 +                                        uint64_t serial,
-+                                        const webgpu::Buffer *buffer) {
++                                        const webgpu::Buffer *buffer,
++                                        const webgpu::Buffer *pending_dependency) {
 +    const bool mapped = shader->slot_is_mapped(type, slot);
 +    if (mapped != (pass == 0)) {
 +      return; /* wrong pass for this bind flavor */
@@ -37547,7 +37549,8 @@ index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e9
 +    }
 +    auto winner = storage_candidates.find(b);
 +    if (winner == storage_candidates.end() || serial > winner->second.serial) {
-+      storage_candidates.insert_or_assign(b, StorageCandidate{buffer, serial, slot});
++      storage_candidates.insert_or_assign(
++          b, StorageCandidate{buffer, pending_dependency, serial, slot});
 +    }
 +  };
 +
@@ -37558,7 +37561,8 @@ index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e9
 +        item.first,
 +        shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER,
 +        record.serial,
-+        buffer);
++        buffer,
++        nullptr);
 +  }
 +
 +  for (const auto &item : bound_buffer_ssbos_) {
@@ -37567,12 +37571,22 @@ index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e9
 +        record.kind == BufferSSBOBindKind::Sampler ?
 +            shader::ShaderCreateInfo::Resource::BindType::SAMPLER :
 +            shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER;
-+    consider_storage_candidate(record.slot, type, record.serial, record.buffer);
++    consider_storage_candidate(
++        record.slot, type, record.serial, record.buffer, record.pending_dependency);
 +  }
 +
 +  for (const auto &item : storage_candidates) {
 +    const uint32_t b = item.first;
 +    const webgpu::Buffer &buffer = *item.second.buffer;
++    if (pass == 0 && item.second.pending_dependency != nullptr &&
++        item.second.pending_dependency->creation_pending_or_retryable())
++    {
++      /* A derived binding can depend on a different first-use allocation. Keep the exact mapped
++       * ID pending without binding the dependency itself under the derived resource's layout. */
++      claimed.insert(b);
++      r_pending_bindings.push_back(b);
++      continue;
++    }
 +    if (!buffer.valid()) {
 +      if (pass == 0) {
 +        /* A mapped frontend bind owns this dense binding even before browser validation
@@ -37871,10 +37885,10 @@ index 0000000000000000000000000000000000000000..8727028394f710157c71ff90736cc9e9
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..5b79353d2219b515edb3dede530266e8f84fb6ec
+index 0000000000000000000000000000000000000000..cca2af41dd54115c6929e806ad2b5a4a191a5593
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.hh
-@@ -0,0 +1,384 @@
+@@ -0,0 +1,387 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37936,6 +37950,7 @@ index 0000000000000000000000000000000000000000..5b79353d2219b515edb3dede530266e8
 +  struct BoundBufferSSBO {
 +    int slot = 0;
 +    const webgpu::Buffer *buffer = nullptr;
++    const webgpu::Buffer *pending_dependency = nullptr;
 +    BufferSSBOBindKind kind = BufferSSBOBindKind::Storage;
 +    uint64_t serial = 0;
 +  };
@@ -38039,13 +38054,15 @@ index 0000000000000000000000000000000000000000..5b79353d2219b515edb3dede530266e8
 +   * newest valid bind win if they converge on one dense storage binding. */
 +  void buffer_ssbo_bind(int slot,
 +                        const webgpu::Buffer *buffer,
-+                        BufferSSBOBindKind kind)
++                        BufferSSBOBindKind kind,
++                        const webgpu::Buffer *pending_dependency = nullptr)
 +  {
 +    const uint64_t key = (uint64_t(kind) << 32) | uint32_t(slot);
 +    if (kind == BufferSSBOBindKind::Storage) {
 +      bound_storage_buffers_.erase(slot);
 +    }
-+    bound_buffer_ssbos_[key] = {slot, buffer, kind, ++storage_bind_serial_};
++    bound_buffer_ssbos_[key] = {
++        slot, buffer, pending_dependency, kind, ++storage_bind_serial_};
 +  }
 +  void buffer_ssbo_unbind(const webgpu::Buffer *buffer)
 +  {
@@ -53657,10 +53674,10 @@ index 0000000000000000000000000000000000000000..975a418eb8c0512a1a7285c8bc55467f
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..529e6f57140b5a860ab90703c568476e9928ede0
+index 0000000000000000000000000000000000000000..33e384e2de48ad9178ede20519649a7255c0cdae
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
-@@ -0,0 +1,601 @@
+@@ -0,0 +1,630 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -54164,21 +54181,34 @@ index 0000000000000000000000000000000000000000..529e6f57140b5a860ab90703c568476e
 +  if (ctx == nullptr) {
 +    return;
 +  }
++  const bool needs_float_expansion =
++      format.attr_len == 1 && format.attrs[0].type.comp_type() == GPU_COMP_F32 &&
++      format.attrs[0].type.comp_len() < 4;
 +  upload_data();
++  webgpu::Buffer *binding_buffer = needs_float_expansion ? &buffer_texture_buffer_ : &buffer_;
 +  if (!buffer_.valid()) {
++    if (buffer_.creation_pending_or_retryable()) {
++      /* Float1-3 samplers eventually bind the expanded buffer, never the smaller primary
++       * allocation. Preserve that exact final resource while the primary owns readiness. */
++      ctx->buffer_ssbo_bind(int(binding),
++                            binding_buffer,
++                            WGPUContext::BufferSSBOBindKind::Sampler,
++                            &buffer_);
++    }
 +    return;
 +  }
-+  webgpu::Buffer *binding_buffer = &buffer_;
 +  buffer_texture_buffer_.retry_pending_updates();
 +  if (buffer_texture_upload_transaction_.started()) {
 +    if (!buffer_texture_upload_transaction_.accepted()) {
++      ctx->buffer_ssbo_bind(int(binding),
++                            binding_buffer,
++                            WGPUContext::BufferSSBOBindKind::Sampler,
++                            &buffer_texture_buffer_);
 +      return;
 +    }
 +    buffer_texture_upload_transaction_.reset();
 +  }
-+  if (format.attr_len == 1 && format.attrs[0].type.comp_type() == GPU_COMP_F32 &&
-+      format.attrs[0].type.comp_len() < 4)
-+  {
++  if (needs_float_expansion) {
 +    if (buffer_texture_buffer_dirty_ || !buffer_texture_buffer_.valid()) {
 +      const std::vector<uint8_t> source = buffer_.read(ctx->instance_get(),
 +                                                       ctx->device_get(),
@@ -54216,6 +54246,12 @@ index 0000000000000000000000000000000000000000..529e6f57140b5a860ab90703c568476e
 +                                                  false,
 +                                                  "float texel-buffer expansion"))
 +        {
++          if (buffer_texture_buffer_.creation_pending_or_retryable()) {
++            ctx->buffer_ssbo_bind(int(binding),
++                                  &buffer_texture_buffer_,
++                                  WGPUContext::BufferSSBOBindKind::Sampler,
++                                  &buffer_texture_buffer_);
++          }
 +          return;
 +        }
 +        buffer_texture_buffer_dirty_ = false;
@@ -54236,9 +54272,19 @@ index 0000000000000000000000000000000000000000..529e6f57140b5a860ab90703c568476e
 +          if (!buffer_texture_upload_transaction_.started()) {
 +            buffer_texture_buffer_dirty_ = true;
 +          }
++          else {
++            ctx->buffer_ssbo_bind(int(binding),
++                                  &buffer_texture_buffer_,
++                                  WGPUContext::BufferSSBOBindKind::Sampler,
++                                  &buffer_texture_buffer_);
++          }
 +          return;
 +        }
 +        if (!buffer_texture_upload_transaction_.accepted()) {
++          ctx->buffer_ssbo_bind(int(binding),
++                                &buffer_texture_buffer_,
++                                WGPUContext::BufferSSBOBindKind::Sampler,
++                                &buffer_texture_buffer_);
 +          return;
 +        }
 +        buffer_texture_upload_transaction_.reset();

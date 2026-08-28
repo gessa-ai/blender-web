@@ -968,6 +968,9 @@ bool failed_ticket_capacity_contract()
 
 int main(const int argc, char **argv)
 {
+  if (argc == 2 && std::strcmp(argv[1], "--vertex-upload-only") == 0) {
+    return blender::gpu::run_vertex_upload_generation_contracts() ? 0 : 1;
+  }
   if (argc == 2 && std::strcmp(argv[1], "--pending-buffer-payload-only") == 0) {
     return blender::gpu::webgpu::run_pending_buffer_payload_contracts() ? 0 : 1;
   }
@@ -989,6 +992,6 @@ int main(const int argc, char **argv)
   std::printf(
       "INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 "
       "buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 "
-      "index_upload_cases=7 vertex_generation_cases=2\n");
+      "index_upload_cases=7 vertex_generation_cases=3\n");
   return 0;
 }

@@ -1197,3 +1197,6 @@
 # 0297: retain first-use vertex/index buffer binding intent while allocation is pending so
 # polyline position/color/index resources retry instead of hard-dropping the draw.
 0297-gpu-webgpu-pending-geometry-bind-intent.patch
+# 0298: retain the eventual buffer-texture binding while its primary or expanded allocation is
+# pending, without binding an unexpanded float1-3 source under the vec4 storage layout.
+0298-gpu-webgpu-pending-buffer-texture-bind-intent.patch

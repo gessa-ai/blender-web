@@ -13,7 +13,9 @@ remain asynchronous diagnostics. Patch 0296 adds the independently observed miss
 candidate: exact buffer binding intent survives asynchronous allocation, and only successful
 publication emits one bounded redraw-readiness edge. Patch 0297 closes the same intent-loss window
 in typed vertex and index buffers after an exact cumulative-interaction run identified polyline
-bindings 0, 1, and 2 as missing. The fallback diagnostics complete with no page error or hard
+bindings 0, 1, and 2 as missing. Patch 0298 closes the remaining buffer-texture frontend without
+binding an unexpanded float source under the vec4 storage layout while either backing allocation is
+pending. The fallback diagnostics complete with no page error or hard
 incomplete-group warning, but they bind no hardware pixel claim, receipt, profile, APPLY bundle,
 or release tag. A separately reproduced cumulative workspace-click failure remains open.
 
@@ -174,6 +176,31 @@ workspace clicks is accepted while Blender stays in Layout; the already-active L
 counted as a transition. That is direct evidence for separate P0-J cumulative input/modal-state
 failure; patch 0297 neither claims nor receives credit for fixing it.
 
+## Buffer-texture binding intent
+
+The remaining binding-frontend audit found one concrete sibling of patches 0296 and 0297.
+`WGPUVertexBuffer::bind_as_texture()` uploaded on first use and returned whenever the primary
+buffer was not yet valid. On the browser path that includes a normal pending allocation, so the
+sampler-buffer slot was never recorded and the later readiness edge had no exact binding intent to
+retry.
+
+This frontend has a stricter identity rule than ordinary SSBO binding. Float1, float2, and float3
+sampler buffers are expanded to a float4 backing buffer; recording the smaller primary buffer while
+it is pending would preserve the slot but bind the wrong resource under the surviving vec4 layout.
+Patch 0298 therefore records two pieces of state: the eventual binding buffer (primary for ordinary
+formats, expanded for float1-3) and the allocation on which publication currently depends. Resource
+assembly claims the exact mapped ID as `Pending` while that dependency is pending, then requires the
+eventual buffer to be valid before emitting a live bind-group entry. A rejected dependency or a
+genuinely absent final buffer remains hard `Incomplete`; the set-completeness gate is unchanged.
+
+The extracted native fixture failed first at `float sampler binding survives primary allocation
+pending`. The final focused native/Wasm contract covers primary-pending intent, publication of the
+expanded bytes, and exact output parity. The full aggregate fixture reaches the new contract but
+still stops at its pre-existing `readback submit ordering` failure on two unchanged runs; the
+focused contract isolates this change without relabeling that adjacent failure. The shipping GPU
+archive, CAPTURE relink, and exact 41-step fallback replay are green with zero hard completeness
+warnings or page errors. Hardware pixels remain the closure authority.
+
 ## Evidence and acceptance
 
 - Apple screenshots: `~/bw-logs/mac-capture-evidence-20260827-extrude-artifact/`.
@@ -232,6 +259,23 @@ failure; patch 0297 neither claims nor receives credit for fixing it.
   `ledger/buildlogs/20260828T002036-2597024.log`,
   `ledger/buildlogs/20260828T002119-2597501.log`, and
   `ledger/buildlogs/20260828T002131-2598038.log`.
+- Patch-0298 fail-first, source mutation check, canonical freeze/replay, and focused native/Wasm
+  buffer-texture parity:
+  `ledger/buildlogs/20260828T045216-2783707.log`,
+  `ledger/buildlogs/20260828T045735-2787000.log`,
+  `ledger/buildlogs/20260828T045824-2788313.log`,
+  `ledger/buildlogs/20260828T045934-2789076.log`, and
+  `ledger/buildlogs/20260828T050147-2792506.log`.
+- The two unchanged aggregate readback-order failures, affected archive build, CAPTURE relink,
+  exact interaction replay/analyzer, capture self-check, and REUSE:
+  `ledger/buildlogs/20260828T050038-2790856.log`,
+  `ledger/buildlogs/20260828T050114-2791821.log`,
+  `ledger/buildlogs/20260828T050220-2794038.log`,
+  `ledger/buildlogs/20260828T050232-2794144.log`,
+  `ledger/buildlogs/20260828T050356-2794784.log`,
+  `ledger/buildlogs/20260828T050717-2797583.log`,
+  `ledger/buildlogs/20260828T050937-2798424.log`, and
+  `ledger/buildlogs/20260828T050937-2798425.log`.
 
 The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
 `67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data
@@ -240,6 +284,10 @@ The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split W
 The patch-0297 CAPTURE generation retains JS/data identities and is bound by JS SHA-256
 `763dba372ec3`, split Wasm `e834745977a5`, `.wasm.orig` `8ff3a2d87544`, data
 `095d0ba748c3`, and split manifest `b6b4f8a0337f`.
+
+The patch-0298 CAPTURE generation is bound by JS SHA-256 `08bbe627c1c5`, split Wasm
+`4dd6325a9dd5`, `.wasm.orig` `f5060f52481b` (118,977,221 bytes), data `095d0ba748c3`, and split
+manifest `51810a386b3d`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

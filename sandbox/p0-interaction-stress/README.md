@@ -37,6 +37,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_source.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_buffer_texture_pending.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_capture_contract.py --self-check
 ```
 
@@ -82,5 +84,9 @@ first-use allocation is pending, and that numbered patch 0297 carries both chang
 diagnostic emitted six `gpu_shader_3D_polyline_flat_color` failures with surviving bindings
 `[0,1,2,3]`, assembled bindings `[3]`, and missing bindings `[0,1,2]`. A device-free PASS proves the
 specific retry contract and does not close P0-I's required Apple-hardware pixel verification.
+The adjacent buffer-texture contract verifies that patch 0298 preserves the eventual correctly
+shaped backing plus its separate pending allocation dependency. In particular, float1-3 sampler
+buffers must wait for their expanded float4 backing rather than binding the smaller primary buffer.
+Its device-free PASS likewise binds only that state transition, not pixels.
 The adjacent input-recovery contract also requires the production retry-generation export, so
 hardware evidence proves the callback path fired rather than accepting a source-only hook.

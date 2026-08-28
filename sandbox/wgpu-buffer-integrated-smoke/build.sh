@@ -627,6 +627,30 @@ echo "== [2/3] canonical Wasm buffer/readback module =="
   -DBW_WGPU_BUFFER_UPDATE_SOURCE="$BUFFER_UPDATE_SOURCE"
 "$ROOT/scripts/ninja-locked.sh" -C "$WASM_BUILD" wgpu_buffer_integrated_smoke
 
+if [ "${BW_VERTEX_UPLOAD_ONLY:-0}" = "1" ]; then
+  echo "== [3/3] pending buffer-texture bind native/Wasm parity =="
+  VERTEX_NATIVE_STDOUT="$OUT/vertex-upload-native.stdout"
+  VERTEX_WASM_STDOUT="$OUT/vertex-upload-wasm.stdout"
+  "$NATIVE_BUILD/wgpu_buffer_integrated_test" --vertex-upload-only \
+    >"$VERTEX_NATIVE_STDOUT"
+  "$NODE" "$WASM_BUILD/integrated_buffer.js" --vertex-upload-only \
+    >"$VERTEX_WASM_STDOUT"
+  if ! cmp -s "$VERTEX_NATIVE_STDOUT" "$VERTEX_WASM_STDOUT"; then
+    echo "ERROR: pending buffer-texture native and Wasm evidence differs" >&2
+    diff -u "$VERTEX_NATIVE_STDOUT" "$VERTEX_WASM_STDOUT" | head -n 40 >&2
+    exit 1
+  fi
+  if ! grep -qx \
+    'CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B pending_intent=1' \
+    "$VERTEX_NATIVE_STDOUT"
+  then
+    echo "ERROR: pending buffer-texture PASS verdict missing" >&2
+    exit 1
+  fi
+  echo "PASS pending-buffer-texture-bind native/wasm source_sha256=$SOURCE_PROOF"
+  exit 0
+fi
+
 if [ "${BW_PENDING_BIND_ONLY:-0}" = "1" ]; then
   echo "== [3/3] pending bind-intent native/Wasm parity =="
   PENDING_NATIVE_STDOUT="$OUT/pending-bind-native.stdout"
@@ -675,7 +699,7 @@ then
 fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=2' \
+    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=3' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -702,7 +726,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT readback-command PASS cases=5 copies=4 submits=1 scopes=complete' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT vertex-upload-generation PASS cases=2 writes=5 order=A:B final=B' \
+    'CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B pending_intent=1' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2

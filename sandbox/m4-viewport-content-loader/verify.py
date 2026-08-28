@@ -95,10 +95,14 @@ def validate(sources: dict[str, str]) -> None:
         "if (viewport_content_present_count() == 0u)",
         "late readiness semantic-trace gate",
     )
+    require(
+        recovery.count("redraw_trace_begin(episode_generation);") == 2,
+        "late readiness/input semantic tracing does not have exactly two rearm paths",
+    )
     require_once(
         recovery,
-        "redraw_trace_begin(episode_generation);",
-        "late readiness semantic-trace rearm",
+        "if (reopen_trace && viewport_content_present_count() == 0u)",
+        "late input semantic-trace gate",
     )
 
     require_once(

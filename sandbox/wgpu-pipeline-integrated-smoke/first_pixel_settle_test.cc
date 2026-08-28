@@ -34,6 +34,7 @@ bool require(const bool condition, const char *message)
 int main()
 {
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
+  uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
   uint64_t drop_generation_seen = ghost_web::redraw_drop_generation();
   uint32_t heartbeat = 0;
@@ -44,6 +45,8 @@ int main()
                                            episode_generation_seen,
                                            ghost_web::redraw_drop_generation(),
                                            drop_generation_seen,
+                                           ghost_web::input_redraw_retry_generation(),
+                                           input_retry_generation_seen,
                                            heartbeat);
   };
   if (!require(recovery_tick() &&
@@ -124,16 +127,20 @@ int main()
     return 1;
   }
 
+  heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
   const uint64_t before_coalesced_input = ghost_web::redraw_retry_generation();
-  ghost_web::request_redraw_retry();
-  ghost_web::request_redraw_retry();
-  ghost_web::request_redraw_retry();
+  const uint64_t before_input_tail = ghost_web::input_redraw_retry_generation();
+  ghost_web::request_input_redraw_retry();
+  ghost_web::request_input_redraw_retry();
+  ghost_web::request_input_redraw_retry();
   const uint64_t after_coalesced_input = ghost_web::redraw_retry_generation();
+  const uint64_t after_input_tail = ghost_web::input_redraw_retry_generation();
   if (!require(after_coalesced_input == before_coalesced_input + 3u,
                "multiple input callbacks publish monotonic retry ownership") ||
-      !require(recovery_tick() && retry_generation_seen == after_coalesced_input &&
-                   heartbeat == 53,
-               "one WM tick coalesces input callbacks without resetting an active budget"))
+      !require(after_input_tail == before_input_tail + 3u && recovery_tick() &&
+                   retry_generation_seen == after_coalesced_input &&
+                   input_retry_generation_seen == after_input_tail && heartbeat == 1,
+               "one WM tick coalesces input callbacks into a full trailing recovery budget"))
   {
     return 1;
   }
@@ -142,7 +149,7 @@ int main()
    * surface/backbuffer is still validating. The resize request can spend that final update before
    * the new extent is drawable; the later coherent commit must therefore start its own budget. */
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
-  retry_generation_seen = active_request;
+  retry_generation_seen = after_coalesced_input;
   ghost_web::request_redraw_retry();
   const uint64_t resize_request = ghost_web::redraw_retry_generation();
   if (!require(recovery_tick() && retry_generation_seen == resize_request &&
@@ -655,6 +662,8 @@ int main()
                                                episode_generation_seen,
                                                drop_generation_seen,
                                                drop_generation_seen,
+                                               input_retry_generation_seen,
+                                               input_retry_generation_seen,
                                                heartbeat) &&
                    retry_generation_seen == 0 && heartbeat == 1,
                "retry generation wrap re-arms a terminal burst"))
@@ -670,6 +679,8 @@ int main()
                                                episode_generation_seen,
                                                drop_generation_seen,
                                                drop_generation_seen,
+                                               input_retry_generation_seen,
+                                               input_retry_generation_seen,
                                                heartbeat) &&
                    episode_generation_seen == 0 && heartbeat == 1,
                "episode generation wrap starts a fresh bounded burst"))
@@ -679,7 +690,7 @@ int main()
 
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
-      "late=immediate drops=bounded readiness=rearmed input=coalesced-bounded resize_commit=fresh "
+      "late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);

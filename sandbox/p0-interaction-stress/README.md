@@ -90,8 +90,11 @@ The adjacent buffer-texture contract verifies that patch 0298 preserves the even
 shaped backing plus its separate pending allocation dependency. In particular, float1-3 sampler
 buffers must wait for their expanded float4 backing rather than binding the smaller primary buffer.
 Its device-free PASS likewise binds only that state transition, not pixels.
-The adjacent input-recovery contract also requires the production retry-generation export, so
-hardware evidence proves the callback path fired rather than accepting a source-only hook.
+The adjacent input-recovery contract also requires the production aggregate retry export and a
+separate coalesced input-tail generation. Its tick-179 case proves the final accepted callback
+starts one complete bounded tail instead of inheriting the last tick of an older readiness burst;
+hardware evidence can therefore prove the callback path fired rather than accepting a source-only
+hook.
 The auxiliary-cache contract closes a separate first-use scheduling gap across the persistent
 dummy-buffer, clear, blit, upload, empty-attachment, and triangle-fan caches. All 13 producers now
 publish one coalescible redraw-readiness edge only when browser validation accepts a new handle;

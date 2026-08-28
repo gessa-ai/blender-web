@@ -1347,9 +1347,10 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
   /* Bounded asynchronous-draw recovery. Browser Dawn publishes shader modules, explicit layouts,
    * pipelines, and scoped resources after the draw that first requested them has already returned.
    * Their readiness generation requests an ordinary full-screen update so every dropped region is
-   * retried without user input. The boot burst discovers visible lazy variants; readiness can rearm
-   * a completed burst but cannot extend an active one past the existing 180-tick hard ceiling;
-   * repeated draw-drop signals are acknowledged without rearming at that ceiling. */
+   * retried without user input. The boot burst discovers visible lazy variants; resource readiness
+   * can rearm a completed burst but cannot extend an active one past the 180-tick hard ceiling.
+   * Real input separately restarts one full coalesced tail after its last callback; repeated
+   * draw-drop signals remain acknowledged without rearming at the ceiling. */
   const uint64_t redraw_episode_generation = ghost_web::redraw_episode_generation();
   const uint64_t barrier_completion_generation =
       ghost_web::redraw_present_barrier_completion_generation();
@@ -1371,6 +1372,8 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
                                       redraw_episode_generation_seen_,
                                       ghost_web::redraw_drop_generation(),
                                       redraw_drop_generation_seen_,
+                                      ghost_web::input_redraw_retry_generation(),
+                                      input_redraw_retry_generation_seen_,
                                       redraw_heartbeat_);
   if (window_ != nullptr && ghost_web::filter_redraw_present_barrier_update(
                                  redraw_episode_generation, redraw_recovery_requested))
@@ -1448,10 +1451,10 @@ void reconcile_modifier_pair(GHOST_ModifierKeys &keys,
 void GHOST_SystemWeb::requestInputRedrawRetry()
 {
   /* Input can expose a region whose first-use browser resource was not ready during the
-   * preceding bounded burst. Reuse the readiness generation: processEvents() coalesces all
-   * callbacks observed in one WM tick, and redraw_recovery_tick() resets only a completed
-   * budget, so active gestures cannot extend the hard ceiling indefinitely. */
-  ghost_web::request_redraw_retry();
+   * preceding bounded burst. Publish a distinct input-tail generation in addition to the
+   * aggregate retry edge: callbacks observed in one WM tick coalesce, and the last real input
+   * always leaves one complete bounded recovery budget without entering resize's barrier. */
+  ghost_web::request_input_redraw_retry();
 }
 
 void GHOST_SystemWeb::noteModifierFlags(const bool ctrl,
@@ -1810,6 +1813,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
             return;
           }
           redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();
+          input_redraw_retry_generation_seen_ = ghost_web::input_redraw_retry_generation();
           redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();
           redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
           redraw_present_barrier_completion_seen_ =

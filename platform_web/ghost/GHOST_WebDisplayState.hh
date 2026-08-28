@@ -74,6 +74,7 @@ inline void note_present()
  * readiness settles instead of leaving that region stale until unrelated user input.
  */
 inline std::atomic<uint64_t> redraw_retry_counter{0};
+inline std::atomic<uint64_t> input_redraw_retry_counter{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
 
@@ -241,6 +242,23 @@ inline void request_redraw_retry()
 inline uint64_t redraw_retry_generation()
 {
   return redraw_retry_counter.load(std::memory_order_acquire);
+}
+
+/**
+ * Ordinary input needs a full bounded recovery tail after its final accepted callback. Keep a
+ * distinct generation so an input arriving near the end of a shader-readiness burst can restart
+ * that tail without changing the hard-ceiling semantics of asynchronous resource publication.
+ * The aggregate retry generation still advances for the browser diagnostic and immediate update.
+ */
+inline void request_input_redraw_retry()
+{
+  input_redraw_retry_counter.fetch_add(1u, std::memory_order_release);
+  redraw_retry_counter.fetch_add(1u, std::memory_order_release);
+}
+
+inline uint64_t input_redraw_retry_generation()
+{
+  return input_redraw_retry_counter.load(std::memory_order_acquire);
 }
 
 /**
@@ -630,11 +648,13 @@ inline uint64_t redraw_present_barrier_completion_generation()
  * Bounded redraw recovery for one published window. Boot starts one burst even before a retry
  * signal so lazily created visible-region variants are discovered. A readiness signal requests an
  * immediate update; accepted readiness re-arms a completed burst, but neither accepted readiness
- * nor repeated incomplete draws reset an active burst's hard ceiling. A newly committed drawable
- * extent starts its own bounded episode because updates issued while that extent was pending could
- * not draw into it. A drop is acknowledged at the ceiling without rearming, so persistent failures
- * consume at most one bounded episode while a later newly accepted shader variant can still
- * recover an otherwise idle region.
+ * nor repeated incomplete draws reset an active burst's hard ceiling. Accepted ordinary input has
+ * separate ownership: callbacks coalesce at the WM poll, then restart one complete bounded tail so
+ * the final gesture frame cannot inherit only the last tick of an older burst. A newly committed
+ * drawable extent starts its own bounded episode because updates issued while that extent was
+ * pending could not draw into it. A drop is acknowledged at the ceiling without rearming, so
+ * persistent failures consume at most one bounded episode while a later input or newly accepted
+ * shader variant can still recover an otherwise idle region.
  */
 inline constexpr uint32_t FIRST_PIXEL_SETTLE_TICKS = 180u;
 inline constexpr uint32_t FIRST_PIXEL_SETTLE_INTERVAL = 12u;
@@ -645,14 +665,25 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
                                  uint64_t &episode_generation_seen,
                                  const uint64_t drop_generation,
                                  uint64_t &drop_generation_seen,
+                                 const uint64_t input_retry_generation,
+                                 uint64_t &input_retry_generation_seen,
                                  uint32_t &heartbeat)
 {
   const bool readiness_published = retry_generation != retry_generation_seen;
   const bool episode_published = episode_generation != episode_generation_seen;
   const bool draw_dropped = drop_generation != drop_generation_seen;
+  const bool input_published = input_retry_generation != input_retry_generation_seen;
   if (episode_published) {
     episode_generation_seen = episode_generation;
     heartbeat = 0;
+  }
+  if (input_published) {
+    input_retry_generation_seen = input_retry_generation;
+    const bool reopen_trace = heartbeat >= FIRST_PIXEL_SETTLE_TICKS;
+    heartbeat = 0;
+    if (reopen_trace && viewport_content_present_count() == 0u) {
+      redraw_trace_begin(episode_generation);
+    }
   }
   if (readiness_published) {
     retry_generation_seen = retry_generation;
@@ -673,7 +704,8 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
     redraw_trace_finish(episode_generation);
     return false;
   }
-  const bool request_update = episode_published || readiness_published || draw_dropped ||
+  const bool request_update = episode_published || input_published || readiness_published ||
+                              draw_dropped ||
                               (heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u;
   heartbeat++;
   return request_update;

@@ -1942,13 +1942,16 @@ Signature: boot recovery and resource-readiness retries are bounded correctly, b
 first exposes a lazy browser resource after that budget has ended. The input event reaches Blender
 and requests its normal redraw; that one frame drops, and no later input-driven full-window retry
 exists to repair the retained region. Route accepted move, supported button, nonzero wheel, and key
-events into the existing redraw-retry generation. Do not start a resize episode: ordinary input has
-no replacement drawable and must not acquire resize's completed-frame barrier semantics. Sampling
-the monotonic generation once per WM poll coalesces a queued input burst; a request inside an active
-budget produces an immediate update without resetting its ceiling, while the first request after a
-completed budget starts one fresh bounded burst. Bind unsupported/zero events, mutation-test every
-bridge, prove native/Wasm coalescing and ceiling parity, and retain trusted hardware pixels as the
-closure bar. See `platform_web/ghost/GHOST_EventBridgeWeb.cc`,
+events into a dedicated input-tail generation while also advancing the aggregate diagnostic retry.
+Do not start a resize episode: ordinary input has no replacement drawable and must not acquire
+resize's completed-frame barrier semantics. A generic readiness generation is insufficient: if the
+last accepted input lands on tick 179 of 180, it otherwise consumes the old burst's final tick and
+can leave its dropped frame stale. Sampling the input generation once per WM poll coalesces queued
+callbacks, then resets one complete trailing budget after the most recent real input. This remains
+bounded after input stops, while unrelated shader-readiness signals still cannot extend an active
+ceiling. Bind unsupported/zero events, mutation-test every bridge, prove the tick-179 schedule and
+native/Wasm coalescing parity, and retain trusted hardware pixels as the closure bar. See
+`platform_web/ghost/GHOST_EventBridgeWeb.cc`,
 `platform_web/ghost/GHOST_WebDisplayState.hh`, and `sandbox/p0-interaction-stress/`.
 
 ## Class 132 — a pending bind may depend on a different eventual resource

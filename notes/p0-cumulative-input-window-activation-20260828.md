@@ -532,3 +532,43 @@ This is evidence plumbing, not hardware evidence. Exact `.wasm.orig` remains `5f
 missing APPLY/release receipts (`ledger/buildlogs/20260828T135719-3187103.log`). P0-I/J close only
 after at least two clean driver-operated interaction/modal runs and one 10/10 resize receipt from
 this same generation produce `P0IJ_HARDWARE_GAUNTLET_PASS`.
+
+## Separate rapid input backlog from permanent freeze
+
+The later Apple handoff supplied five screenshot series at 350 ms per action for the exact
+`5fea52ef8bc9` generation. In each series the first post-deselect orbit painted, while the following
+click, opposite orbit, and move samples retained that orbit image. Those pixels establish a real
+same-cadence observation, but they do not by themselves show whether the WM worker eventually
+drained the queued actions: none of the retained evidence records a later counter-backed settle or
+an extended final sample.
+
+Commit `32692ee` adds a focused discriminator without changing product code. It repeats the exact
+Numpad 1/3/7/0/4, Select All, Deselect All, orbit, click, opposite-orbit, and move sequence with the
+same 350 ms snapshots. It then waits at most 12 seconds for one post-orbit result that simultaneously
+changes canvas pixels and advances the WM tick, validated-present, and aggregate input-redraw
+counters. A separate recovery orbit must meet the same four-part predicate. Immediate retained
+frames remain reported but are not promoted to a liveness verdict. Page or browser lifecycle errors
+always fail.
+
+Hardware mode is Apple-only and independently rejects an absent adapter, fallback status other
+than exactly false, incomplete adapter info, or a software identity token. On timeout the producer
+retains all rapid samples, the last counter snapshot, pointer-lock diagnostics, and the last 80
+native `ghost_event_proc` lines in its failure document, so the next hardware run can distinguish
+DOM/GHOST delivery, WM progress, presentation progress, and pixel retention without another relink.
+
+The mutation self-check and source contract pass at
+`ledger/buildlogs/20260828T232030-3513437.log` and
+`ledger/buildlogs/20260828T232030-3513438.log`. A first shared-WSLg attempt lost its X connection
+with no page/backend error (`20260828T231723-3510906`) and binds no result. The isolated-X fallback
+control passes (`20260828T232034-3513513`): the rapid action series itself drains, and the independent
+recovery orbit advances ticks `143 -> 145`, validated presents `45 -> 47`, and retries `458 -> 728`
+after 6,555 ms. That result proves only that 350 ms samples can be shorter than a real recovery
+latency; software pixels bind no Apple verdict. The integrated WebGPU/GHOST suite is green at
+`20260828T232115-3514661`, and REUSE 6.2.0 is green at
+`20260828T232231-3517380`.
+
+No relink or runtime byte changed. Direct M4 remains honestly RED at the Apple pixel boundary
+(`20260828T232153-3516272`), while the pinned-container regression restores M0 6/6 and retains the
+named M1-M8 strict/APPLY/product boundaries (`20260828T232156-3516324`). P0-I/J remain open until
+the driver runs this discriminator on the conformant Apple adapter and the existing composed
+same-generation gauntlet passes.

@@ -3474,7 +3474,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   current producer, all five product bytes, local/served CAPTURE generation, pinned browser stack,
   and accepted Apple adapter to match across both evidence families. Its 3-positive/23-negative
   self-check is green; no product byte or hardware verdict changed. P0-I/J closure now requires
-  that composed PASS rather than separately described evidence that could mix generations. See
+  that composed PASS rather than separately described evidence that could mix generations.
+  **Rapid-drain discriminator implemented (`32692ee`):** the driver's deterministic screenshot
+  sequence samples actions only 350 ms apart, which can preserve a genuine WM-worker backlog as
+  identical frames without establishing permanent liveness loss. A focused producer now preserves
+  that exact Numpad/select/deselect/orbit/click/orbit/move cadence, then waits at most 12 seconds and
+  requires pixels, WM ticks, validated presents, and the input-redraw diagnostic generation to all
+  advance; one independent recovery orbit must satisfy the same predicate. Apple mode rejects any
+  absent, fallback, incomplete-info, or software-token adapter, and a timeout preserves every
+  sample, the final counters, pointer-lock diagnostics, and native GHOST event tail. The exact
+  fallback product passes; its independent recovery orbit took 6,555 ms, proving only that the
+  350 ms cadence is not a sufficient drain verdict. This changes no runtime byte and does not
+  contradict or close the driver's 5/5 Apple observation. Hardware must run the discriminator and
+  the existing same-generation gauntlet before P0-I/J can close. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

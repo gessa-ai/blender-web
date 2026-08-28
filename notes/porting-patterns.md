@@ -2062,3 +2062,17 @@ acquire a surface texture from the callback, never nest error scopes under the p
 prove the seam with same-native-state pixel canaries rather than aggregate present counts. See
 `platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
 `platform_web/ghost/GHOST_WGPUTransaction.hh`, and `sandbox/p0-interaction-stress/`.
+
+## Class 139 — rapid screenshots are not a worker-queue drain verdict
+
+Signature: several trusted actions sampled a few hundred milliseconds apart retain the same canvas
+image, while a proxied Wasm worker may still be draining earlier GPU validation or WM work. Pixel
+identity across those immediate samples is a real observation but cannot distinguish permanent
+input/presentation loss from bounded backlog. Preserve the filed cadence, then add a bounded drain
+phase that requires one sample to change pixels while WM ticks, validated presentations, and the
+input-redraw generation all advance. Follow it with a new independent interaction and require the
+same predicate again. On timeout retain every rapid sample, final counters, pointer-lock outcome,
+and native event tail; otherwise the next hardware pass still cannot localize the loss. Reject
+fallback or incompletely identified adapters before labeling a run as hardware, and never let this
+focused diagnostic replace the immutable semantic-pixel receipt. See
+`sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

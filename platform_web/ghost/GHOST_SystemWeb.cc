@@ -1375,11 +1375,20 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
                                       ghost_web::input_redraw_retry_generation(),
                                       input_redraw_retry_generation_seen_,
                                       redraw_heartbeat_);
+  const uint64_t present_replay_generation = ghost_web::present_replay_generation();
+  const bool present_replay_pending =
+      present_replay_generation != present_replay_generation_seen_;
   if (window_ != nullptr && ghost_web::filter_redraw_present_barrier_update(
-                                 redraw_episode_generation, redraw_recovery_requested))
+                                 redraw_episode_generation,
+                                 redraw_recovery_requested || present_replay_pending))
   {
     pushEvent(
         std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window_));
+    if (present_replay_pending) {
+      /* Consume only after the ordinary WM update is admitted. A resize barrier may temporarily
+       * withhold it, but cannot lose the request at the generic recovery heartbeat ceiling. */
+      present_replay_generation_seen_ = present_replay_generation;
+    }
   }
 
   /* --- Idle keepalive (ghost-keepalive) ---------------------------------------------
@@ -1818,6 +1827,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
           redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
           redraw_present_barrier_completion_seen_ =
               ghost_web::redraw_present_barrier_completion_generation();
+          present_replay_generation_seen_ = ghost_web::present_replay_generation();
           redraw_heartbeat_ = 0;
         }
         if (GHOST_WindowManager *wm = getWindowManager()) {

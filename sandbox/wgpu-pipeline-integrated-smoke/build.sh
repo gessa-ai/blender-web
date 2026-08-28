@@ -2153,14 +2153,15 @@ if configuration_positions != sorted(configuration_positions):
 
 for needle in (
     "if (present_settlement_.defer_if_pending()) {",
+    "ghost_web::note_present_suppressed();",
     "present_settlement_.begin();",
     "ghost_web::present_frame_encode_submit_scoped(",
     'popErrorScopes(device, "present command encoding"',
     'popErrorScopes(device, "present queue submission"',
     "queue.Submit(1, &command_buffer);",
     "const bool retry_after_settlement = owner.present_settlement_.complete();",
-    "if (retry_after_settlement && !owner.presentBackbuffer()) {",
-    "ghost_web::request_redraw_retry();",
+    "if (retry_after_settlement) {",
+    "ghost_web::request_present_replay();",
     "if (!valid) {",
     "ghost_web::note_present();",
 ):
@@ -2169,16 +2170,20 @@ for needle in (
 
 source_positions = [
     present.index("if (present_settlement_.defer_if_pending()) {"),
+    present.index("ghost_web::note_present_suppressed();"),
     present.index("present_settlement_.begin();"),
     present.index("queue.Submit(1, &command_buffer);"),
     present.index("const bool retry_after_settlement = owner.present_settlement_.complete();"),
-    present.index("if (retry_after_settlement && !owner.presentBackbuffer()) {"),
-    present.index("ghost_web::request_redraw_retry();"),
+    present.index("if (retry_after_settlement) {"),
+    present.index("ghost_web::request_present_replay();"),
     present.index("if (!valid) {"),
     present.index("ghost_web::note_present();"),
 ]
 if source_positions != sorted(source_positions):
     raise SystemExit("ERROR: present submission/commit boundaries are reordered")
+if "owner.presentBackbuffer()" in present[present.index(
+    "const bool retry_after_settlement = owner.present_settlement_.complete();"):]:
+    raise SystemExit("ERROR: present settlement still acquires outside the WM draw boundary")
 
 for needle, expected in (
     ("if (!handles_valid) {", 1),
@@ -2394,7 +2399,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=77 periodic=15 late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh present_settlement=coalesced-direct-retry present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=78 periodic=15 late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh present_settlement=coalesced-wm-retry present_telemetry=suppressed-wm-replayed present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

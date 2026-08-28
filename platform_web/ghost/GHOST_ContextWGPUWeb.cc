@@ -55,6 +55,27 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_present_count(void)
   return double(ghost_web::present_count());
 }
 
+/* Exact evidence that PresentSettlementLatch deferred surface swaps and requested WM-owned
+ * replays. The interaction hardware producer samples deltas around its rapid-view burst so a
+ * passing receipt cannot claim to exercise the settlement fix from aggregate presentation counts
+ * alone. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_present_suppressed_count(void)
+{
+  return double(ghost_web::present_suppressed_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_present_replay_count(void)
+{
+  return double(ghost_web::present_replay_count());
+}
+
+/* Per-stage witness for the stock dashed-line immediate path. Stage indices are the exact
+ * ImmediateDashedStage ordinal values; out-of-range probes return zero. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_immediate_dashed_stage_count(const uint32_t stage)
+{
+  return double(ghost_web::immediate_dashed_stage_count(stage));
+}
+
 /* Readiness is stricter than a generic surface submit: it advances only after a frame containing
  * a successfully encoded VIEW_3D background, grid, and final display composite validates on the
  * presentation queue. The shell keeps its loader visible until this edge is observable. */
@@ -988,6 +1009,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
     return false;
   }
   if (present_settlement_.defer_if_pending()) {
+    ghost_web::note_present_suppressed();
     return false;
   }
 
@@ -1142,11 +1164,12 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
               if (reconfigure_after_present) {
                 owner.configured_ = false;
               }
-              if (retry_after_settlement && !owner.presentBackbuffer()) {
-                /* The completed command sampled an older backbuffer. This callback is a fresh
-                 * browser turn, so acquire and submit a new surface blit of the retained latest
-                 * frame now. Fall back to the bounded WM redraw path only when that cannot start. */
-                ghost_web::request_redraw_retry();
+              if (retry_after_settlement) {
+                /* The completed command sampled an older backbuffer. Publish a distinct WM-owned
+                 * WindowUpdate instead of acquiring a swapchain texture from this asynchronous
+                 * validation callback. The generation is consumed only after that update passes
+                 * any resize barrier, so the ordinary recovery heartbeat cannot discard it. */
+                ghost_web::request_present_replay();
               }
               if (!valid) {
                 std::printf("WGPUWeb: present transaction rejected\n");
@@ -1260,7 +1283,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
           });
   /* The browser auto-presents `st.texture` when this rAF tick yields. Acquire, render-pass
    * encoding, and queue submission happen synchronously above; only the two error-scope results
-   * settle later. Newer swaps coalesce behind present_settlement_ and submit one fresh surface
-   * blit when the in-flight transaction settles. */
+   * settle later. Newer swaps coalesce behind present_settlement_; settlement publishes one
+   * WM-owned update so the fresh surface blit remains inside the synchronous draw boundary. */
   return true;
 }

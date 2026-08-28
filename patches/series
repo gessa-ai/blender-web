@@ -1209,3 +1209,6 @@
 # 0301: retain a float buffer-texture binding while its browser readback is pending, publish one
 # bounded retry on readiness, and retain one bounded census row per distinct pending shader set.
 0301-gpu-webgpu-buffer-texture-readback-readiness.patch
+# 0302: trace every early-return, encode, and validation stage for the stock dashed-line immediate
+# shader so a camera-frame stale draw can be diagnosed from exact counters rather than pixels alone.
+0302-gpu-webgpu-immediate-dashed-stage-trace.patch

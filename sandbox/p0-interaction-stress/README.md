@@ -29,6 +29,11 @@ view transition, never for intermediate pixels, then requires the final front po
 12 seconds and remain byte-identical for three more seconds. Ordered trusted DOM key receipts,
 strictly increasing native state sequences, advancing present/input-retry counters, and a third
 same-pose region diff bind the suppressed-present coalescing path without changing the product.
+Every screenshot additionally samples a 12-stage witness for the stock dashed-line immediate
+shader used by the camera frame and modal guides. The consumer requires monotonic attempt/accept
+counters through camera entry, zero asynchronous validation rejection, and the same camera pixels
+before and after the cancelled Numpad4 no-op. This separates a genuine draw-stage failure from a
+surface replay that retained older pixels.
 
 The default Linux run deliberately exercises the Apple-verified pointer-lock rejection fallback
 and forces SwiftShader. It is diagnostic-only and binds no hardware or pixel receipt.
@@ -51,6 +56,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_capture_contract.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_immediate_dashed_trace.py --self-check
 ```
 
 The analyzer requires a running product, semantic pixels through the final orbit, Blender-native

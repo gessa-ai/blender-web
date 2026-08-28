@@ -79,6 +79,19 @@ int main()
     return 1;
   }
 
+  const uint64_t suppressed_before = ghost_web::present_suppressed_count();
+  const uint64_t replay_before = ghost_web::present_replay_count();
+  ghost_web::note_present_suppressed();
+  ghost_web::note_present_suppressed();
+  const uint64_t replay_generation = ghost_web::request_present_replay();
+  if (!require(ghost_web::present_suppressed_count() == suppressed_before + 2u &&
+                   ghost_web::present_replay_count() == replay_before + 1u &&
+                   ghost_web::present_replay_generation() == replay_generation,
+               "suppressed-present telemetry publishes one WM replay generation"))
+  {
+    return 1;
+  }
+
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
@@ -737,9 +750,10 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh "
-      "present_settlement=coalesced-direct-retry "
+      "present_settlement=coalesced-wm-retry "
+      "present_telemetry=suppressed-wm-replayed "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 77 ? 0 : 1;
+  return checks == 78 ? 0 : 1;
 }

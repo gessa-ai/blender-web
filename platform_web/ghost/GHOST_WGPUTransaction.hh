@@ -408,7 +408,8 @@ inline bool surface_resize_present_coherent(const bool configured,
 /**
  * Coalesce swap requests that arrive while a browser present transaction waits for asynchronous
  * validation scopes. The in-flight command samples the backbuffer before those later draws, so
- * settlement must request one fresh surface blit whenever at least one newer swap was suppressed.
+ * settlement must request one fresh WM-owned redraw/present whenever at least one newer swap was
+ * suppressed. Surface acquire stays inside the synchronous WM swap boundary, never this callback.
  */
 class PresentSettlementLatch {
  public:

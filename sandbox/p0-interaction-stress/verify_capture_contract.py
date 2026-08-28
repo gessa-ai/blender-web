@@ -73,6 +73,11 @@ def validate(capture: str, analyzer: str) -> None:
         'const isolationCanary = {',
         'viewKeys: ISOLATED_VIEW_KEYS,',
         'const rapidBurstPixelSettleMs = await waitForCanvasStable("rapid view burst final pixels");',
+        'const presentSettlement = await page.evaluate(() => ({',
+        'const immediateDashedStages = await page.evaluate(() =>',
+        'presentSuppressed: presentSettlement.suppressed,',
+        'presentReplays: presentSettlement.replays,',
+        'immediateDashedStages,',
         'domKeyDownCodes: rapidBurstDomKeyDownCodes,',
         '"rapid-view-burst-known-pose", "03b-reference-pose-6s", "03d-rapid-view-burst-held"',
         'rapidViewBurstCanary,',
@@ -81,6 +86,12 @@ def validate(capture: str, analyzer: str) -> None:
         require_once(capture, marker, "capture invariant")
     if capture.count("_bw_redraw_retry_count") != 3:
         raise ValueError("capture redraw-retry counter census differs")
+    if capture.count("_bw_present_suppressed_count") != 3:
+        raise ValueError("capture suppressed-present counter census differs")
+    if capture.count("_bw_present_replay_count") != 3:
+        raise ValueError("capture present-replay counter census differs")
+    if capture.count("_bw_immediate_dashed_stage_count") != 2:
+        raise ValueError("capture immediate-dashed trace counter census differs")
 
     # Three canaries intentionally call the same helper; every named call remains unique.
     if capture.count("samePoseCanaries.push(makeSamePoseCanary(") != 3:
@@ -137,8 +148,12 @@ def validate(capture: str, analyzer: str) -> None:
         'rapid_burst.get("domKeyDownCodes") == RAPID_VIEW_BURST_KEYS',
         'burst_after["presents"] > burst_before["presents"]',
         'burst_after["redrawRetries"] > burst_before["redrawRetries"]',
+        'burst_after["presentSuppressed"] > burst_before["presentSuppressed"]',
+        'burst_after["presentReplays"] > burst_before["presentReplays"]',
         '3000 <= rapid_burst["pixelSettleMs"] <= 12000',
         'product.get("redrawRetries")',
+        'validate_dashed_stages(product.get("immediateDashedStages"), "product")',
+        'camera_dashed[0] > top_dashed[0] and camera_dashed[10] > top_dashed[10]',
         'operator.get("operation") == "G X 2 Enter; Control+Z"',
         'require(not hard_warnings',
         'adapter.get("isFallbackAdapter") is False',
@@ -177,6 +192,9 @@ def self_check(capture: str, analyzer: str) -> None:
         'const receiptTimeout = options.hardware ? 5000 : 15000;',
         'const isolationCanary = {',
         'const rapidBurstPixelSettleMs = await waitForCanvasStable("rapid view burst final pixels");',
+        'const presentSettlement = await page.evaluate(() => ({',
+        'presentSuppressed: presentSettlement.suppressed,',
+        'presentReplays: presentSettlement.replays,',
         'domKeyDownCodes: rapidBurstDomKeyDownCodes,',
         '"rapid-view-burst-known-pose", "03b-reference-pose-6s", "03d-rapid-view-burst-held"',
         'rapidViewBurstCanary,',
@@ -195,6 +213,8 @@ def self_check(capture: str, analyzer: str) -> None:
         '0 <= orbit["pixelSettleMs"] <= 12000',
         'rapid_burst.get("domKeyDownCodes") == RAPID_VIEW_BURST_KEYS',
         'burst_after["presents"] > burst_before["presents"]',
+        'burst_after["presentSuppressed"] > burst_before["presentSuppressed"]',
+        'burst_after["presentReplays"] > burst_before["presentReplays"]',
         '3000 <= rapid_burst["pixelSettleMs"] <= 12000',
         'product.get("redrawRetries")',
         'operator.get("operation") == "G X 2 Enter; Control+Z"',

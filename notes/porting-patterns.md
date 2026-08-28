@@ -2032,3 +2032,19 @@ repeated conformant-hardware runs. See
 `upstream/source/blender/gpu/webgpu/wgpu_readback.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc`, and
 `sandbox/p0-interaction-stress/verify_buffer_texture_readback_pending.py`.
+
+## Class 137 — asynchronous present settlement must re-enter through WM
+
+Signature: a surface transaction samples the persistent backbuffer and then waits for browser
+validation. Later WM frames update that backbuffer, but their swaps coalesce behind the in-flight
+transaction. Calling the surface-present routine directly from the validation callback appears to
+replay the newest content and can pass several runs, yet it acquires outside the ordinary WM draw
+boundary and may still expose a retained partial frame. Publish a distinct monotonic replay
+generation instead. The WM loop must consume that generation only after its `WindowUpdate` passes
+any resize barrier, and the resulting ordinary frame must own surface acquire/encode/submit. Do not
+route this through the generic bounded-readiness heartbeat: a terminal heartbeat can discard the
+one update settlement exists to guarantee. Bind the seam with positive suppression/replay deltas,
+an exact draw-stage witness, and repeated same-native-state pixels; aggregate present counts alone
+cannot distinguish a stale replay. See `platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
+`platform_web/ghost/GHOST_SystemWeb.cc`, `platform_web/ghost/GHOST_WebDisplayState.hh`, and
+`sandbox/p0-interaction-stress/`.

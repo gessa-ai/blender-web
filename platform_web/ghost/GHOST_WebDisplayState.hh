@@ -30,6 +30,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -64,6 +65,83 @@ inline uint64_t present_count()
 inline void note_present()
 {
   present_counter.fetch_add(1u, std::memory_order_relaxed);
+}
+
+/**
+ * Monotonic evidence that a newer swap was coalesced behind asynchronous surface validation and
+ * that settlement requested the corresponding fresh surface blit. The suppressed counter is
+ * diagnostic-only; the replay counter is also the release/acquire generation consumed by the WM
+ * loop. Both remain cheap atomics on the single WebGPU-owning worker.
+ */
+inline std::atomic<uint64_t> present_suppressed_counter{0};
+inline std::atomic<uint64_t> present_replay_counter{0};
+
+inline void note_present_suppressed()
+{
+  present_suppressed_counter.fetch_add(1u, std::memory_order_relaxed);
+}
+
+inline uint64_t present_suppressed_count()
+{
+  return present_suppressed_counter.load(std::memory_order_relaxed);
+}
+
+/** Publish one coalesced request for the WM loop to redraw and present the latest backbuffer.
+ * Unlike generic readiness, this generation is consumed only after a WindowUpdate is admitted. */
+inline uint64_t request_present_replay()
+{
+  return present_replay_counter.fetch_add(1u, std::memory_order_release) + 1u;
+}
+
+inline uint64_t present_replay_generation()
+{
+  return present_replay_counter.load(std::memory_order_acquire);
+}
+
+inline uint64_t present_replay_count()
+{
+  return present_replay_generation();
+}
+
+/**
+ * Bounded diagnosis for the stock dashed-line immediate shader used by the camera frame and
+ * transform guides. Each stage is monotonic and diagnostic-only. A browser receipt can therefore
+ * distinguish a draw that was never retried from one that encoded but later failed validation,
+ * without parsing asynchronous warning text or changing draw scheduling.
+ */
+enum class ImmediateDashedStage : uint8_t {
+  Attempt = 0,
+  ModuleDeferred,
+  GeometryDeferred,
+  TargetDeferred,
+  PipelineDeferred,
+  VertexDeferred,
+  BindingDeferred,
+  LoadDeferred,
+  PassDeferred,
+  Encoded,
+  Accepted,
+  Rejected,
+  Count,
+};
+
+inline std::atomic<uint64_t>
+    immediate_dashed_stage_counters[size_t(ImmediateDashedStage::Count)]{};
+
+inline void note_immediate_dashed_stage(const ImmediateDashedStage stage)
+{
+  const size_t index = size_t(stage);
+  if (index < size_t(ImmediateDashedStage::Count)) {
+    immediate_dashed_stage_counters[index].fetch_add(1u, std::memory_order_relaxed);
+  }
+}
+
+inline uint64_t immediate_dashed_stage_count(const uint32_t stage)
+{
+  if (stage >= uint32_t(ImmediateDashedStage::Count)) {
+    return 0;
+  }
+  return immediate_dashed_stage_counters[stage].load(std::memory_order_relaxed);
 }
 
 /**

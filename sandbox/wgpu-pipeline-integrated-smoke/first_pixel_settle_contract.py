@@ -20,6 +20,7 @@ EXPLICIT_LAYOUT_MARKER = "bool WGPUShader::ensure_explicit_layout("
 RENDER_PIPELINE_MARKER = "wgpu::RenderPipeline WGPUPipelinePool::get("
 RESIZE_COMMIT_MARKER = "void GHOST_ContextWGPUWeb::ensureBackbuffer()"
 SWAP_RELEASE_MARKER = "GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()"
+PRESENT_BACKBUFFER_MARKER = "bool GHOST_ContextWGPUWeb::presentBackbuffer()"
 
 
 def method(source: str, marker: str) -> str:
@@ -67,6 +68,8 @@ def validate(
         "inline std::atomic<uint64_t> input_redraw_retry_counter{0};",
         "inline std::atomic<uint64_t> redraw_episode_counter{0};",
         "inline std::atomic<uint64_t> redraw_drop_counter{0};",
+        "inline std::atomic<uint64_t> present_suppressed_counter{0};",
+        "inline std::atomic<uint64_t> present_replay_counter{0};",
         "inline void request_redraw_retry()",
         "inline uint64_t redraw_retry_generation()",
         "inline void request_input_redraw_retry()",
@@ -75,6 +78,11 @@ def validate(
         "inline uint64_t redraw_episode_generation()",
         "inline void note_redraw_drop()",
         "inline uint64_t redraw_drop_generation()",
+        "inline void note_present_suppressed()",
+        "inline uint64_t present_suppressed_count()",
+        "inline uint64_t request_present_replay()",
+        "inline uint64_t present_replay_generation()",
+        "inline uint64_t present_replay_count()",
         "inline void redraw_trace_frame_begin(",
         "inline bool redraw_present_frame_matches_episode(",
         "inline bool redraw_present_trace_complete(",
@@ -90,6 +98,20 @@ def validate(
         "inline uint64_t redraw_present_barrier_completion_generation()",
     ):
         require_once(display_header, token, "redraw recovery state")
+    present_replay_request = method(display_header, "inline uint64_t request_present_replay()")
+    require_once(
+        present_replay_request,
+        "present_replay_counter.fetch_add(1u, std::memory_order_release) + 1u",
+        "WM-owned present replay publication",
+    )
+    present_replay_generation = method(
+        display_header, "inline uint64_t present_replay_generation()"
+    )
+    require_once(
+        present_replay_generation,
+        "present_replay_counter.load(std::memory_order_acquire)",
+        "WM-owned present replay generation",
+    )
     frame_match = method(display_header, "inline bool redraw_present_frame_matches_episode(")
     require_once(
         frame_match,
@@ -249,6 +271,11 @@ def validate(
         "uint64_t redraw_present_barrier_completion_seen_ = 0;",
         "per-window present-barrier state",
     )
+    require_once(
+        system_header,
+        "uint64_t present_replay_generation_seen_ = 0;",
+        "per-window settlement-replay state",
+    )
     if "redraw_present_baseline_" in system_header:
         raise ValueError("obsolete two-present terminal state remains")
 
@@ -266,6 +293,9 @@ def validate(
         "ghost_web::redraw_present_barrier_completion_generation()",
         "ghost_web::redraw_present_barrier_completed_episode()",
         "ghost_web::filter_redraw_present_barrier_update(",
+        "ghost_web::present_replay_generation()",
+        "const bool present_replay_pending =",
+        "redraw_recovery_requested || present_replay_pending",
         "GHOST_kEventWindowUpdate",
     ):
         require_once(process, token, "processEvents recovery wiring")
@@ -275,6 +305,19 @@ def validate(
         2,
         "processEvents recovery wiring",
     )
+    require_count(process, "present_replay_generation_seen_", 2,
+                  "processEvents settlement-replay wiring")
+    replay_generation_at = process.index("ghost_web::present_replay_generation()")
+    replay_pending_at = process.index("const bool present_replay_pending =")
+    replay_request_at = process.index("redraw_recovery_requested || present_replay_pending")
+    replay_filter_at = process.index("ghost_web::filter_redraw_present_barrier_update(")
+    replay_event_at = process.index("GHOST_kEventWindowUpdate", replay_filter_at)
+    replay_consume_at = process.index(
+        "present_replay_generation_seen_ = present_replay_generation;", replay_event_at
+    )
+    if not (replay_generation_at < replay_pending_at < replay_filter_at < replay_request_at <
+            replay_event_at < replay_consume_at):
+        raise ValueError("settlement replay is consumed before its WM update is admitted")
     if "GHOST_kEventWindowActivate" in process:
         raise ValueError("redraw recovery injects synthetic activation")
 
@@ -308,6 +351,10 @@ def validate(
         "              ghost_web::redraw_present_barrier_completion_generation();"
     )
     require_once(creation, barrier_completion, "window publication")
+    replay_generation = (
+        "present_replay_generation_seen_ = ghost_web::present_replay_generation();"
+    )
+    require_once(creation, replay_generation, "window publication")
     require_once(creation, heartbeat, "window publication")
     if max(
         creation.index(generation),
@@ -387,6 +434,32 @@ def validate(
         < active_episode_at < withhold_at < withhold_return_at < fallback_present_at
     ):
         raise ValueError("incomplete resize frame can reach synchronous presentation")
+
+    for token in (
+        "extern \"C\" EMSCRIPTEN_KEEPALIVE double bw_present_suppressed_count(void)",
+        "return double(ghost_web::present_suppressed_count());",
+        "extern \"C\" EMSCRIPTEN_KEEPALIVE double bw_present_replay_count(void)",
+        "return double(ghost_web::present_replay_count());",
+    ):
+        require_once(context_source, token, "suppressed-present telemetry export")
+    present_backbuffer = method(context_source, PRESENT_BACKBUFFER_MARKER)
+    for token in (
+        "ghost_web::note_present_suppressed();",
+        "ghost_web::request_present_replay();",
+    ):
+        require_once(present_backbuffer, token, "suppressed-present telemetry publication")
+    defer_at = present_backbuffer.index("if (present_settlement_.defer_if_pending())")
+    suppressed_at = present_backbuffer.index("ghost_web::note_present_suppressed();")
+    suppressed_return_at = present_backbuffer.find("return false;", suppressed_at)
+    settlement_at = present_backbuffer.index(
+        "const bool retry_after_settlement = owner.present_settlement_.complete();"
+    )
+    replay_request_at = present_backbuffer.index("ghost_web::request_present_replay();")
+    settlement_tail = present_backbuffer[settlement_at:]
+    if "owner.presentBackbuffer()" in settlement_tail:
+        raise ValueError("settlement replay still acquires a surface outside the WM draw boundary")
+    if not (defer_at < suppressed_at < suppressed_return_at < settlement_at < replay_request_at):
+        raise ValueError("suppressed-present telemetry does not bind defer and WM replay request")
 
     update_case = wm_window_source.find("case GHOST_kEventWindowUpdate:")
     case_end = wm_window_source.find("break;", update_case)
@@ -477,6 +550,9 @@ def selfcheck(
         (replace_once(display_header, "inline std::atomic<uint64_t> input_redraw_retry_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_episode_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "inline std::atomic<uint64_t> redraw_drop_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "inline std::atomic<uint64_t> present_suppressed_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "inline std::atomic<uint64_t> present_replay_counter{0};", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline uint64_t request_present_replay()", "present_replay_counter.fetch_add", "present_suppressed_counter.fetch_add"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "return frame_episode == current_episode;", "return true;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline void redraw_trace_frame_begin(", "redraw_trace_state.frame_draw_count = 0;", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline bool redraw_present_trace_complete(", "trace.frame_offscreen_draw_count > 0u", "true"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
@@ -505,6 +581,7 @@ def selfcheck(
         (display_header, replace_once(system_header, "uint64_t redraw_episode_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_drop_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_present_barrier_completion_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
+        (display_header, replace_once(system_header, "uint64_t present_replay_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_recovery_tick(", "ghost_web::redraw_recovery_disabled("), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_episode_generation()", "ghost_web::redraw_episode_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_drop_generation()", "ghost_web::redraw_drop_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
@@ -512,11 +589,13 @@ def selfcheck(
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "GHOST_kEventWindowUpdate", "GHOST_kEventWindowActivate"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::filter_redraw_present_barrier_update(", "ghost_web::filter_redraw_present_barrier_update_disabled("), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_present_barrier_completion_generation()", "ghost_web::redraw_present_barrier_completion_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::present_replay_generation()", "ghost_web::present_replay_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::request_redraw_retry();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "input_redraw_retry_generation_seen_ = ghost_web::input_redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();", ""), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "present_replay_generation_seen_ = ghost_web::present_replay_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "WM_event_add_notifier_ex(wm, win, NC_SCREEN | NA_EDITED, nullptr);", ""), shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "win->runtime->web_full_redraw_after_window_update = true;", ""), shader_source, pipeline_source),
         (display_header, system_header, system_source, mutate_window_update(wm_window_source, "#ifdef __EMSCRIPTEN__\n      /* Screen relayout may rebuild", "#if 1\n      /* Screen relayout may rebuild"), shader_source, pipeline_source),
@@ -590,6 +669,18 @@ def selfcheck(
             SWAP_RELEASE_MARKER,
             "if (!ghost_web::redraw_present_trace_complete(completed_frame, episode))",
             "if (false)",
+        ),
+        mutate_method(
+            context_source,
+            PRESENT_BACKBUFFER_MARKER,
+            "ghost_web::note_present_suppressed();",
+            "",
+        ),
+        mutate_method(
+            context_source,
+            PRESENT_BACKBUFFER_MARKER,
+            "ghost_web::request_present_replay();",
+            "",
         ),
         mutate_method(
             context_source,

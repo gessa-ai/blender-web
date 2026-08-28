@@ -408,3 +408,47 @@ restores M0 6/6 and preserves the named M1-M8 boundaries
 (`ledger/buildlogs/20260828T113046-3071062.log`; suite timestamp 2026-08-28T11:30:50Z). P0-I/J
 still require at least two clean Apple runs of this exact generation plus modal, P0-D/E/F, and
 resize pixels before closure.
+
+## Keep suppressed-present replay inside the WM boundary
+
+The rapid canary originally proved only aggregate presentation and input-retry progress. This
+iteration added exact suppression and replay counters, then reproduced the camera/no-op stale-frame
+oracle twice on the relinked direct-replay generation. In the failing run, top -> camera advanced
+suppressed swaps `44 -> 58` and callback replays `10 -> 13`, while the first camera screenshot
+still omitted its dashed frame. The following cancelled Numpad4 added no suppression or replay yet
+produced the correct camera pixels. Blender-native camera state was byte-identical throughout.
+
+Numbered patch 0302 adds a browser-only 12-stage witness for
+`gpu_shader_3D_line_dashed_uniform_color`. The failing camera transition recorded 18 attempts,
+four pipeline deferrals, 14 encodes, 13 accepted validations, and zero module/geometry/binding/load/
+pass/rejection failures. The no-op then recorded 30 already-ready accepted draws. This rules out
+bind-group completeness and command rejection: the retained stale image was below admitted draw
+encoding, at the callback-side surface replay boundary.
+
+The candidate keeps `PresentSettlementLatch` coalescing but replaces callback-side
+`presentBackbuffer()` with `request_present_replay()`. That distinct release/acquire generation is
+not part of the generic 180-tick recovery budget. `GHOST_SystemWeb::processEvents()` carries it
+until a normal `GHOST_kEventWindowUpdate` is admitted through any resize barrier, consumes it only
+after queuing that event, and therefore keeps surface acquire/encode/submit inside WM's synchronous
+swap boundary. The earlier generic-redraw experiment could be lost at the heartbeat ceiling; this
+request cannot.
+
+Fail-first rejected the absent WM replay API (`20260828T122229-3110275`). Exact native/Wasm
+behavior and 75-mutation source ordering pass (`20260828T122504-3117369`). The locked relink is
+`20260828T122522-3118916`. Two independent unchanged 43-step fallback runs and consumers pass:
+
+- `20260828T122630-3119475` / `20260828T123002-3121911`;
+- `20260828T123017-3122002` / `20260828T123355-3123889`.
+
+Both runs captured the correct camera image before Numpad4 and the identical SHA-256
+`b2b6ac378aa78b6d5794e9d10fc13bc202aa6c33b2e99a2931ee9249c7d75929` afterward. Run two's rapid
+burst advanced presents `83 -> 104`, suppressions `107 -> 145`, WM replays `27 -> 35`, and retries
+`883 -> 899`, then held the exact known pose. Both retain zero hard completeness warnings and page
+errors. Shrink/restore remains green (`20260828T123557-3125848`). Two modal-probe adjacency attempts
+both reached `armed-probe-8` then lost their Chromium context without a backend/page signature
+(`20260828T123514-3125016`, `20260828T123534-3125437`); the two-attempt rule leaves that separate
+probe blocked rather than silently substituting a pass.
+
+These are SwiftShader diagnostics, not closure. P0-I/J still require at least two clean Apple
+hardware-series receipts for this exact generation plus the modal and P0-D/E/F/resize pixel
+gauntlets.

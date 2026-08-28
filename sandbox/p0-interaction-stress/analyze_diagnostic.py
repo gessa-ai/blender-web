@@ -71,6 +71,7 @@ PNGJS_VERSION = "7.0.0"
 CHROMIUM_VERSION = "149.0.7827.55"
 SAME_POSE_CHANGED_FRACTION_LIMIT = 0.01
 TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002
+DASHED_STAGE_COUNT = 12
 SHA256_LENGTH = 64
 REQUIRED_PRODUCT_FILES = {
     "blender_browser.js",
@@ -183,6 +184,15 @@ def validate_move_undo(operator: object, label: str) -> tuple[list[Any], list[An
     return before, moved, undone
 
 
+def validate_dashed_stages(value: object, label: str) -> list[int]:
+    require(isinstance(value, list) and len(value) == DASHED_STAGE_COUNT,
+            f"{label}: immediate dashed stage vector differs")
+    require(all(type(count) is int and count >= 0 for count in value),
+            f"{label}: immediate dashed stage count is invalid")
+    require(value[11] == 0, f"{label}: dashed immediate validation rejection remains")
+    return value
+
+
 def validate(document: dict[str, Any]) -> dict[str, int]:
     evidence_class = validate_evidence_binding(document)
     product = document.get("product")
@@ -193,10 +203,16 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         type(product.get("presents")) is int and product["presents"] > 0,
         "present counter is invalid",
     )
+    require(type(product.get("presentSuppressed")) is int and
+            product["presentSuppressed"] > 0,
+            "suppressed-present counter is invalid")
+    require(type(product.get("presentReplays")) is int and product["presentReplays"] > 0,
+            "present-replay counter is invalid")
     require(type(product.get("viewportContent")) is int and product["viewportContent"] >= 1,
             "qualified VIEW_3D present counter is invalid")
     require(type(product.get("redrawRetries")) is int and product["redrawRetries"] > 0,
             "redraw-retry generation is invalid")
+    validate_dashed_stages(product.get("immediateDashedStages"), "product")
 
     hard_warnings = document.get("hardCompletenessWarnings")
     require(isinstance(hard_warnings, list), "hard completeness warning census is absent")
@@ -256,6 +272,11 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         require(isinstance(state.get("view"), dict), f"{name}: VIEW_3D region is absent")
         require(type(step.get("redrawRetries")) is int and step["redrawRetries"] >= 0,
                 f"{name}: redraw-retry generation is absent")
+        require(type(step.get("presentSuppressed")) is int and step["presentSuppressed"] >= 0,
+                f"{name}: suppressed-present counter is absent")
+        require(type(step.get("presentReplays")) is int and step["presentReplays"] >= 0,
+                f"{name}: present-replay counter is absent")
+        validate_dashed_stages(step.get("immediateDashedStages"), name)
 
     preflight = steps["01-preflight-modeling-click"]
     require(preflight.get("workspaceRequested") == "Modeling", "preflight target changed")
@@ -274,6 +295,8 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
     require(contract.get("suppressedPresentBurst") == {
         "viewKeys": RAPID_VIEW_BURST_KEYS,
         "nativeTransitions": len(RAPID_VIEW_BURST_KEYS),
+        "requiresSuppression": True,
+        "requiresReplay": True,
         "stableWindowMs": 3000,
         "heldWindowMs": 3000,
     }, "suppressed-present burst contract differs")
@@ -293,6 +316,14 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
             "isolated changing views did not all change pixels")
     require(views[4].get("sha256") == views[3].get("sha256"),
             "cancelled camera-view orbit unexpectedly changed pixels")
+    top_dashed = steps["02c-isolated-top"]["immediateDashedStages"]
+    camera_dashed = steps["02d-isolated-camera"]["immediateDashedStages"]
+    no_op_dashed = steps["02e-isolated-camera-orbit-cancelled"]["immediateDashedStages"]
+    require(all(camera >= top for camera, top in zip(camera_dashed, top_dashed, strict=True)) and
+            all(no_op >= camera for no_op, camera in zip(no_op_dashed, camera_dashed, strict=True)),
+            "camera dashed stage counters are not monotonic")
+    require(camera_dashed[0] > top_dashed[0] and camera_dashed[10] > top_dashed[10],
+            "camera view did not attempt and accept a dashed immediate draw")
     camera_settles = [view.get("pixelSettleMs") for view in views[3:]]
     require(all(type(value) is int and 3000 <= value <= 12000 for value in camera_settles),
             "camera-view stable-pixel windows are absent or out of bounds")
@@ -457,6 +488,14 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
             type(burst_after.get("redrawRetries")) is int and
             burst_after["redrawRetries"] > burst_before["redrawRetries"],
             "rapid view-burst did not publish input recovery")
+    require(type(burst_before.get("presentSuppressed")) is int and
+            type(burst_after.get("presentSuppressed")) is int and
+            burst_after["presentSuppressed"] > burst_before["presentSuppressed"],
+            "rapid view-burst did not exercise present suppression")
+    require(type(burst_before.get("presentReplays")) is int and
+            type(burst_after.get("presentReplays")) is int and
+            burst_after["presentReplays"] > burst_before["presentReplays"],
+            "rapid view-burst did not exercise settlement replay")
     require(type(rapid_burst.get("pixelSettleMs")) is int and
             3000 <= rapid_burst["pixelSettleMs"] <= 12000,
             "rapid view-burst final pixels did not settle within the bounded window")
@@ -721,6 +760,10 @@ def synthetic_document() -> dict[str, Any]:
                 "semanticPixels": {"quantizedColors": 256, "nonWhiteRatio": 0.9},
                 "state": state,
                 "presents": index + 10,
+                "presentSuppressed": index,
+                "presentReplays": index,
+                "immediateDashedStages": [index + 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                                           index, index, 0],
                 "redrawRetries": index * 10,
                 **(
                     {"workspaceRequested": "Modeling", "workspaceAccepted": True}
@@ -837,6 +880,9 @@ def synthetic_document() -> dict[str, Any]:
             "state": "running",
             "ticks": 10,
             "presents": 10,
+            "presentSuppressed": 10,
+            "presentReplays": 10,
+            "immediateDashedStages": [100, 0, 0, 0, 4, 0, 0, 0, 0, 96, 96, 0],
             "viewportContent": 1,
             "redrawRetries": 500,
         },
@@ -851,6 +897,8 @@ def synthetic_document() -> dict[str, Any]:
             "suppressedPresentBurst": {
                 "viewKeys": RAPID_VIEW_BURST_KEYS,
                 "nativeTransitions": len(RAPID_VIEW_BURST_KEYS),
+                "requiresSuppression": True,
+                "requiresReplay": True,
                 "stableWindowMs": 3000,
                 "heldWindowMs": 3000,
             },
@@ -930,6 +978,9 @@ def synthetic_document() -> dict[str, Any]:
                 "rotation": step_by_name["03b-reference-pose-6s"]["state"]["view_rotation"],
                 "sha256": step_by_name["03b-reference-pose-6s"]["sha256"],
                 "presents": step_by_name["03b-reference-pose-6s"]["presents"],
+                "presentSuppressed": step_by_name["03b-reference-pose-6s"][
+                    "presentSuppressed"],
+                "presentReplays": step_by_name["03b-reference-pose-6s"]["presentReplays"],
                 "redrawRetries": step_by_name["03b-reference-pose-6s"]["redrawRetries"],
             },
             "after": {
@@ -938,6 +989,9 @@ def synthetic_document() -> dict[str, Any]:
                 "rotation": step_by_name["03d-rapid-view-burst-held"]["state"]["view_rotation"],
                 "sha256": step_by_name["03d-rapid-view-burst-held"]["sha256"],
                 "presents": step_by_name["03d-rapid-view-burst-held"]["presents"],
+                "presentSuppressed": step_by_name["03d-rapid-view-burst-held"][
+                    "presentSuppressed"],
+                "presentReplays": step_by_name["03d-rapid-view-burst-held"]["presentReplays"],
                 "redrawRetries": step_by_name["03d-rapid-view-burst-held"]["redrawRetries"],
             },
             "settledSha256": step_by_name["03c-rapid-view-burst-settled"]["sha256"],
@@ -1016,6 +1070,9 @@ def self_check() -> int:
     mutations = (
         lambda value: value.__setitem__("schema", "blender-web.p0ij-interaction-stress.v1"),
         lambda value: value["product"].__setitem__("state", "error"),
+        lambda value: value["product"].__setitem__("presentSuppressed", 0),
+        lambda value: value["product"].__setitem__("presentReplays", 0),
+        lambda value: value["product"].__setitem__("immediateDashedStages", [0] * 11),
         lambda value: value["hardCompletenessWarnings"].append("incomplete"),
         lambda value: value["pendingCompletenessDiagnostics"].append("malformed"),
         lambda value: value["pageErrors"].append("pageerror"),
@@ -1023,6 +1080,10 @@ def self_check() -> int:
             "workspaceAccepted", False),
         lambda value: value["steps"][0]["semanticPixels"].__setitem__("quantizedColors", 2),
         lambda value: value["steps"][0]["state"].__setitem__("cube_in_view", False),
+        lambda value: step_named(value, "02d-isolated-camera")["immediateDashedStages"].__setitem__(
+            10, step_named(value, "02c-isolated-top")["immediateDashedStages"][10]),
+        lambda value: step_named(value, "02e-isolated-camera-orbit-cancelled")[
+            "immediateDashedStages"].__setitem__(11, 1),
         lambda value: step_named(value, "03b-reference-pose-6s").__setitem__(
             "sha256", "not-settled"),
         lambda value: step_named(value, "61c-frame-selected-6s").__setitem__(
@@ -1061,6 +1122,10 @@ def self_check() -> int:
             "selected_count", 1),
         lambda value: value["contract"]["suppressedPresentBurst"].__setitem__(
             "nativeTransitions", 7),
+        lambda value: value["contract"]["suppressedPresentBurst"].__setitem__(
+            "requiresSuppression", False),
+        lambda value: value["contract"]["suppressedPresentBurst"].__setitem__(
+            "requiresReplay", False),
         lambda value: value["rapidViewBurstCanary"]["domKeyDownCodes"].__setitem__(
             0, "Numpad1"),
         lambda value: value["rapidViewBurstCanary"]["nativeTransitions"][3].__setitem__(
@@ -1071,6 +1136,10 @@ def self_check() -> int:
             "presents", value["rapidViewBurstCanary"]["before"]["presents"]),
         lambda value: value["rapidViewBurstCanary"]["after"].__setitem__(
             "redrawRetries", value["rapidViewBurstCanary"]["before"]["redrawRetries"]),
+        lambda value: value["rapidViewBurstCanary"]["after"].__setitem__(
+            "presentSuppressed", value["rapidViewBurstCanary"]["before"]["presentSuppressed"]),
+        lambda value: value["rapidViewBurstCanary"]["after"].__setitem__(
+            "presentReplays", value["rapidViewBurstCanary"]["before"]["presentReplays"]),
         lambda value: value["rapidViewBurstCanary"].__setitem__("pixelSettleMs", 2999),
         lambda value: step_named(value, "03d-rapid-view-burst-held").__setitem__(
             "sha256", "not-held"),

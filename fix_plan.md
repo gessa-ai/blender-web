@@ -3362,7 +3362,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   hold for three seconds, advance both validated presentation and input-retry generations, and
   match a third same-pose region diff. The exact fallback generation passes eight trusted DOM/native
   transitions, settles in 5,037 ms, and has zero changed pixels in all three known-pose canaries.
-  No product byte changed. Apple must rerun it as a repeated hardware series; device-free pixels
+  No product byte changed. **WM-owned settlement replay candidate implemented/pending hardware:**
+  exact suppression/replay telemetry then reproduced one stale camera frame despite three
+  callback-side direct replays. Patch 0302's 12-stage dashed-line witness proved the camera draw
+  encoded and validated with zero bind/pass/rejection failures; only the retained surface image was
+  stale. Settlement now publishes a distinct generation that is consumed only after an ordinary
+  WM WindowUpdate passes any resize barrier, keeping surface acquire/submit inside the synchronous
+  swap boundary and outside the generic heartbeat ceiling. Two independent unchanged fallback
+  batteries pass with identical camera/no-op pixels, positive rapid suppression/WM-replay deltas,
+  three exact known poses, and zero hard warnings/page errors; shrink/restore remains green. Two
+  modal-probe attempts hit the same context-close blocker at `armed-probe-8` and are recorded, not
+  promoted. Apple must rerun it as a repeated hardware series; device-free pixels
   still cannot close P0-I/J. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md` and
   `notes/p0-cumulative-input-window-activation-20260828.md`.
@@ -3434,7 +3444,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   third same-pose pixel comparison. The unchanged fallback product passes; this is a stronger
   pending-hardware candidate, not closure. Closure still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
-  scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
+  scene/text pixels intact and P0-D/E/F plus P0-I regressions green. **WM-owned replay correction
+  implemented/pending hardware:** positive per-path counters exposed that callback-side direct
+  replay still retained a stale camera frame in one repeat even though its dashed draw encoded and
+  validated. Settlement now queues a distinct, non-heartbeat-capped WM WindowUpdate and consumes it
+  only after barrier admission. Two fresh fallback runs pass the full 43-step battery with exact
+  camera/no-op and all same-pose pixels, positive rapid suppression/replay deltas, and empty hard
+  warning/page-error censuses; the Apple repeated-series gate remains unchanged. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

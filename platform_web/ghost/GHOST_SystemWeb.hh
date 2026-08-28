@@ -158,6 +158,7 @@ class GHOST_SystemWeb : public GHOST_System {
   uint64_t redraw_episode_generation_seen_ = 0;
   uint64_t redraw_drop_generation_seen_ = 0;
   uint64_t redraw_present_barrier_completion_seen_ = 0;
+  uint64_t present_replay_generation_seen_ = 0;
   uint32_t redraw_heartbeat_ = 0;
 
   /* Idle-keepalive bookkeeping (ghost-keepalive; all touched only on the WM worker in

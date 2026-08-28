@@ -41057,10 +41057,10 @@ index 0000000000000000000000000000000000000000..6abe2abef618e9aeeee9e91917c235ab
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef27753197392d
+index 0000000000000000000000000000000000000000..2ffc7acfc357069f2ca48bb5a8094d0cac88fcde
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
-@@ -0,0 +1,274 @@
+@@ -0,0 +1,332 @@
 +/* SPDX-FileCopyrightText: 2023 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -41086,6 +41086,10 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +#include "gpu_state_private.hh"
 +#include "gpu_vertex_format_private.hh"
 +
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
 +#include <cstdint>
 +#include <cstring>
 +#include <vector>
@@ -41095,6 +41099,44 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +static WGPUContext *active_context()
 +{
 +  return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
++}
++
++enum class DashedTraceStage : uint8_t {
++  Attempt = 0,
++  ModuleDeferred,
++  GeometryDeferred,
++  TargetDeferred,
++  PipelineDeferred,
++  VertexDeferred,
++  BindingDeferred,
++  LoadDeferred,
++  PassDeferred,
++  Encoded,
++  Accepted,
++  Rejected,
++};
++
++static bool is_dashed_diagnostic_shader(const WGPUShader *shader)
++{
++#ifdef __EMSCRIPTEN__
++  return shader != nullptr &&
++         shader->name_get() == "gpu_shader_3D_line_dashed_uniform_color";
++#else
++  (void)shader;
++  return false;
++#endif
++}
++
++static void note_dashed_stage(const bool diagnostic, const DashedTraceStage stage)
++{
++#ifdef __EMSCRIPTEN__
++  if (diagnostic) {
++    ghost_web::note_immediate_dashed_stage(ghost_web::ImmediateDashedStage(stage));
++  }
++#else
++  (void)diagnostic;
++  (void)stage;
++#endif
 +}
 +
 +uchar *WGPUImmediate::begin()
@@ -41134,9 +41176,12 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +  if (fb == nullptr || shader == nullptr) {
 +    return;
 +  }
++  const bool dashed_diagnostic = is_dashed_diagnostic_shader(shader);
++  note_dashed_stage(dashed_diagnostic, DashedTraceStage::Attempt);
 +  if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
 +      shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
 +  {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::ModuleDeferred);
 +    return;
 +  }
 +
@@ -41199,6 +41244,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +                            false,
 +                            "immediate vertex buffer"))
 +  {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::GeometryDeferred);
 +    return;
 +  }
 +
@@ -41234,6 +41280,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +  info.empty_render_attachment = fb->target_formats(
 +      info.color_formats, info.color_count, info.depth_format);
 +  if (info.color_count == 0 && info.depth_format == wgpu::TextureFormat::Undefined) {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::TargetDeferred);
 +    return;
 +  }
 +  info.prim_type = draw_prim_type;
@@ -41242,6 +41289,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +  wgpu::RenderPipeline pipeline = ctx->immediate_pipeline_pool_get().get(
 +      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::PipelineDeferred);
 +    return;
 +  }
 +
@@ -41258,6 +41306,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +          },
 +          vertex_buffers))
 +  {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::VertexDeferred);
 +    return;
 +  }
 +
@@ -41280,6 +41329,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +  }
 +  ctx->append_resource_bind_entries(shader, entries, pending_bindings);
 +  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::BindingDeferred);
 +    return;
 +  }
 +
@@ -41287,6 +41337,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +  const auto load_action = fb->load_action_transaction();
 +  std::function<void(bool)> load_action_completion;
 +  if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
++    note_dashed_stage(dashed_diagnostic, DashedTraceStage::LoadDeferred);
 +    return;
 +  }
 +  webgpu::command_encode_submit_scoped(
@@ -41295,9 +41346,10 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +      ctx->queue_get(),
 +      ctx->queue_scheduler_get(),
 +      "immediate draw",
-+      [&](auto &enc) {
++      [&, dashed_diagnostic](auto &enc) {
 +        wgpu::RenderPassEncoder pass = fb->begin_load_pass(enc, load_action);
 +        if (pass == nullptr) {
++          note_dashed_stage(dashed_diagnostic, DashedTraceStage::PassDeferred);
 +          return false;
 +        }
 +        pass.SetPipeline(pipeline);
@@ -41315,6 +41367,7 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +          if (!webgpu::transient_handle_publish_if_valid(
 +                  ctx->create_bind_group_checked(bgl, entries), bind_group))
 +          {
++            note_dashed_stage(dashed_diagnostic, DashedTraceStage::PassDeferred);
 +            return false;
 +          }
 +          pass.SetBindGroup(0, bind_group);
@@ -41327,11 +41380,16 @@ index 0000000000000000000000000000000000000000..efd7dbf7d1d84b1136ec5bdbf1ef2775
 +        else {
 +          pass.Draw(uint32_t(vertex_idx), 1, 0, 0);
 +        }
++        note_dashed_stage(dashed_diagnostic, DashedTraceStage::Encoded);
 +        fb->debug_note_draw(shader->name_get().c_str());
 +        pass.End();
 +        return true;
 +      },
-+      [load_action_completion](const bool valid) { load_action_completion(valid); });
++      [load_action_completion, dashed_diagnostic](const bool valid) {
++        note_dashed_stage(dashed_diagnostic,
++                          valid ? DashedTraceStage::Accepted : DashedTraceStage::Rejected);
++        load_action_completion(valid);
++      });
 +}
 +
 +}  // namespace blender::gpu

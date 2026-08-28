@@ -723,6 +723,13 @@ try {
   const capture = async (name, metadata = {}) => {
     const buffer = await canvas.screenshot({path: resolve(outDir, `${name}.png`)});
     captureBuffers.set(name, buffer);
+    const presentSettlement = await page.evaluate(() => ({
+      suppressed: Number(window.__bwModule?._bw_present_suppressed_count?.() ?? -1),
+      replays: Number(window.__bwModule?._bw_present_replay_count?.() ?? -1),
+    }));
+    const immediateDashedStages = await page.evaluate(() =>
+      Array.from({length: 12}, (_, stage) =>
+        Number(window.__bwModule?._bw_immediate_dashed_stage_count?.(stage) ?? -1)));
     const sample = {
       name,
       sha256: sha256(buffer),
@@ -731,6 +738,9 @@ try {
       state: latestState(),
       ticks: await page.evaluate(() => Number(window.__bwModule?._bw_wm_tick_count?.() ?? -1)),
       presents: await page.evaluate(() => Number(window.__bwModule?._bw_present_count?.() ?? -1)),
+      presentSuppressed: presentSettlement.suppressed,
+      presentReplays: presentSettlement.replays,
+      immediateDashedStages,
       redrawRetries: await page.evaluate(() =>
         Number(window.__bwModule?._bw_redraw_retry_count?.() ?? -1)),
       ...metadata,
@@ -1247,6 +1257,8 @@ try {
       rotation: rapidBurstBefore.state.view_rotation,
       sha256: rapidBurstBefore.sha256,
       presents: rapidBurstBefore.presents,
+      presentSuppressed: rapidBurstBefore.presentSuppressed,
+      presentReplays: rapidBurstBefore.presentReplays,
       redrawRetries: rapidBurstBefore.redrawRetries,
     },
     after: {
@@ -1254,6 +1266,8 @@ try {
       rotation: rapidBurstHeld.state.view_rotation,
       sha256: rapidBurstHeld.sha256,
       presents: rapidBurstHeld.presents,
+      presentSuppressed: rapidBurstHeld.presentSuppressed,
+      presentReplays: rapidBurstHeld.presentReplays,
       redrawRetries: rapidBurstHeld.redrawRetries,
     },
     settledSha256: rapidBurstSettled.sha256,
@@ -1398,6 +1412,8 @@ try {
       suppressedPresentBurst: {
         viewKeys: [...RAPID_VIEW_BURST_KEYS],
         nativeTransitions: RAPID_VIEW_BURST_KEYS.length,
+        requiresSuppression: true,
+        requiresReplay: true,
         stableWindowMs: PIXEL_STABLE_WINDOW_MS,
         heldWindowMs: 3000,
       },
@@ -1412,6 +1428,13 @@ try {
       state: await page.evaluate(() => document.querySelector("#state")?.dataset.state || null),
       ticks: await page.evaluate(() => Number(window.__bwModule?._bw_wm_tick_count?.() ?? -1)),
       presents: await page.evaluate(() => Number(window.__bwModule?._bw_present_count?.() ?? -1)),
+      presentSuppressed: await page.evaluate(() =>
+        Number(window.__bwModule?._bw_present_suppressed_count?.() ?? -1)),
+      presentReplays: await page.evaluate(() =>
+        Number(window.__bwModule?._bw_present_replay_count?.() ?? -1)),
+      immediateDashedStages: await page.evaluate(() =>
+        Array.from({length: 12}, (_, stage) =>
+          Number(window.__bwModule?._bw_immediate_dashed_stage_count?.(stage) ?? -1))),
       viewportContent: await page.evaluate(() =>
         Number(window.__bwModule?._bw_viewport_content_present_count?.() ?? -1)),
       redrawRetries: await page.evaluate(() =>
@@ -1460,6 +1483,8 @@ catch (error) {
     domInputTail: (window.__bwP0DomInputs?.snapshot?.() || []).slice(-100),
     ticks: Number(window.__bwModule?._bw_wm_tick_count?.() ?? -1),
     presents: Number(window.__bwModule?._bw_present_count?.() ?? -1),
+    presentSuppressed: Number(window.__bwModule?._bw_present_suppressed_count?.() ?? -1),
+    presentReplays: Number(window.__bwModule?._bw_present_replay_count?.() ?? -1),
     redrawEpisodes: Number(window.__bwModule?._bw_redraw_episode_count?.() ?? -1),
     redrawRetries: Number(window.__bwModule?._bw_redraw_retry_count?.() ?? -1),
   })).catch(() => null) : null;

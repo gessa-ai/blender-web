@@ -102,12 +102,8 @@ class GHOST_SystemWeb : public GHOST_System {
   /** Update one exact left/right modifier from a DOM keyboard event's `code`. */
   void noteModifierKey(GHOST_TKey key, bool down);
 
-  void noteButton(GHOST_TButton button, bool down)
-  {
-    if (button != GHOST_kButtonMaskNone) {
-      buttons_.set(button, down);
-    }
-  }
+  /** Update one tracked button and publish a diagnostic edge only on a real state transition. */
+  void noteButton(GHOST_TButton button, bool down);
 
   /** Publish one coalescible bounded redraw retry for accepted ordinary input.
    * This deliberately does not start the resize-only drawable episode/barrier. */

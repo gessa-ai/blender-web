@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "GHOST_SystemWeb.hh"
+#include "GHOST_WebDisplayState.hh"
 #include "GHOST_WindowWeb.hh"
 
 #include "GHOST_IMEQueueWeb.hh"
@@ -275,6 +276,7 @@ void on_key(GHOST_SystemWeb &sys, int em_event_type, const EmscriptenKeyboardEve
 {
   const bool down = (em_event_type == EMSCRIPTEN_EVENT_KEYDOWN);
   const GHOST_TKey key = ghost_web_key_from_code(e.code);
+  ghost_web::note_input_key(down);
   /* `code` preserves the physical left/right modifier side. Publish that exact
    * transition before reconciling the aggregate DOM flags so a first right-side
    * press cannot be mistaken for the left-side fallback. */

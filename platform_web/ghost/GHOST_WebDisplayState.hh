@@ -104,6 +104,70 @@ inline uint64_t present_replay_count()
 }
 
 /**
+ * GHOST-side delivery evidence for the rapid-input freeze discriminator. DOM listeners prove only
+ * that Chromium generated an event; these counters advance after the proxied callback reaches the
+ * WM worker. The live mask distinguishes an undelivered terminal release from a merely delayed
+ * Blender modal/present drain. Button ordinals match GHOST_TButton's contiguous 0..6 values.
+ */
+inline constexpr uint32_t INPUT_BUTTON_COUNT = 7u;
+inline std::atomic<uint64_t> input_button_press_counters[INPUT_BUTTON_COUNT]{};
+inline std::atomic<uint64_t> input_button_release_counters[INPUT_BUTTON_COUNT]{};
+inline std::atomic<uint64_t> input_key_press_counter{0};
+inline std::atomic<uint64_t> input_key_release_counter{0};
+inline std::atomic<uint32_t> input_button_mask{0};
+
+inline void note_input_button(const uint32_t button, const bool down)
+{
+  if (button >= INPUT_BUTTON_COUNT) {
+    return;
+  }
+  const uint32_t bit = uint32_t(1u) << button;
+  if (down) {
+    input_button_press_counters[button].fetch_add(1u, std::memory_order_relaxed);
+    input_button_mask.fetch_or(bit, std::memory_order_release);
+  }
+  else {
+    input_button_release_counters[button].fetch_add(1u, std::memory_order_relaxed);
+    input_button_mask.fetch_and(~bit, std::memory_order_release);
+  }
+}
+
+inline void note_input_key(const bool down)
+{
+  (down ? input_key_press_counter : input_key_release_counter)
+      .fetch_add(1u, std::memory_order_relaxed);
+}
+
+inline uint64_t input_button_press_count(const uint32_t button)
+{
+  return button < INPUT_BUTTON_COUNT ?
+             input_button_press_counters[button].load(std::memory_order_relaxed) :
+             0u;
+}
+
+inline uint64_t input_button_release_count(const uint32_t button)
+{
+  return button < INPUT_BUTTON_COUNT ?
+             input_button_release_counters[button].load(std::memory_order_relaxed) :
+             0u;
+}
+
+inline uint64_t input_key_press_count()
+{
+  return input_key_press_counter.load(std::memory_order_relaxed);
+}
+
+inline uint64_t input_key_release_count()
+{
+  return input_key_release_counter.load(std::memory_order_relaxed);
+}
+
+inline uint32_t input_buttons_held_mask()
+{
+  return input_button_mask.load(std::memory_order_acquire);
+}
+
+/**
  * Bounded diagnosis for the stock dashed-line immediate shader used by the camera frame and
  * transform guides. Each stage is monotonic and diagnostic-only. A browser receipt can therefore
  * distinguish a draw that was never retried from one that encoded but later failed validation,

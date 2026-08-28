@@ -99,6 +99,34 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)
   return double(ghost_web::redraw_retry_generation());
 }
 
+/* Proxied-callback delivery evidence for the rapid-input freeze diagnostic. Button ordinals are
+ * GHOST_TButton values (left=0, middle=1, right=2, ...). Counts advance only when the WM worker's
+ * tracked state changes; the mask exposes a terminal press whose matching release never arrived. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_press_count(const uint32_t button)
+{
+  return double(ghost_web::input_button_press_count(button));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_release_count(const uint32_t button)
+{
+  return double(ghost_web::input_button_release_count(button));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_key_press_count(void)
+{
+  return double(ghost_web::input_key_press_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_key_release_count(void)
+{
+  return double(ghost_web::input_key_release_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_mask(void)
+{
+  return double(ghost_web::input_buttons_held_mask());
+}
+
 /* --- M4.T11 (ADR-007) worker-side device delivery ---------------------------- */
 /* The WebGPU device cannot be acquired synchronously here (emdawnwebgpu needs an
  * event-loop turn or asyncify) and cannot cross realms, so it is acquired

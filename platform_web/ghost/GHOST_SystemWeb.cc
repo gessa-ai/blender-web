@@ -1466,6 +1466,18 @@ void GHOST_SystemWeb::requestInputRedrawRetry()
   ghost_web::request_input_redraw_retry();
 }
 
+void GHOST_SystemWeb::noteButton(const GHOST_TButton button, const bool down)
+{
+  if (button == GHOST_kButtonMaskNone) {
+    return;
+  }
+  const bool was_down = buttons_.get(button);
+  buttons_.set(button, down);
+  if (was_down != down) {
+    ghost_web::note_input_button(uint32_t(button), down);
+  }
+}
+
 void GHOST_SystemWeb::noteModifierFlags(const bool ctrl,
                                         const bool shift,
                                         const bool alt,

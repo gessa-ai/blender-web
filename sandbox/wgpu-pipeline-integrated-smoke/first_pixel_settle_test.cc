@@ -92,6 +92,33 @@ int main()
     return 1;
   }
 
+  const uint64_t middle_presses_before = ghost_web::input_button_press_count(1u);
+  const uint64_t middle_releases_before = ghost_web::input_button_release_count(1u);
+  const uint64_t key_presses_before = ghost_web::input_key_press_count();
+  const uint64_t key_releases_before = ghost_web::input_key_release_count();
+  const uint32_t input_mask_before = ghost_web::input_buttons_held_mask();
+  ghost_web::note_input_button(1u, true);
+  ghost_web::note_input_key(true);
+  if (!require(ghost_web::input_button_press_count(1u) == middle_presses_before + 1u &&
+                   ghost_web::input_key_press_count() == key_presses_before + 1u &&
+                   (ghost_web::input_buttons_held_mask() & (1u << 1u)) != 0u,
+               "GHOST input delivery records a proxied middle-button press and held mask"))
+  {
+    return 1;
+  }
+  ghost_web::note_input_button(1u, false);
+  ghost_web::note_input_key(false);
+  if (!require(ghost_web::input_button_release_count(1u) == middle_releases_before + 1u &&
+                   ghost_web::input_key_release_count() == key_releases_before + 1u &&
+                   ghost_web::input_buttons_held_mask() == input_mask_before,
+               "GHOST input delivery records the matching releases and clears its mask") ||
+      !require(ghost_web::input_button_press_count(ghost_web::INPUT_BUTTON_COUNT) == 0u &&
+                   ghost_web::input_button_release_count(ghost_web::INPUT_BUTTON_COUNT) == 0u,
+               "GHOST input delivery rejects an out-of-range button ordinal"))
+  {
+    return 1;
+  }
+
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
@@ -752,8 +779,9 @@ int main()
       "late=immediate drops=bounded readiness=rearmed input=coalesced-full-tail resize_commit=fresh "
       "present_settlement=coalesced-wm-retry "
       "present_telemetry=suppressed-wm-replayed "
+      "input_delivery=balanced-mask "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 78 ? 0 : 1;
+  return checks == 81 ? 0 : 1;
 }

@@ -17,16 +17,20 @@ fallback diagnostic also allows the real workspace layout time instead of queuin
 `rapid_freeze_repro.mjs` separately preserves the driver's 350 ms screenshot cadence around the
 exact Numpad-view, Select All, Deselect All, orbit, click, second-orbit, and move sequence. Those
 immediate frames are diagnostic samples, not a liveness verdict: a busy WM worker can leave several
-queued actions behind an unchanged canvas. The producer therefore requires, within 12 seconds,
-changed pixels together with advancing WM-tick, presentation, and input-retry counters, then sends
-one independent recovery orbit and requires the same four-way advance again. It reports whether
-the rapid action frames were identical without treating identity alone as failure. Page or browser
-lifecycle errors always fail. The default lane is SwiftShader and binds no pixels; on the sanctioned
+queued actions behind an unchanged canvas. The producer therefore records trusted DOM events and
+worker-side GHOST press/release counters, plus a held-button mask that must return to zero. Within
+12 seconds on hardware, the complete terminal MMB/G/click edge sequence must reach GHOST, Blender's
+modal stack must drain, pixels must change, and WM-tick, presentation, and input-retry counters must
+advance. One independent recovery orbit must satisfy the same predicate again. (The software-only
+fallback allows 30 seconds because SwiftShader validation is substantially slower.) It reports
+whether the rapid action frames were identical without treating identity alone as failure. Page or
+browser lifecycle errors always fail. The default lane is SwiftShader and binds no pixels; on the sanctioned
 Apple diagnostic host set `BW_P0_RAPID_HARDWARE=1` to omit the software-adapter flags and record the
 adapter info. Hardware mode rejects fallback, absent-status, incomplete-info, and software-token
 adapters before the interaction sequence. A timeout preserves every rapid sample, the last live
-counter snapshot, pointer-lock diagnostics, and the native GHOST event tail so failure can be
-localized without another relink. This focused diagnostic does not replace the immutable hardware
+counter snapshot, trusted DOM tail, terminal GHOST delivery/mask, Blender modal/state trace, and
+pointer-lock diagnostics so failure can be localized without another relink. This focused
+diagnostic does not replace the immutable hardware
 receipt below.
 
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:

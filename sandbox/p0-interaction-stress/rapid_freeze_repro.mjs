@@ -15,6 +15,62 @@ const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
   "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
   "microsoft basic render", "warp",
 ]);
+const PY_MONITOR = String.raw`
+import bpy,json,os,time
+_bwp0r={"started":time.perf_counter(),"input_sequence":0,"state_sequence":0,"last_state":None}
+class WM_OT_bwp0r_input_probe(bpy.types.Operator):
+    bl_idname="wm.bwp0r_input_probe"
+    bl_label="P0 rapid input probe"
+    bl_options={'INTERNAL'}
+    def invoke(self,context,event):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+    def modal(self,context,event):
+        if event.type in {'MOUSEMOVE','LEFTMOUSE','MIDDLEMOUSE','A','G','ESC'}:
+            _bwp0r["input_sequence"]+=1
+            payload={
+              "sequence":_bwp0r["input_sequence"],
+              "elapsed_ms":round((time.perf_counter()-_bwp0r["started"])*1000,3),
+              "type":event.type,"value":event.value,
+              "x":event.mouse_x,"y":event.mouse_y,
+              "alt":event.alt,"ctrl":event.ctrl,"shift":event.shift,"oskey":event.oskey,
+              "modal_operators":[operator.bl_idname for operator in context.window.modal_operators],
+            }
+            os.write(2,("P0R_INPUT "+json.dumps(payload,sort_keys=True,separators=(",",":"))+"\n").encode())
+        return {'PASS_THROUGH'}
+def _bwp0r_start_probe():
+    if bpy.context.window is None: return 0.05
+    bpy.ops.wm.bwp0r_input_probe('INVOKE_DEFAULT')
+    return None
+def _bwp0r_round(values):
+    return [round(float(value),5) for value in values]
+def _bwp0r_poll():
+    window=bpy.context.window
+    if window is None or window.screen is None: return 0.05
+    obj=bpy.data.objects.get("Cube")
+    area=next((item for item in window.screen.areas if item.type == 'VIEW_3D'),None)
+    space=area.spaces.active if area else None
+    rv3d=space.region_3d if space else None
+    state={
+      "modal_operators":[operator.bl_idname for operator in window.modal_operators],
+      "selected_count":len(bpy.context.selected_objects),
+      "active_object":bpy.context.view_layer.objects.active.name if bpy.context.view_layer.objects.active else None,
+      "location":_bwp0r_round(obj.location) if obj else None,
+      "view_rotation":_bwp0r_round(rv3d.view_rotation) if rv3d else None,
+      "view_perspective":rv3d.view_perspective if rv3d else None,
+    }
+    key=json.dumps(state,sort_keys=True,separators=(",",":"))
+    if key != _bwp0r["last_state"]:
+        _bwp0r["last_state"]=key
+        _bwp0r["state_sequence"]+=1
+        state["sequence"]=_bwp0r["state_sequence"]
+        state["elapsed_ms"]=round((time.perf_counter()-_bwp0r["started"])*1000,3)
+        os.write(2,("P0R_STATE "+json.dumps(state,sort_keys=True,separators=(",",":"))+"\n").encode())
+    return 0.025
+bpy.utils.register_class(WM_OT_bwp0r_input_probe)
+bpy.app.timers.register(_bwp0r_poll,first_interval=0.0,persistent=True)
+bpy.app.timers.register(_bwp0r_start_probe,first_interval=0.0,persistent=True)
+`.trim();
 if (hardwareDiagnostic && process.platform !== "darwin") {
   throw new Error(`BW_P0_RAPID_HARDWARE is Apple-only; got ${process.platform}`);
 }
@@ -73,8 +129,45 @@ try {
   const consoleLines = [];
   const pageErrors = [];
   const lifecycle = [];
-  failureContext = {consoleLines, pageErrors, lifecycle};
-  page.on("console", (message) => consoleLines.push(message.text()));
+  const nativeInputs = [];
+  const nativeStates = [];
+  failureContext = {consoleLines, pageErrors, lifecycle, nativeInputs, nativeStates};
+  await page.addInitScript(() => {
+    const events = [];
+    for (const type of [
+      "pointerdown", "pointerup", "mousedown", "mouseup", "mousemove", "keydown", "keyup",
+    ]) {
+      window.addEventListener(type, (event) => events.push({
+        sequence: events.length + 1,
+        type,
+        trusted: event.isTrusted === true,
+        button: Number.isInteger(event.button) ? event.button : null,
+        buttons: Number.isInteger(event.buttons) ? event.buttons : null,
+        code: event.code || null,
+        key: event.key || null,
+        altKey: event.altKey === true,
+        ctrlKey: event.ctrlKey === true,
+        shiftKey: event.shiftKey === true,
+        x: Number.isFinite(event.clientX) ? event.clientX : null,
+        y: Number.isFinite(event.clientY) ? event.clientY : null,
+        timeStamp: event.timeStamp,
+      }), true);
+    }
+    Object.defineProperty(window, "__bwP0RapidDomInputs", {
+      value: Object.freeze({snapshot: () => events.map((event) => ({...event}))}),
+      writable: false,
+      configurable: false,
+    });
+  });
+  await page.addInitScript((monitor) => { window.__BW_PYEXPR = monitor; }, PY_MONITOR);
+  page.on("console", (message) => {
+    const line = message.text();
+    consoleLines.push(line);
+    const inputMatch = /^P0R_INPUT (\{.*\})$/.exec(line);
+    if (inputMatch) nativeInputs.push(JSON.parse(inputMatch[1]));
+    const stateMatch = /^P0R_STATE (\{.*\})$/.exec(line);
+    if (stateMatch) nativeStates.push(JSON.parse(stateMatch[1]));
+  });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("close", () => lifecycle.push("page-close"));
   page.on("crash", () => lifecycle.push("page-crash"));
@@ -99,6 +192,11 @@ try {
   await canvas.focus();
   await page.keyboard.press("Escape");
   await page.waitForTimeout(750);
+  const monitorDeadline = Date.now() + 10000;
+  while (nativeStates.length === 0 && Date.now() < monitorDeadline) {
+    await page.waitForTimeout(50);
+  }
+  if (nativeStates.length === 0) throw new Error("native rapid-input monitor did not start");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas has no bounding box");
   const center = {x: box.x + 500, y: box.y + 330};
@@ -108,6 +206,9 @@ try {
     const counters = await page.evaluate(() => {
       const module = window.__bwModule;
       const read = (name) => typeof module?.[name] === "function" ? Number(module[name]()) : null;
+      const readArg = (name, value) => typeof module?.[name] === "function" ?
+        Number(module[name](value)) : null;
+      const domInputs = window.__bwP0RapidDomInputs?.snapshot?.() || [];
       return {
         ticks: read("_bw_wm_tick_count"),
         presents: read("_bw_present_count"),
@@ -116,13 +217,43 @@ try {
         replays: read("_bw_present_replay_count"),
         pointerLock: window.__bwPointerLockBridge?.snapshot?.() || null,
         activeElement: document.activeElement?.id || document.activeElement?.tagName || null,
+        ghostInput: {
+          leftPresses: readArg("_bw_input_button_press_count", 0),
+          leftReleases: readArg("_bw_input_button_release_count", 0),
+          middlePresses: readArg("_bw_input_button_press_count", 1),
+          middleReleases: readArg("_bw_input_button_release_count", 1),
+          keyPresses: read("_bw_input_key_press_count"),
+          keyReleases: read("_bw_input_key_release_count"),
+          heldMask: read("_bw_input_button_mask"),
+        },
+        domInputSequence: domInputs.at(-1)?.sequence || 0,
+        domInputTail: domInputs.slice(-16),
       };
     });
-    const result = {name, sha256: sha256(bytes), ...counters};
+    const nativeState = nativeStates.at(-1) || null;
+    const result = {
+      name,
+      sha256: sha256(bytes),
+      ...counters,
+      nativeInputSequence: nativeInputs.at(-1)?.sequence || 0,
+      nativeStateSequence: nativeState?.sequence || 0,
+      nativeModalOperators: nativeState?.modal_operators || [],
+      nativeViewRotation: nativeState?.view_rotation || null,
+    };
     failureContext.lastSample = result;
     return result;
   };
-  const waitForPixelChange = async (name, baseline, counterBaseline, timeoutMs = 12000) => {
+  const ghostInputDeliveryComplete = (current, baseline, expected) =>
+    current.ghostInput.leftPresses >= baseline.leftPresses + expected.left &&
+    current.ghostInput.leftReleases >= baseline.leftReleases + expected.left &&
+    current.ghostInput.middlePresses >= baseline.middlePresses + expected.middle &&
+    current.ghostInput.middleReleases >= baseline.middleReleases + expected.middle &&
+    current.ghostInput.keyPresses >= baseline.keyPresses + expected.keys &&
+    current.ghostInput.keyReleases >= baseline.keyReleases + expected.keys &&
+    (current.ghostInput.heldMask & 0x3) === 0;
+  const waitForActionDrain = async (
+    name, baseline, counterBaseline, nativeDeliveryComplete, timeoutMs = 12000,
+  ) => {
     const started = Date.now();
     while (Date.now() - started <= timeoutMs) {
       await page.waitForTimeout(250);
@@ -130,12 +261,15 @@ try {
       if (current.sha256 !== baseline &&
           current.ticks > counterBaseline.ticks &&
           current.presents > counterBaseline.presents &&
-          current.retries > counterBaseline.retries) {
+          current.retries > counterBaseline.retries &&
+          nativeDeliveryComplete(current) &&
+          current.nativeModalOperators.every((operator) =>
+            operator === "WM_OT_bwp0r_input_probe")) {
         return {...current, settleMs: Date.now() - started};
       }
     }
     throw new Error(
-      `${name} did not change pixels plus WM/present/input-retry counters within ${timeoutMs}ms`,
+      `${name} did not drain terminal native input plus pixels/WM/present/retry within ${timeoutMs}ms`,
     );
   };
   const steps = [];
@@ -162,6 +296,7 @@ try {
   await page.keyboard.press("Alt+a");
   await settle("deselect-all");
 
+  const rapidInputBaseline = steps.at(-1).ghostInput;
   await page.mouse.down({button: "middle"});
   await page.mouse.move(center.x + 34, center.y + 20, {steps: 8});
   await page.mouse.up({button: "middle"});
@@ -181,27 +316,29 @@ try {
   await settle("move-confirmed");
 
   const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");
-  let actionDrain = steps.slice(steps.indexOf(orbitBeforeClick) + 1).find((step) =>
-    step.sha256 !== orbitBeforeClick.sha256 &&
-    step.ticks > orbitBeforeClick.ticks &&
-    step.presents > orbitBeforeClick.presents &&
-    step.retries > orbitBeforeClick.retries);
-  if (actionDrain) {
-    actionDrain = {...actionDrain, name: "action-drain", settleMs: 0};
-  }
-  else {
-    actionDrain = await waitForPixelChange(
-      "action-drain", orbitBeforeClick.sha256, orbitBeforeClick,
-    );
-  }
+  const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;
+  const actionDrain = await waitForActionDrain(
+    "action-drain",
+    orbitBeforeClick.sha256,
+    orbitBeforeClick,
+    (current) => ghostInputDeliveryComplete(
+      current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}),
+    drainTimeoutMs,
+  );
   steps.push(actionDrain);
   await page.keyboard.press("Escape");
   await page.mouse.move(center.x, center.y);
+  const recoveryInputBaseline = actionDrain.ghostInput;
   await page.mouse.down({button: "middle"});
   await page.mouse.move(center.x + 24, center.y - 18, {steps: 8});
   await page.mouse.up({button: "middle"});
-  steps.push(await waitForPixelChange(
-    "recovery-orbit", actionDrain.sha256, actionDrain,
+  steps.push(await waitForActionDrain(
+    "recovery-orbit",
+    actionDrain.sha256,
+    actionDrain,
+    (current) => ghostInputDeliveryComplete(
+      current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
+    drainTimeoutMs,
   ));
 
   const retained = steps.slice(8, 13).map((step) => step.sha256);
@@ -213,6 +350,8 @@ try {
     retainedActionFramesEqual: new Set(retained).size === 1,
     actionDrainMs: actionDrain.settleMs,
     recoveryOrbitMs: steps.at(-1).settleMs,
+    nativeInputs,
+    nativeStates,
     pageErrors,
     lifecycle,
     pointerLockLines: consoleLines.filter((line) => /Pointer Lock|pointerlock/i.test(line)),
@@ -230,6 +369,8 @@ catch (error) {
     adapter: failureContext?.adapter || null,
     steps: failureContext?.steps || [],
     lastSample: failureContext?.lastSample || null,
+    nativeInputs: failureContext?.nativeInputs || [],
+    nativeStates: failureContext?.nativeStates || [],
     retainedActionFramesEqual: retained.length === 5 ? new Set(retained).size === 1 : null,
     pageErrors: failureContext?.pageErrors || [],
     lifecycle: failureContext?.lifecycle || [],

@@ -11,6 +11,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
+DISPLAY_STATE = ROOT / "platform_web/ghost/GHOST_WebDisplayState.hh"
+SYSTEM_HEADER = ROOT / "platform_web/ghost/GHOST_SystemWeb.hh"
+SYSTEM_SOURCE = ROOT / "platform_web/ghost/GHOST_SystemWeb.cc"
+EVENT_BRIDGE = ROOT / "platform_web/ghost/GHOST_EventBridgeWeb.cc"
+CONTEXT_SOURCE = ROOT / "platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 
 
 def require_once(source: str, token: str) -> None:
@@ -26,20 +31,48 @@ def validate(source: str) -> None:
         'typeof info.isFallbackAdapter === "boolean"',
         'adapter.status !== "ACCEPTED"',
         'rapid input hardware adapter rejected: ${adapter.reason}',
-        'const waitForPixelChange = async (name, baseline, counterBaseline, timeoutMs = 12000)',
+        'const PY_MONITOR = String.raw`',
+        'bl_idname="wm.bwp0r_input_probe"',
+        '"P0R_INPUT "+json.dumps(payload',
+        '"P0R_STATE "+json.dumps(state',
+        'window.__BW_PYEXPR = monitor',
+        'const inputMatch = /^P0R_INPUT',
+        'const stateMatch = /^P0R_STATE',
+        'native rapid-input monitor did not start',
+        '"__bwP0RapidDomInputs"',
+        'trusted: event.isTrusted === true',
+        'const waitForActionDrain = async (',
+        'nativeDeliveryComplete, timeoutMs = 12000,',
+        'if (nativeStates.length === 0) throw new Error("native rapid-input monitor did not start");',
         "current.sha256 !== baseline",
         "current.ticks > counterBaseline.ticks",
         "current.presents > counterBaseline.presents",
         "current.retries > counterBaseline.retries",
+        "nativeDeliveryComplete(current)",
+        'operator === "WM_OT_bwp0r_input_probe"',
         'await page.waitForTimeout(350);',
         'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
-        'actionDrain = await waitForPixelChange(',
-        '"action-drain", orbitBeforeClick.sha256, orbitBeforeClick,',
-        '"recovery-orbit", actionDrain.sha256, actionDrain,',
+        'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
+        'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
+        'current.ghostInput.leftReleases >= baseline.leftReleases + expected.left',
+        'current.ghostInput.middlePresses >= baseline.middlePresses + expected.middle',
+        'current.ghostInput.middleReleases >= baseline.middleReleases + expected.middle',
+        'current.ghostInput.keyPresses >= baseline.keyPresses + expected.keys',
+        'current.ghostInput.keyReleases >= baseline.keyReleases + expected.keys',
+        '(current.ghostInput.heldMask & 0x3) === 0',
+        'const rapidInputBaseline = steps.at(-1).ghostInput;',
+        'const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;',
+        'current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}',
+        'current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
+        'const actionDrain = await waitForActionDrain(',
+        '"action-drain",\n    orbitBeforeClick.sha256,\n    orbitBeforeClick,',
+        '"recovery-orbit",\n    actionDrain.sha256,\n    actionDrain,',
         "retainedActionFramesEqual: new Set(retained).size === 1",
         "failureContext.lastSample = result",
         "steps: failureContext?.steps || []",
         "lastSample: failureContext?.lastSample || null",
+        "nativeInputs: failureContext?.nativeInputs || []",
+        "nativeStates: failureContext?.nativeStates || []",
         "retained.length === 5 ? new Set(retained).size === 1 : null",
         "eventTail: (failureContext?.consoleLines || [])",
         "actionDrainMs: actionDrain.settleMs",
@@ -49,12 +82,68 @@ def validate(source: str) -> None:
         require_once(source, token)
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
         raise ValueError("pixel and counter liveness is checked after accepting the sample")
-    if source.index('"action-drain", orbitBeforeClick.sha256') > source.index(
-        '"recovery-orbit", actionDrain.sha256'
+    if source.index('"action-drain",\n    orbitBeforeClick.sha256') > source.index(
+        '"recovery-orbit",\n    actionDrain.sha256'
     ):
         raise ValueError("recovery orbit precedes queued-action drain")
+    if "steps.slice(steps.indexOf(orbitBeforeClick) + 1).find" in source:
+        raise ValueError("an intermediate action can still satisfy the terminal drain")
     if "retainedActionFramesEqual" not in source or "throw new Error" not in source:
         raise ValueError("producer lost diagnostic retained-frame reporting or fail-closed outcome")
+
+
+def validate_delivery_sources(
+    source: str,
+    display: str,
+    system_header: str,
+    system_source: str,
+    event_bridge: str,
+    context_source: str,
+) -> None:
+    for token in (
+        "input_button_press_counters[button].fetch_add(1u, std::memory_order_relaxed);",
+        "input_button_release_counters[button].fetch_add(1u, std::memory_order_relaxed);",
+        "input_button_mask.fetch_or(bit, std::memory_order_release);",
+        "input_button_mask.fetch_and(~bit, std::memory_order_release);",
+        "input_key_press_counter : input_key_release_counter",
+        "input_button_mask.load(std::memory_order_acquire)",
+    ):
+        require_once(display, token)
+    require_once(
+        system_header,
+        "/** Update one tracked button and publish a diagnostic edge only on a real state transition. */",
+    )
+    for token in (
+        "const bool was_down = buttons_.get(button);",
+        "buttons_.set(button, down);",
+        "if (was_down != down)",
+        "ghost_web::note_input_button(uint32_t(button), down);",
+    ):
+        require_once(system_source, token)
+    require_once(event_bridge, "ghost_web::note_input_key(down);")
+    for token in (
+        "bw_input_button_press_count(const uint32_t button)",
+        "bw_input_button_release_count(const uint32_t button)",
+        "bw_input_key_press_count(void)",
+        "bw_input_key_release_count(void)",
+        "bw_input_button_mask(void)",
+        "return double(ghost_web::input_button_press_count(button));",
+        "return double(ghost_web::input_button_release_count(button));",
+        "return double(ghost_web::input_key_press_count());",
+        "return double(ghost_web::input_key_release_count());",
+        "return double(ghost_web::input_buttons_held_mask());",
+    ):
+        require_once(context_source, token)
+    if source.count('readArg("_bw_input_button_press_count"') != 2:
+        raise ValueError("producer must sample left and middle GHOST press counters")
+    if source.count('readArg("_bw_input_button_release_count"') != 2:
+        raise ValueError("producer must sample left and middle GHOST release counters")
+    for token in (
+        'keyPresses: read("_bw_input_key_press_count")',
+        'keyReleases: read("_bw_input_key_release_count")',
+        'heldMask: read("_bw_input_button_mask")',
+    ):
+        require_once(source, token)
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -63,8 +152,18 @@ def replace_once(source: str, old: str, new: str) -> str:
     return source.replace(old, new, 1)
 
 
-def self_check(source: str) -> None:
+def self_check(
+    source: str,
+    display: str,
+    system_header: str,
+    system_source: str,
+    event_bridge: str,
+    context_source: str,
+) -> None:
     validate(source)
+    validate_delivery_sources(
+        source, display, system_header, system_source, event_bridge, context_source
+    )
     mutations = (
         replace_once(source, 'timeoutMs = 12000', 'timeoutMs = 120000'),
         replace_once(source, "current.sha256 !== baseline", "current.sha256 === baseline"),
@@ -83,16 +182,47 @@ def self_check(source: str) -> None:
             "current.retries > counterBaseline.retries",
             "current.retries >= counterBaseline.retries",
         ),
+        replace_once(source, "nativeDeliveryComplete(current)", "true"),
+        replace_once(
+            source,
+            'operator === "WM_OT_bwp0r_input_probe"',
+            'operator !== "WM_OT_bwp0r_input_probe"',
+        ),
         replace_once(source, "await page.waitForTimeout(350);", "await page.waitForTimeout(0);"),
         replace_once(
             source,
-            '"action-drain", orbitBeforeClick.sha256, orbitBeforeClick,',
-            '"action-drain", actionDrain.sha256, actionDrain,',
+            'current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}',
+            'current, rapidInputBaseline, {left: 2, middle: 1, keys: 1}',
         ),
         replace_once(
             source,
-            '"recovery-orbit", actionDrain.sha256, actionDrain,',
-            '"recovery-orbit", orbitBeforeClick.sha256, orbitBeforeClick,',
+            'current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
+            'current, recoveryInputBaseline, {left: 0, middle: 0, keys: 0}',
+        ),
+        replace_once(
+            source,
+            "current.ghostInput.keyPresses >= baseline.keyPresses + expected.keys",
+            "current.ghostInput.keyPresses >= baseline.keyPresses",
+        ),
+        replace_once(
+            source,
+            "(current.ghostInput.heldMask & 0x3) === 0",
+            "true",
+        ),
+        replace_once(
+            source,
+            "const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;",
+            "const drainTimeoutMs = 30000;",
+        ),
+        replace_once(
+            source,
+            '"action-drain",\n    orbitBeforeClick.sha256,\n    orbitBeforeClick,',
+            '"action-drain",\n    steps.at(-1).sha256,\n    steps.at(-1),',
+        ),
+        replace_once(
+            source,
+            '"recovery-orbit",\n    actionDrain.sha256,\n    actionDrain,',
+            '"recovery-orbit",\n    orbitBeforeClick.sha256,\n    orbitBeforeClick,',
         ),
         replace_once(
             source,
@@ -119,6 +249,22 @@ def self_check(source: str) -> None:
             "lastSample: failureContext?.lastSample || null",
             "lastSample: null",
         ),
+        replace_once(
+            source,
+            "nativeInputs: failureContext?.nativeInputs || []",
+            "nativeInputs: [],",
+        ),
+        replace_once(
+            source,
+            "nativeStates: failureContext?.nativeStates || []",
+            "nativeStates: [],",
+        ),
+        replace_once(source, "trusted: event.isTrusted === true", "trusted: true"),
+        replace_once(
+            source,
+            'if (nativeStates.length === 0) throw new Error("native rapid-input monitor did not start");',
+            'if (false) throw new Error("native rapid-input monitor did not start");',
+        ),
     )
     rejected = 0
     for mutation in mutations:
@@ -128,7 +274,39 @@ def self_check(source: str) -> None:
             rejected += 1
     if rejected != len(mutations):
         raise ValueError(f"mutation self-check rejected {rejected}/{len(mutations)}")
-    print(f"P0J_RAPID_INPUT_DRAIN_SELFCHECK_PASS mutations={rejected}")
+
+    delivery_mutations = (
+        (source, replace_once(
+            display,
+            "input_button_mask.fetch_and(~bit, std::memory_order_release);",
+            "input_button_mask.fetch_or(bit, std::memory_order_release);",
+        ), system_header, system_source, event_bridge, context_source),
+        (source, display, system_header, replace_once(
+            system_source, "if (was_down != down)", "if (true)"
+        ), event_bridge, context_source),
+        (source, display, system_header, system_source, replace_once(
+            event_bridge, "ghost_web::note_input_key(down);", ""
+        ), context_source),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            "return double(ghost_web::input_button_release_count(button));",
+            "return double(ghost_web::input_button_press_count(button));",
+        )),
+    )
+    delivery_rejected = 0
+    for mutation in delivery_mutations:
+        try:
+            validate_delivery_sources(*mutation)
+        except ValueError:
+            delivery_rejected += 1
+    if delivery_rejected != len(delivery_mutations):
+        raise ValueError(
+            f"delivery mutation self-check rejected {delivery_rejected}/{len(delivery_mutations)}"
+        )
+    print(
+        "P0J_RAPID_INPUT_DRAIN_SELFCHECK_PASS "
+        f"mutations={rejected + delivery_rejected} delivery={delivery_rejected}"
+    )
 
 
 def main() -> int:
@@ -136,11 +314,22 @@ def main() -> int:
     parser.add_argument("--self-check", action="store_true")
     args = parser.parse_args()
     source = PRODUCER.read_text(encoding="utf-8")
+    display = DISPLAY_STATE.read_text(encoding="utf-8")
+    system_header = SYSTEM_HEADER.read_text(encoding="utf-8")
+    system_source = SYSTEM_SOURCE.read_text(encoding="utf-8")
+    event_bridge = EVENT_BRIDGE.read_text(encoding="utf-8")
+    context_source = CONTEXT_SOURCE.read_text(encoding="utf-8")
     if args.self_check:
-        self_check(source)
+        self_check(source, display, system_header, system_source, event_bridge, context_source)
     else:
         validate(source)
-        print("P0J_RAPID_INPUT_DRAIN_SOURCE_PASS bound_ms=12000 counters=wm,present,retry")
+        validate_delivery_sources(
+            source, display, system_header, system_source, event_bridge, context_source
+        )
+        print(
+            "P0J_RAPID_INPUT_DRAIN_SOURCE_PASS "
+            "bound_ms=12000 counters=wm,present,retry,ghost-input"
+        )
     return 0
 
 

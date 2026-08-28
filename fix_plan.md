@@ -3468,7 +3468,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   transaction still schedules one final WM replay. The final exact 53-step/150-state fallback run
   passes 9/9 workspaces, all known-pose checks, modal topology and settle checks, move/undo, and
   empty hard-warning/page-error censuses. CAPTURE `.wasm.orig` is `5fea52ef8bc9`
-  (118,985,639 bytes). The Apple repeated-series gate remains unchanged. See
+  (118,985,639 bytes). **Same-generation hardware gauntlet implemented/pending hardware:** the
+  composer reruns at least two complete Apple interaction/modal consumers, rehashes every captured
+  PNG and exact inventory, invokes the independent 10-attempt P0-E consumer, and requires the
+  current producer, all five product bytes, local/served CAPTURE generation, pinned browser stack,
+  and accepted Apple adapter to match across both evidence families. Its 3-positive/23-negative
+  self-check is green; no product byte or hardware verdict changed. P0-I/J closure now requires
+  that composed PASS rather than separately described evidence that could mix generations. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -500,3 +500,35 @@ container-backed regression restores M0 6/6 while preserving the named M1-M8 str
 boundaries (`ledger/buildlogs/20260828T133532-3171007.log`,
 `ledger/buildlogs/20260828T133543-3171817.log`). P0-I/J remain open until at least two clean Apple
 hardware-series runs also pass modal, P0-D/E/F, and resize pixels.
+
+## Compose interaction and resize hardware evidence without generation drift
+
+The repeated P0-I/J consumer and the ten-attempt P0-E consumer were individually strict, but their
+handoff remained prose: two clean interaction runs could be cited alongside a resize receipt from a
+different CAPTURE generation, browser stack, or adapter. The interaction consumer also trusted the
+step hashes recorded in `diagnostic.json` without independently re-hashing the retained PNG files.
+
+`verify_hardware_gauntlet.py` closes that composition gap. It reruns the complete interaction
+series consumer, requires every interaction producer hash to match the current checkout, re-hashes
+every named PNG and rejects any missing, extra, or symlinked evidence entry, and invokes the
+independent P0-E receipt consumer under pinned Node. Only then does it require both evidence
+families to share all five product byte identities, the explicit expected `.wasm.orig`, identical
+local and served CAPTURE generations, the pinned Node/Playwright/PNGJS/Chromium stack, and the
+complete accepted Apple adapter record. Separate run labels remain mandatory.
+
+The 3-positive/23-negative contract is green
+(`ledger/buildlogs/20260828T135911-3188734.log`), as are the unchanged complete interaction
+consumer/source checks and independent P0-E consumer
+(`ledger/buildlogs/20260828T135641-3186138.log`,
+`ledger/buildlogs/20260828T135641-3186143.log`, and
+`ledger/buildlogs/20260828T135641-3186150.log`). Exact CAPTURE preflight and locked Ninja dry-run
+remain green without relinking (`ledger/buildlogs/20260828T135641-3186190.log` and
+`ledger/buildlogs/20260828T135641-3186178.log`), and REUSE 6.2.0 remains green
+(`ledger/buildlogs/20260828T135641-3186168.log`).
+
+This is evidence plumbing, not hardware evidence. Exact `.wasm.orig` remains `5fea52ef8bc9`
+(118,985,639 bytes), direct M4 remains RED at the Apple pixel boundary
+(`ledger/buildlogs/20260828T135714-3187051.log`), and aggregate regression retains the existing
+missing APPLY/release receipts (`ledger/buildlogs/20260828T135719-3187103.log`). P0-I/J close only
+after at least two clean driver-operated interaction/modal runs and one 10/10 resize receipt from
+this same generation produce `P0IJ_HARDWARE_GAUNTLET_PASS`.

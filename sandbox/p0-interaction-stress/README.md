@@ -101,6 +101,31 @@ The series check reruns every single-receipt assertion and rejects duplicate run
 timestamps, non-hardware evidence, and any change in producer, pinned browser stack, accepted Apple
 adapter, local/served generation, or five-file product inventory between runs.
 
+Before closing P0-I/J, compose that repeated interaction series with the independent ten-attempt
+P0-E resize receipt from the same candidate:
+
+```sh
+.host-tools/bin/python3.13 sandbox/p0-interaction-stress/verify_hardware_gauntlet.py \
+  --interaction sandbox/p0-interaction-stress/hardware-evidence/<interaction-run-1>/diagnostic.json \
+  --interaction sandbox/p0-interaction-stress/hardware-evidence/<interaction-run-2>/diagnostic.json \
+  --resize-evidence sandbox/m4-resize-recovery/hardware-evidence/<resize-run> \
+  --bin-dir build-wasm-windowed-opt/bin \
+  --expected-wasm-orig-sha256 <64-lowercase-hex>
+```
+
+The composer reruns the complete interaction consumer and the independent resize consumer. It then
+rehashes every interaction screenshot and its exact evidence inventory, then requires both evidence
+families to identify the current interaction producer, the same five exact product files, local and
+served CAPTURE generation, pinned browser stack, and accepted Apple adapter. Thus a clean
+interaction series cannot be combined with an older P0-E receipt, and a coherently edited
+interaction identity cannot bypass the resize consumer's fresh product/image rehash. Its
+device-free mutation contract is:
+
+```sh
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_hardware_gauntlet.py --self-check
+```
+
 Hardware mode is Apple-only and pins Node 22.16.0, Playwright 1.61.1, PNGJS 7.0.0, and Chromium
 149.0.7827.55. It prefers `adapter.info.isFallbackAdapter`, rejects absent/fallback/software
 adapters, verifies local and served split manifests against the requested `wasm.orig`, and creates

@@ -3320,7 +3320,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   after a completed burst starts one fresh bounded WindowUpdate retry. A 9-mutation bridge contract,
   68-case native/Wasm model, exact cumulative fallback battery, four-operator modal pass, and
   shrink/restore regression are green. This is resilience behind the initial-activation fix, not a
-  hardware closure or a substitute for the pending-resource fixes. Closure still requires repeated
+  hardware closure or a substitute for the pending-resource fixes. **Exact hardware producer
+  implemented (`f63dc77`):** the same stress lane now rejects non-Apple execution, fallback/software
+  adapters, stack drift, stale local/served CAPTURE generations, and pre-existing evidence output
+  before allocation. It restores one deterministic native VIEW_3D pose before/after cumulative
+  interaction and after the final orbit, compares real full-region plus viewport-header/toolbar/
+  Outliner/workspace-label pixels, and requires a post-stress native `G X 2` plus undo. The exact
+  fallback product passes with pixel-exact VIEW_3D/detail regions, 9/9 workspace transitions,
+  move/undo, and zero hard warnings/page/lifecycle errors; this binds no hardware pixels. Closure
+  still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.

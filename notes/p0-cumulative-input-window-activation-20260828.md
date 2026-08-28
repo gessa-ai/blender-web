@@ -146,3 +146,38 @@ Relinked CAPTURE identities for the pending Apple candidate:
 P0-J remains open. Closure still requires repeated trusted Apple runs of both original freeze
 sequences plus the navigation/modal/resize batteries, intact scene and text pixels, and an empty
 all-shader incomplete-bind-group census.
+
+## Exact interaction hardware producer
+
+Commit `f63dc77` turns the corrected cumulative diagnostic into an Apple-only evidence lane without
+weakening its default SwiftShader control. Hardware mode pins Node 22.16.0, Playwright 1.61.1,
+PNGJS 7.0.0, and Chromium 149.0.7827.55; prefers the spec-current
+`GPUAdapterInfo.isFallbackAdapter`; rejects absent, fallback, unclassified, and software-token
+adapters; hash-binds all five CAPTURE product files; and requires the local and served split
+manifests to identify the requested `wasm.orig`. It creates the immutable evidence directory only
+after those checks pass. The Linux negative control allocates no evidence.
+
+The pixel contract no longer treats PNG byte size or Blender-native Cube presence as sufficient.
+It records a same-run front-view/Frame-Selected reference, restores the exact native pose after the
+10-orbit/10-pan/10-zoom plus 9-workspace battery and again after a final orbit, then compares the
+actual pixels. VIEW_3D has a 1% hard changed-pixel ceiling; the viewport header, left toolbar,
+Outliner `Collection`/`Camera` rows, and workspace labels have a 0.2% ceiling. A real post-stress
+`G X 2 Enter` must move the native Cube from x=0 to x=2 and `Control+Z` must restore x=0. The
+consumer also retains zero page/lifecycle errors and a backend-wide zero incomplete-bind-group
+census.
+
+The exact fallback product run is green (`20260828T024302-2697427`, consumer
+`20260828T024532-2698952`): 1,423 WM ticks, 133 presents, 136 native input events, 9/9 workspace
+transitions with identical DOM/GHOST x coordinates, successful move/undo, and zero hard warnings,
+page errors, or lifecycle events. The post-stress VIEW_3D and all four detail regions are
+byte-identical to the reference. After the final orbit, VIEW_3D and all detail regions are again
+byte-identical; the only full-canvas delta is the legitimate Outliner selected-row focus highlight
+(0.4131%, below the 1% whole-canvas ceiling and explicitly outside the stable text crop). Producer
+and consumer mutation checks, syntax, and the existing typed-geometry source check are green
+(`20260828T025005-2701124`, `20260828T025005-2701125`,
+`20260828T025005-2701129`, `20260828T025005-2701137`).
+
+This is a device-free control and an Apple-ready producer, not Apple evidence. P0-I/J remain open
+until the driver runs `--hardware` against exact `wasm.orig` `00aa3c159b63`, obtains both clean
+same-pose canaries with the transform/undo and all-shader census green, and retains the modal plus
+P0-E resize regressions.

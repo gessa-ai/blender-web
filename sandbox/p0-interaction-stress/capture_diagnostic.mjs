@@ -48,6 +48,10 @@ const PIXEL_RECOVERY_TIMEOUT_MS = 12000;
 const PIXEL_STABLE_WINDOW_MS = 3000;
 const PIXEL_STABLE_SAMPLE_MS = 250;
 const ISOLATED_VIEW_KEYS = Object.freeze(["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]);
+const RAPID_VIEW_BURST_KEYS = Object.freeze([
+  "Numpad3", "Numpad7", "Numpad0", "Numpad1",
+  "Numpad3", "Numpad7", "Numpad0", "Numpad1",
+]);
 
 function isDescendant(parent, candidate) {
   const rel = relative(resolve(parent), resolve(candidate));
@@ -1200,6 +1204,64 @@ try {
   await page.waitForTimeout(3000);
   await capture("03b-reference-pose-6s");
   referencePoseState = latestState();
+
+  /* Exercise the exact presentation seam fixed by PresentSettlementLatch: advance eight trusted
+   * native views without any pixel-settle pause between them, then require the retained final
+   * front/Frame-Selected pose to reach and remain on the canvas. Reuse the isolated targets from
+   * this same device/run so the producer does not hard-code backend-specific quaternions. */
+  const rapidBurstBefore = steps.find((step) => step.name === "03b-reference-pose-6s");
+  const rapidBurstDomStart = await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.().length || 0);
+  const rapidBurstTransitions = [];
+  for (const key of RAPID_VIEW_BURST_KEYS) {
+    const target = isolatedViews.find((view) => view.key === key);
+    if (!target) throw new Error(`rapid view burst has no native target for ${key}`);
+    const sequenceStart = latestState()?.sequence || 0;
+    await canvas.focus();
+    await page.keyboard.press(key);
+    const state = await waitForState((candidate) => candidate.sequence > sequenceStart &&
+      candidate.view_perspective === target.perspective &&
+      JSON.stringify(candidate.view_rotation || null) === JSON.stringify(target.rotation),
+    `rapid view burst ${key}`, 10000);
+    rapidBurstTransitions.push({
+      key,
+      sequence: state.sequence,
+      perspective: state.view_perspective,
+      rotation: state.view_rotation,
+    });
+  }
+  const rapidBurstPixelSettleMs = await waitForCanvasStable("rapid view burst final pixels");
+  const rapidBurstSettled = await capture("03c-rapid-view-burst-settled");
+  await page.waitForTimeout(3000);
+  const rapidBurstHeld = await capture("03d-rapid-view-burst-held");
+  const rapidBurstDomKeyDownCodes = (await page.evaluate(() =>
+    window.__bwP0DomInputs?.snapshot?.() || [])).slice(rapidBurstDomStart)
+    .filter((event) => event.type === "keydown" && event.listener === undefined)
+    .map((event) => event.code);
+  const rapidViewBurstCanary = {
+    viewKeys: [...RAPID_VIEW_BURST_KEYS],
+    domKeyDownCodes: rapidBurstDomKeyDownCodes,
+    nativeTransitions: rapidBurstTransitions,
+    before: {
+      perspective: rapidBurstBefore.state.view_perspective,
+      rotation: rapidBurstBefore.state.view_rotation,
+      sha256: rapidBurstBefore.sha256,
+      presents: rapidBurstBefore.presents,
+      redrawRetries: rapidBurstBefore.redrawRetries,
+    },
+    after: {
+      perspective: rapidBurstHeld.state.view_perspective,
+      rotation: rapidBurstHeld.state.view_rotation,
+      sha256: rapidBurstHeld.sha256,
+      presents: rapidBurstHeld.presents,
+      redrawRetries: rapidBurstHeld.redrawRetries,
+    },
+    settledSha256: rapidBurstSettled.sha256,
+    pixelSettleMs: rapidBurstPixelSettleMs,
+  };
+  samePoseCanaries.push(makeSamePoseCanary(
+    "rapid-view-burst-known-pose", "03b-reference-pose-6s", "03d-rapid-view-burst-held",
+  ));
   for (let index = 0; index < 10; index++) {
     await middleDrag(52, index % 2 === 0 ? 24 : -18);
   }
@@ -1333,6 +1395,12 @@ try {
         operator: "G X 2 Enter; Control+Z",
         orbits: 2,
       },
+      suppressedPresentBurst: {
+        viewKeys: [...RAPID_VIEW_BURST_KEYS],
+        nativeTransitions: RAPID_VIEW_BURST_KEYS.length,
+        stableWindowMs: PIXEL_STABLE_WINDOW_MS,
+        heldWindowMs: 3000,
+      },
       stress: {orbit: 10, pan: 10, zoom: 10, workspaceTransitions: 9},
       samePoseChangedFractionLimit: SAME_POSE_CHANGED_FRACTION_LIMIT,
       textRegionChangedFractionLimit: TEXT_REGION_CHANGED_FRACTION_LIMIT,
@@ -1359,6 +1427,7 @@ try {
       ghostPressX: workspaceNativeClicks,
     },
     isolationCanary,
+    rapidViewBurstCanary,
     samePoseCanaries,
     postStressOperatorCanary,
     hardCompletenessWarnings,

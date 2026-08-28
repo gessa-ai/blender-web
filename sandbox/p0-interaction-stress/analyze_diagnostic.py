@@ -35,6 +35,8 @@ REQUIRED_STEPS = (
     "02l-isolated-orbit-after-click",
     "03a-reference-pose-3s",
     "03b-reference-pose-6s",
+    "03c-rapid-view-burst-settled",
+    "03d-rapid-view-burst-held",
     "10-after-orbit",
     "20-after-pan",
     "30-after-zoom",
@@ -57,6 +59,8 @@ ISOLATED_VIEW_STEPS = (
     "02e-isolated-camera-orbit-cancelled",
 )
 ISOLATED_VIEW_EFFECTS = ["view-change"] * 4 + ["cancelled-in-camera-view"]
+RAPID_VIEW_BURST_KEYS = ["Numpad3", "Numpad7", "Numpad0", "Numpad1"] * 2
+RAPID_VIEW_BURST_PERSPECTIVES = ["ORTHO", "ORTHO", "CAMERA", "ORTHO"] * 2
 DESELECTED_STEPS = {"02g-isolated-deselect-all", "02h-isolated-orbit-before-click"}
 HARDWARE_EVIDENCE_CLASS = "apple-hardware-interaction-v1"
 FALLBACK_EVIDENCE_CLASS = "diagnostic-software-fallback"
@@ -267,6 +271,12 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
         "operator": "G X 2 Enter; Control+Z",
         "orbits": 2,
     }, "isolated freeze contract differs")
+    require(contract.get("suppressedPresentBurst") == {
+        "viewKeys": RAPID_VIEW_BURST_KEYS,
+        "nativeTransitions": len(RAPID_VIEW_BURST_KEYS),
+        "stableWindowMs": 3000,
+        "heldWindowMs": 3000,
+    }, "suppressed-present burst contract differs")
     isolated = document.get("isolationCanary")
     require(isinstance(isolated, dict), "isolated freeze canary is absent")
     require(isolated.get("viewKeys") == ISOLATED_VIEW_KEYS,
@@ -395,6 +405,68 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
             steps["02k-isolated-undo"]["state"].get("location") == isolated_undone,
             "isolated operator step states differ from the canary")
 
+    rapid_burst = document.get("rapidViewBurstCanary")
+    require(isinstance(rapid_burst, dict), "rapid view-burst canary is absent")
+    require(rapid_burst.get("viewKeys") == RAPID_VIEW_BURST_KEYS,
+            "rapid view-burst key order differs")
+    require(rapid_burst.get("domKeyDownCodes") == RAPID_VIEW_BURST_KEYS,
+            "rapid view-burst trusted DOM receipts differ")
+    transitions = rapid_burst.get("nativeTransitions")
+    require(isinstance(transitions, list) and len(transitions) == len(RAPID_VIEW_BURST_KEYS),
+            "rapid view-burst native transition census differs")
+    require([transition.get("key") for transition in transitions] == RAPID_VIEW_BURST_KEYS,
+            "rapid view-burst native key order differs")
+    transition_sequences = [transition.get("sequence") for transition in transitions]
+    require(all(type(sequence) is int and sequence > 0 for sequence in transition_sequences) and
+            transition_sequences == sorted(set(transition_sequences)),
+            "rapid view-burst native sequences are not strictly increasing")
+    require([transition.get("perspective") for transition in transitions] ==
+            RAPID_VIEW_BURST_PERSPECTIVES,
+            "rapid view-burst native perspectives differ")
+    transition_rotations = [transition.get("rotation") for transition in transitions]
+    require(all(isinstance(rotation, list) and len(rotation) == 4
+                for rotation in transition_rotations),
+            "rapid view-burst native rotations are invalid")
+    require(transition_rotations[:4] == transition_rotations[4:] and
+            len({json.dumps(rotation) for rotation in transition_rotations[:4]}) == 4,
+            "rapid view-burst native rotation cycles differ")
+    burst_before = rapid_burst.get("before")
+    burst_after = rapid_burst.get("after")
+    require(isinstance(burst_before, dict) and isinstance(burst_after, dict),
+            "rapid view-burst endpoints are absent")
+    require(burst_before.get("sha256") == steps["03b-reference-pose-6s"].get("sha256") and
+            burst_after.get("sha256") == steps["03d-rapid-view-burst-held"].get("sha256"),
+            "rapid view-burst endpoint screenshots differ")
+    require(burst_before.get("perspective") ==
+            steps["03b-reference-pose-6s"]["state"].get("view_perspective") and
+            burst_before.get("rotation") ==
+            steps["03b-reference-pose-6s"]["state"].get("view_rotation") and
+            burst_after.get("perspective") ==
+            steps["03d-rapid-view-burst-held"]["state"].get("view_perspective") and
+            burst_after.get("rotation") ==
+            steps["03d-rapid-view-burst-held"]["state"].get("view_rotation"),
+            "rapid view-burst endpoint native states differ")
+    require(burst_before.get("perspective") == burst_after.get("perspective") and
+            burst_before.get("rotation") == burst_after.get("rotation"),
+            "rapid view-burst did not return to its native reference view")
+    require(type(burst_before.get("presents")) is int and
+            type(burst_after.get("presents")) is int and
+            burst_after["presents"] > burst_before["presents"],
+            "rapid view-burst did not advance validated presentation")
+    require(type(burst_before.get("redrawRetries")) is int and
+            type(burst_after.get("redrawRetries")) is int and
+            burst_after["redrawRetries"] > burst_before["redrawRetries"],
+            "rapid view-burst did not publish input recovery")
+    require(type(rapid_burst.get("pixelSettleMs")) is int and
+            3000 <= rapid_burst["pixelSettleMs"] <= 12000,
+            "rapid view-burst final pixels did not settle within the bounded window")
+    require(rapid_burst.get("settledSha256") ==
+            steps["03c-rapid-view-burst-settled"].get("sha256"),
+            "rapid view-burst settled screenshot binding differs")
+    require(steps["03c-rapid-view-burst-settled"].get("sha256") ==
+            steps["03d-rapid-view-burst-held"].get("sha256"),
+            "rapid view-burst final pixels did not hold for three seconds")
+
     settled_6s = steps["61c-frame-selected-6s"]
     require(
         steps["63-final-orbit"].get("sha256") != settled_6s.get("sha256"),
@@ -407,12 +479,14 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
     )
 
     same_pose = document.get("samePoseCanaries")
-    require(isinstance(same_pose, list) and len(same_pose) == 2,
+    require(isinstance(same_pose, list) and len(same_pose) == 3,
             "same-pose pixel canary census differs")
     require([item.get("name") for item in same_pose] ==
-            ["post-stress-known-pose", "post-orbit-known-pose"],
+            ["rapid-view-burst-known-pose", "post-stress-known-pose",
+             "post-orbit-known-pose"],
             "same-pose pixel canary order differs")
     expected_same_pose_steps = {
+        "rapid-view-burst-known-pose": "03d-rapid-view-burst-held",
         "post-stress-known-pose": "61c-frame-selected-6s",
         "post-orbit-known-pose": "65b-post-orbit-known-pose-6s",
     }
@@ -564,6 +638,8 @@ def synthetic_document() -> dict[str, Any]:
         "02e-isolated-camera-orbit-cancelled": "isolated-camera",
         "03a-reference-pose-3s": "reference-pose",
         "03b-reference-pose-6s": "reference-pose",
+        "03c-rapid-view-burst-settled": "rapid-burst-pose",
+        "03d-rapid-view-burst-held": "rapid-burst-pose",
         "61b-frame-selected-3s": "post-stress-pose",
         "61c-frame-selected-6s": "post-stress-pose",
         "65a-post-orbit-known-pose-3s": "post-orbit-pose",
@@ -593,6 +669,12 @@ def synthetic_document() -> dict[str, Any]:
         "02e-isolated-camera-orbit-cancelled": (
             "Numpad4", "CAMERA", [0.92, 0.1, 0.2, 0.3]
         ),
+    }
+    known_pose_steps = {
+        "03a-reference-pose-3s", "03b-reference-pose-6s",
+        "03c-rapid-view-burst-settled", "03d-rapid-view-burst-held",
+        "61b-frame-selected-3s", "61c-frame-selected-6s",
+        "65a-post-orbit-known-pose-3s", "65b-post-orbit-known-pose-6s",
     }
     for index, name in enumerate(REQUIRED_STEPS):
         state = copy.deepcopy(canonical_state)
@@ -629,12 +711,16 @@ def synthetic_document() -> dict[str, Any]:
             state["view_rotation"] = [0.7, 0.3, 0.4, 0.5]
         if name in {"02j-isolated-move", "62a-post-stress-move"}:
             state["location"] = [2.0, 0.0, 0.0]
+        if name in known_pose_steps:
+            state["view_perspective"] = "ORTHO"
+            state["view_rotation"] = [0.7071, -0.7071, 0.0, 0.0]
         steps.append(
             {
                 "name": name,
                 "sha256": stable_hashes.get(name, f"hash-{index}"),
                 "semanticPixels": {"quantizedColors": 256, "nonWhiteRatio": 0.9},
                 "state": state,
+                "presents": index + 10,
                 "redrawRetries": index * 10,
                 **(
                     {"workspaceRequested": "Modeling", "workspaceAccepted": True}
@@ -674,11 +760,12 @@ def synthetic_document() -> dict[str, Any]:
         "view": {"x": 0, "y": 0, "width": 100, "height": 100},
         "viewDistance": 2.0,
         "viewLocation": [0.0, 0.0, 0.0],
-        "viewRotation": [1.0, 0.0, 0.0, 0.0],
-        "viewPerspective": "PERSP",
+        "viewRotation": [0.7071, -0.7071, 0.0, 0.0],
+        "viewPerspective": "ORTHO",
     }
     same_pose = []
     for name, candidate in (
+        ("rapid-view-burst-known-pose", "03d-rapid-view-burst-held"),
         ("post-stress-known-pose", "61c-frame-selected-6s"),
         ("post-orbit-known-pose", "65b-post-orbit-known-pose-6s"),
     ):
@@ -717,6 +804,21 @@ def synthetic_document() -> dict[str, Any]:
                 if "pixelSettleMs" in step_by_name[name] else {}
             ),
         })
+    rapid_rotations = [
+        [0.5, -0.5, -0.5, -0.5],
+        [1.0, 0.0, 0.0, 0.0],
+        [0.92, 0.1, 0.2, 0.3],
+        [0.7071, -0.7071, 0.0, 0.0],
+    ] * 2
+    rapid_transitions = [
+        {
+            "key": key,
+            "sequence": 100 + index,
+            "perspective": RAPID_VIEW_BURST_PERSPECTIVES[index],
+            "rotation": rapid_rotations[index],
+        }
+        for index, key in enumerate(RAPID_VIEW_BURST_KEYS)
+    ]
     return {
         "schema": "blender-web.p0ij-interaction-stress.v2",
         "evidenceClass": FALLBACK_EVIDENCE_CLASS,
@@ -745,6 +847,12 @@ def synthetic_document() -> dict[str, Any]:
                 "hardwareSelectionMode": "viewport",
                 "operator": "G X 2 Enter; Control+Z",
                 "orbits": 2,
+            },
+            "suppressedPresentBurst": {
+                "viewKeys": RAPID_VIEW_BURST_KEYS,
+                "nativeTransitions": len(RAPID_VIEW_BURST_KEYS),
+                "stableWindowMs": 3000,
+                "heldWindowMs": 3000,
             },
         },
         "steps": steps,
@@ -811,6 +919,29 @@ def synthetic_document() -> dict[str, Any]:
                 ],
                 "pixelSettleMs": 250,
             },
+        },
+        "rapidViewBurstCanary": {
+            "viewKeys": RAPID_VIEW_BURST_KEYS,
+            "domKeyDownCodes": RAPID_VIEW_BURST_KEYS,
+            "nativeTransitions": rapid_transitions,
+            "before": {
+                "perspective": step_by_name["03b-reference-pose-6s"]["state"][
+                    "view_perspective"],
+                "rotation": step_by_name["03b-reference-pose-6s"]["state"]["view_rotation"],
+                "sha256": step_by_name["03b-reference-pose-6s"]["sha256"],
+                "presents": step_by_name["03b-reference-pose-6s"]["presents"],
+                "redrawRetries": step_by_name["03b-reference-pose-6s"]["redrawRetries"],
+            },
+            "after": {
+                "perspective": step_by_name["03d-rapid-view-burst-held"]["state"][
+                    "view_perspective"],
+                "rotation": step_by_name["03d-rapid-view-burst-held"]["state"]["view_rotation"],
+                "sha256": step_by_name["03d-rapid-view-burst-held"]["sha256"],
+                "presents": step_by_name["03d-rapid-view-burst-held"]["presents"],
+                "redrawRetries": step_by_name["03d-rapid-view-burst-held"]["redrawRetries"],
+            },
+            "settledSha256": step_by_name["03c-rapid-view-burst-settled"]["sha256"],
+            "pixelSettleMs": 3000,
         },
         "samePoseCanaries": same_pose,
         "postStressOperatorCanary": {
@@ -928,6 +1059,21 @@ def self_check() -> int:
             "moved", [0.0, 0.0, 0.0]),
         lambda value: step_named(value, "02g-isolated-deselect-all")["state"].__setitem__(
             "selected_count", 1),
+        lambda value: value["contract"]["suppressedPresentBurst"].__setitem__(
+            "nativeTransitions", 7),
+        lambda value: value["rapidViewBurstCanary"]["domKeyDownCodes"].__setitem__(
+            0, "Numpad1"),
+        lambda value: value["rapidViewBurstCanary"]["nativeTransitions"][3].__setitem__(
+            "sequence", value["rapidViewBurstCanary"]["nativeTransitions"][2]["sequence"]),
+        lambda value: value["rapidViewBurstCanary"]["nativeTransitions"][6].__setitem__(
+            "perspective", "PERSP"),
+        lambda value: value["rapidViewBurstCanary"]["after"].__setitem__(
+            "presents", value["rapidViewBurstCanary"]["before"]["presents"]),
+        lambda value: value["rapidViewBurstCanary"]["after"].__setitem__(
+            "redrawRetries", value["rapidViewBurstCanary"]["before"]["redrawRetries"]),
+        lambda value: value["rapidViewBurstCanary"].__setitem__("pixelSettleMs", 2999),
+        lambda value: step_named(value, "03d-rapid-view-burst-held").__setitem__(
+            "sha256", "not-held"),
         lambda value: value["samePoseCanaries"][0]["pixelDiff"].__setitem__(
             "viewChangedFraction", 0.2),
         lambda value: value["samePoseCanaries"][0]["pixelDiff"]["detailRegions"][
@@ -1058,7 +1204,7 @@ def main() -> int:
         f"steps={result['steps']} states={result['states']} presents={result['presents']} "
         "hard_warnings=0 page_errors=0 "
         f"workspace_transitions={result['workspace_accepted']}/{result['workspace_attempted']} "
-        "button_coords=dom-ghost-matched same_pose=2 operator=move-undo"
+        "button_coords=dom-ghost-matched same_pose=3 rapid_burst=8 operator=move-undo"
     )
     return 0
 

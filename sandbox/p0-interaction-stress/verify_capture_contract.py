@@ -52,6 +52,7 @@ def validate(capture: str, analyzer: str) -> None:
         'const TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002;',
         'const PIXEL_RECOVERY_TIMEOUT_MS = 12000;',
         'const ISOLATED_VIEW_KEYS = Object.freeze(["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]);',
+        'const RAPID_VIEW_BURST_KEYS = Object.freeze([',
         'outlinerText: {',
         'workspaceTabs: {',
         'await page.keyboard.press("Alt+a");',
@@ -71,14 +72,18 @@ def validate(capture: str, analyzer: str) -> None:
         'await orderedLeftClick(x, 13, `workspace ${workspace}`, receiptTimeout);',
         'const isolationCanary = {',
         'viewKeys: ISOLATED_VIEW_KEYS,',
+        'const rapidBurstPixelSettleMs = await waitForCanvasStable("rapid view burst final pixels");',
+        'domKeyDownCodes: rapidBurstDomKeyDownCodes,',
+        '"rapid-view-burst-known-pose", "03b-reference-pose-6s", "03d-rapid-view-burst-held"',
+        'rapidViewBurstCanary,',
         '/assembled group-0 resources do not match surviving WGSL bindings/i',
     ):
         require_once(capture, marker, "capture invariant")
     if capture.count("_bw_redraw_retry_count") != 3:
         raise ValueError("capture redraw-retry counter census differs")
 
-    # Two canaries intentionally call the same helper; every named call remains unique.
-    if capture.count("samePoseCanaries.push(makeSamePoseCanary(") != 2:
+    # Three canaries intentionally call the same helper; every named call remains unique.
+    if capture.count("samePoseCanaries.push(makeSamePoseCanary(") != 3:
         raise ValueError("same-pose canary census differs")
 
     require_order(
@@ -115,6 +120,8 @@ def validate(capture: str, analyzer: str) -> None:
         'SAME_POSE_CHANGED_FRACTION_LIMIT = 0.01',
         'TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002',
         'ISOLATED_VIEW_KEYS = ["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]',
+        'RAPID_VIEW_BURST_KEYS = ["Numpad3", "Numpad7", "Numpad0", "Numpad1"] * 2',
+        '"rapid-view-burst-known-pose": "03d-rapid-view-burst-held"',
         '"post-stress-known-pose": "61c-frame-selected-6s"',
         '"post-orbit-known-pose": "65b-post-orbit-known-pose-6s"',
         '{"viewHeader", "leftToolbar", "outlinerText", "workspaceTabs"}',
@@ -127,6 +134,10 @@ def validate(capture: str, analyzer: str) -> None:
         'step.get("redrawRetries")',
         'orbit.get("redrawRetries")',
         '0 <= orbit["pixelSettleMs"] <= 12000',
+        'rapid_burst.get("domKeyDownCodes") == RAPID_VIEW_BURST_KEYS',
+        'burst_after["presents"] > burst_before["presents"]',
+        'burst_after["redrawRetries"] > burst_before["redrawRetries"]',
+        '3000 <= rapid_burst["pixelSettleMs"] <= 12000',
         'product.get("redrawRetries")',
         'operator.get("operation") == "G X 2 Enter; Control+Z"',
         'require(not hard_warnings',
@@ -152,6 +163,7 @@ def self_check(capture: str, analyzer: str) -> None:
         'const TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002;',
         'const PIXEL_RECOVERY_TIMEOUT_MS = 12000;',
         'const ISOLATED_VIEW_KEYS = Object.freeze(["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]);',
+        'const RAPID_VIEW_BURST_KEYS = Object.freeze([',
         'await page.keyboard.press("Alt+a");',
         'selectionMode = "fallback-select-all";',
         'Cancel that diagnostic-only pick explicitly',
@@ -164,6 +176,10 @@ def self_check(capture: str, analyzer: str) -> None:
         'pixelSettleMs: preClickOrbitPixelSettleMs,',
         'const receiptTimeout = options.hardware ? 5000 : 15000;',
         'const isolationCanary = {',
+        'const rapidBurstPixelSettleMs = await waitForCanvasStable("rapid view burst final pixels");',
+        'domKeyDownCodes: rapidBurstDomKeyDownCodes,',
+        '"rapid-view-burst-known-pose", "03b-reference-pose-6s", "03d-rapid-view-burst-held"',
+        'rapidViewBurstCanary,',
         'outlinerText: {',
         '/assembled group-0 resources do not match surviving WGSL bindings/i',
     )
@@ -177,6 +193,9 @@ def self_check(capture: str, analyzer: str) -> None:
         'selection_restore.get("method") == "outliner-click"',
         'orbit.get("redrawRetries")',
         '0 <= orbit["pixelSettleMs"] <= 12000',
+        'rapid_burst.get("domKeyDownCodes") == RAPID_VIEW_BURST_KEYS',
+        'burst_after["presents"] > burst_before["presents"]',
+        '3000 <= rapid_burst["pixelSettleMs"] <= 12000',
         'product.get("redrawRetries")',
         'operator.get("operation") == "G X 2 Enter; Control+Z"',
         'require(not hard_warnings',

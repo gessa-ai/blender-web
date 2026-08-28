@@ -23,6 +23,13 @@ Hardware must select exactly Cube through the trusted viewport click. SwiftShade
 known asynchronous failed GPU pick, use Select All only as a liveness canary, then restore Cube-only
 selection through a real, coordinate-checked Outliner click before visual comparison begins.
 
+After the same-run front/Frame-Selected reference is established, the producer also drives two
+back-to-back `Numpad3 -> Numpad7 -> Numpad0 -> Numpad1` cycles. It waits only for each Blender-native
+view transition, never for intermediate pixels, then requires the final front pose to settle within
+12 seconds and remain byte-identical for three more seconds. Ordered trusted DOM key receipts,
+strictly increasing native state sequences, advancing present/input-retry counters, and a third
+same-pose region diff bind the suppressed-present coalescing path without changing the product.
+
 The default Linux run deliberately exercises the Apple-verified pointer-lock rejection fallback
 and forces SwiftShader. It is diagnostic-only and binds no hardware or pixel receipt.
 
@@ -52,9 +59,9 @@ completeness warnings. It also requires all nine post-stress workspace transitio
 DOM-to-GHOST button-coordinate canary. An already-active tab is deliberately excluded because it
 is not a workspace transition.
 
-The strengthened P0-J path establishes a same-run front-view/Frame-Selected reference, restores
-that exact Blender-native pose after the cumulative battery and again after the final orbit, then
-compares actual pixels. The full VIEW_3D must stay within a 1% changed-pixel ceiling; narrower
+The strengthened P0-J path establishes a same-run front-view/Frame-Selected reference, returns to
+that exact Blender-native pose after the rapid view burst, the cumulative battery, and the final
+orbit, then compares actual pixels. The full VIEW_3D must stay within a 1% changed-pixel ceiling; narrower
 viewport-header, toolbar-icon, Outliner-text, and workspace-label regions use a 0.2% ceiling. This
 detects the filed missing Cube/grid, clipped leading text, missing icons, and retained grey bars
 without relying on PNG byte size. A real `G X 2 Enter` followed by `Control+Z` must also change and

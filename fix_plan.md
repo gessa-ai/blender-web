@@ -3339,9 +3339,25 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `.wasm.orig` SHA-256 `2ba96011987aeeca87b3ab84052e3dcdeaf7098eaf5809c268399ae9d69b0d6f`
   (118,983,520 bytes). A strengthened camera canary caught one earlier fallback run retaining stale
   pixels until the next input despite native CAMERA state; the instrumented final run emitted no
-  pending/readback signature, so that observation is not attributed to patch 0301 and remains one
-  more reason device-free pixels cannot close P0-I/J. Apple must rerun the newly relinked exact
-  candidate as a repeated hardware series. See
+  pending/readback signature, so that observation is not attributed to patch 0301. **Suppressed-
+  present settlement candidate implemented (`868bd86`):** two clean fallback loads then reproduced
+  that stale camera frame deterministically. The draw-drop and resize-barrier generations stayed
+  unchanged while every synthetic WindowUpdate reached a full WM draw, proving the loss was after
+  encoding. `presentBackbuffer()` silently returned while its prior asynchronous validation scopes
+  were pending; the prior surface command had already sampled the older persistent backbuffer, and
+  settlement neither presented the newer retained frame nor scheduled a retry. A small latch now
+  coalesces every suppressed swap and, from the completion's fresh browser turn, synchronously
+  acquires/submits one new surface blit of the latest backbuffer. Only a failed direct start falls
+  back to the bounded redraw path; device loss clears both latch states. This preserves the
+  hardware-safe synchronous surface boundary and does not revive rejected patch 0288's deferred
+  cross-frame callback. Exact native/Wasm latch parity and source ordering are green. The cleaned
+  relink passes the complete 41-step fallback battery twice, including native CAMERA pixels before
+  the cancelled no-op, 9/9 workspaces, two pixel-exact known poses, move/undo, empty hard-warning
+  census, and zero page errors; modal four-operator and shrink/restore regressions also pass. The
+  exact candidate is `.wasm.orig` SHA-256
+  `96cb55a627071c9cbcfcdeb6926c79d78bddf0dafb972eb437f37bee2f73afe8`
+  (118,983,629 bytes). Apple must rerun it as a repeated hardware series; device-free pixels still
+  cannot close P0-I/J. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,
@@ -3396,7 +3412,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   browser stack, accepted Apple adapter, local/served generation, or five-file product-identity
   drift. The 3-positive/49-negative self-check and existing single-run diagnostic remain green.
   This strengthens the already-required repeated Apple closure without binding a receipt itself;
-  the CAPTURE product and `dbfad903a2be` identity are unchanged.
+  the then-current CAPTURE product and `dbfad903a2be` identity were unchanged. **Latest-frame
+  presentation candidate (`868bd86`):** precise fallback tracing found the remaining camera/freeze
+  seam below the input tail: full WM draws completed while `presentBackbuffer()` discarded their
+  swaps behind one still-validating surface transaction. Settlement now coalesces and directly
+  presents the retained newest backbuffer in its fresh browser turn, with bounded redraw only as a
+  failed-start fallback. The final committed generation passes the 41-step original-freeze plus
+  cumulative battery (98 states, 292 presents, 9/9 workspaces, two exact same-pose comparisons,
+  move/undo, no hard warning/page error), the modal four-operator analyzer, and coherent
+  shrink/restore. It is bound by `.wasm.orig` `96cb55a62707` (118,983,629 bytes).
   This is a stronger pending-hardware candidate, not closure. Closure still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See

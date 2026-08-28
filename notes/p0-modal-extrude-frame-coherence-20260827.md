@@ -422,3 +422,20 @@ the Apple rig and show thin guides with no retained trails; confirmed-operation 
 correct for at least six idle seconds. Boot, idle paint, orbit, and the P0-E 10x resize/stress bars
 must remain green on the same candidate. The fallback diagnostic binds only control flow and queue
 facts, never pixels.
+
+## Suppressed surface-swap follow-up
+
+Commit `868bd86` closes a presentation loss discovered by the cumulative camera canary: while one
+surface transaction waited for browser validation, later full-frame swaps were discarded even
+though their commands updated the persistent backbuffer. The new coalesced settlement latch submits
+one fresh same-turn surface blit of the retained newest frame, with bounded redraw only as a
+failed-start fallback. This complements the same-turn content submissions above and preserves the
+rejected patch-0288 boundary: no surface texture crosses an event-loop turn.
+
+Against the final `96cb55a62707` `.wasm.orig` generation, the unchanged modal diagnostic and
+analyzer pass 80 constraint submissions, 11 extrusion clusters, four clusters for each of move,
+rotate, and scale, three surface presents per modal phase, 160 settle widgets, 36 settle
+composites, zero hard completeness warnings, and zero page errors
+(`ledger/buildlogs/20260828T110032-3050686.log`,
+`ledger/buildlogs/20260828T110116-3051290.log`). This remains software diagnostic evidence; Apple
+must still verify thin guides, clean HUD settle, and no retained bar or scene/text corruption.

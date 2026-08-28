@@ -311,3 +311,65 @@ container-backed regression restores M0 6/6 and preserves every later named boun
 timestamp 2026-08-28T07:03:56Z. This contract does not hardware-close P0-I/J; the driver must still
 produce at least two clean Apple diagnostics against this exact generation and run the modal and
 resize regressions.
+
+## Present the newest frame suppressed during validation
+
+The strengthened camera canary exposed a separate loss after every previously instrumented input
+and draw-recovery boundary. Before commit `868bd86`, two fresh fallback loads reached native
+`CAMERA` state but captured the older top/perspective pixels; the following cancelled `Numpad4`
+no-op caused the camera image to appear. Bounded trace counters then proved all four synthetic
+WindowUpdates were queued, consumed by WM, and executed as full draws. The draw-drop generation
+stayed fixed, the resize barrier did not advance, and only the surface presentation count lagged.
+This falsified another resource-binding or WM-invalidation candidate.
+
+`GHOST_ContextWGPUWeb::presentBackbuffer()` used a boolean pending guard around its asynchronously
+validated surface transaction. Any later `swapBufferRelease()` returned failure without retaining
+the request. The in-flight present command had already sampled the earlier persistent backbuffer;
+later full-frame commands updated that backbuffer, but successful scope settlement only cleared the
+guard. With no subsequent present, the canvas could remain permanently stale until unrelated input.
+
+Commit `868bd86` replaces that lossy boolean with `PresentSettlementLatch`. The first suppressed
+swap sets one coalesced retry bit; any number of later swaps preserve the same bit. Completion clears
+the pending transaction and, from that callback's fresh browser turn, calls `presentBackbuffer()`
+once to acquire a new swapchain texture and synchronously submit a blit of the retained latest
+backbuffer. If that direct start cannot proceed, it publishes the existing bounded redraw edge.
+Terminal device loss resets both states. This is deliberately not patch 0288's rejected deferred
+GHOST callback: surface acquire/encode/submit remain contiguous in one browser turn.
+
+The fail-first native compile rejected the missing latch
+(`ledger/buildlogs/20260828T101433-3015016.log`). Final native/Wasm behavior and exact source-order
+contracts are green (`ledger/buildlogs/20260828T105049-3042362.log`). A first redraw-only settlement
+variant still failed the camera/no-op oracle (`ledger/buildlogs/20260828T103753-3032316.log`) and
+was replaced rather than promoted. Two consecutive direct-retry camera runs then retained identical
+camera pixels across the cancelled no-op, and both complete cleaned-product batteries pass:
+
+- `ledger/buildlogs/20260828T104438-3038959.log` / `20260828T104754-3040605.log`;
+- `ledger/buildlogs/20260828T105159-3045167.log` / `20260828T105527-3046830.log`.
+
+The final run covers 41 steps, 98 native-state samples, 292 validated presentations, 9/9 workspace
+transitions, two byte-identical known-pose comparisons across viewport/text/UI detail regions, and
+native move/undo, with zero hard completeness warnings or page errors. The unchanged modal family
+passes 80 constraint submissions across extrusion/move/rotate/scale and 12 modal presents
+(`ledger/buildlogs/20260828T110032-3050686.log`, `20260828T110116-3051290.log`). Shrink/restore
+retains two coherent resize barriers and no rejection
+(`ledger/buildlogs/20260828T110127-3051370.log`). The final relink and committed-state no-work proof
+are `ledger/buildlogs/20260828T104933-3041807.log` and
+`ledger/buildlogs/20260828T105754-3048339.log`.
+
+Exact CAPTURE identities:
+
+- `blender_browser.js`: `c8e0c4a3ce3a` (708,076 bytes)
+- `blender_browser.wasm`: `03f17d6862a2` (120,332,263 bytes)
+- `blender_browser.wasm.orig`: `96cb55a62707` (118,983,629 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `497deb8505be` (13,325 bytes)
+
+This is the exact next Apple candidate, not hardware closure. The driver must provide at least two
+clean `--hardware-series` original-freeze/cumulative diagnostics for this generation, plus modal
+artifact and P0-D/E/F/resize regressions with intact scene/text pixels and
+`incompleteBindGroups=[]`.
+
+The direct M4 verifier therefore remains honestly red at the unsupported hardware receipt binding
+(`ledger/buildlogs/20260828T110357-3053068.log`). The authoritative pinned-container regression
+keeps M0 green at 6/6 and preserves every named M1-M8 strict/APPLY/hardware/product boundary
+(`ledger/buildlogs/20260828T110808-3055769.log`; suite timestamp 2026-08-28T11:08:12Z).

@@ -234,3 +234,54 @@ a1520b30a4a707ad689403d0d91ec91028be02df805faa5867ea5eec8ec75e55` and a fresh im
 label. This host's pass remains diagnostic-only. P0-I/J stay open until repeated Apple runs of the
 exact original-freeze and cumulative batteries retain scene/text pixels, trusted selection,
 modal artifacts, P0-E resize recovery, and `incompleteBindGroups=[]`.
+
+## Full trailing recovery after the last accepted input
+
+The first input-recovery candidate shared the asynchronous resource-readiness generation. That
+made its active-burst ceiling correct for lazy GPU publications but left one precise interaction
+gap: input accepted at heartbeat 179 of 180 consumed the old burst's final update instead of
+owning a new trailing budget. A draw dropped by that final orbit or click could therefore remain
+stale until another input or resource publication arrived.
+
+Commit `fe7bbf3` adds a distinct coalescible input-tail generation. Accepted move, supported
+button, nonzero wheel, and key callbacks advance both that owner and the existing aggregate retry
+counter exposed to the browser. One WM poll acknowledges the latest values, resets a complete
+180-tick tail even when an older readiness burst is active, and still keeps ordinary input out of
+resize's drawable episode and completed-frame barrier. Shader/resource readiness and repeated
+hard draw drops retain their existing active-burst ceiling, so only ongoing real interaction can
+extend the input tail; after input stops, it remains bounded.
+
+The exact tick-179 behavior fixture failed first because the input owner did not exist
+(`20260828T063444-2865242`). The final input source self-check, 70-mutation recovery contract, and
+68-case byte-identical native/Wasm integration are green
+(`20260828T064109-2875712`, `20260828T064109-2875738`). The loader semantic-content and resize
+source adjacencies remain green (`20260828T064143-2877568`, `20260828T064151-2877651`).
+
+The locked relink and committed-state no-work proof are green
+(`20260828T064200-2877695`, `20260828T065021-2883506`). Against that exact product, the unchanged
+41-step original-freeze/cumulative control and fail-closed analyzer pass with native state, same-pose
+pixels, final-orbit recovery, nine workspace transitions, and an empty all-shader hard-warning
+census (`20260828T064340-2878410`, `20260828T064650-2880737`). The first modal browser context
+closed without a page/backend signature (`20260828T064654-2880787`); one recorded unchanged
+fresh-context retry and its analyzer pass all four operators with clean settles
+(`20260828T064721-2881291`, `20260828T064756-2881710`). The exact shrink/restore recovery probe and
+REUSE 6.2.0 are green (`20260828T064806-2881778`, `20260828T064916-2883123`).
+
+Exact CAPTURE identities:
+
+- `blender_browser.js`: `4de9b95b0e7d`
+- `blender_browser.wasm`: `5b4933d440bf`
+- `blender_browser.wasm.orig`: `dbfad903a2be` (118,978,050 bytes)
+- `blender_browser.data`: `095d0ba748c3`
+- `blender_browser.split-build.json`: `0a551f2c8e81`
+
+This is a new device-free hardware candidate, not closure. The driver must run `--hardware` with
+`--expected-wasm-orig-sha256 dbfad903a2bee28d4fcfbb37e8912b42c8213ac408bcdf4c17c3121910dd24c8`
+and repeat the original-freeze/cumulative, modal, P0-E resize, and P0-D/F regressions with intact
+scene/text pixels and `incompleteBindGroups=[]`.
+
+The required direct M4 scope remains honestly RED at `browser_pixels`, and the initial host-oracle
+regression reproduced the known M0 3/6 environment boundary
+(`20260828T065119-2884454`, `20260828T065119-2884498`). The authoritative pinned-container rerun
+restores M0 6/6 while M1-M8 retain their named strict-receipt, browser-pixel, APPLY, and release
+boundaries (`20260828T065152-2884930`; suite timestamp 2026-08-28T06:51:55Z).

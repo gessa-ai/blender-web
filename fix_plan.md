@@ -3366,8 +3366,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input receipt; the software-only failed-pick fallback is explicitly canceled and returns to
   Cube-only selection with a coordinate-checked Outliner click. The exact fallback CAPTURE product
   passes 41 steps, both orbit recoveries, 9/9 transitions, two exact same-pose comparisons, and an
-  empty all-shader census. This is a stronger pending-hardware candidate, not closure. Closure still
-  requires repeated
+  empty all-shader census. **Full input-tail correction implemented (`fe7bbf3`):** the original
+  input hook shared resource-readiness semantics, so input arriving on tick 179/180 could spend the
+  old burst's final tick and leave its dropped frame stale. Accepted input now advances a distinct
+  generation plus the existing aggregate diagnostic counter; callbacks coalesce at the WM poll and
+  restart one complete bounded tail, while resource readiness retains its active-burst ceiling and
+  ordinary input remains outside resize's drawable barrier. The fail-first tick-179 case, 70-mutation
+  source contract, 68-case byte-identical native/Wasm model, exact original-freeze/cumulative replay,
+  modal four-operator settle, resize recovery, loader-content adjacency, committed-state relink, and
+  REUSE are green. The exact candidate is `.wasm.orig` SHA-256 `dbfad903a2be` (118,978,050 bytes).
+  This is a stronger pending-hardware candidate, not closure. Closure still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.

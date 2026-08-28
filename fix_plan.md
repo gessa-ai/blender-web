@@ -3323,9 +3323,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   after a non-null accepted publication; pending work, rejection, null publication, and cache hits
   emit none. An 18-mutation census, seven-case native/Wasm behavior contract, canonical replay, and
   the three real windowed object builds are green. This is a device-free candidate for partial or
-  stale first-use frames, not Apple pixel closure. The preceding exact candidate is `.wasm.orig`
-  SHA-256
-  `6b868aaf8522` (118,979,921 bytes). Neither device-free result hardware-closes P0-I/J. Apple must
+  stale first-use frames, not Apple pixel closure. The exact relinked patch-0300 candidate is
+  `.wasm.orig` SHA-256 `32881203c7ba` (118,977,585 bytes). Neither device-free result
+  hardware-closes P0-I/J. Apple must
   rerun the newly relinked exact candidate. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**

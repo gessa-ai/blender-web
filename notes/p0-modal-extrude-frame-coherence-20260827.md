@@ -326,6 +326,22 @@ cumulative-interaction, modal-operator, and P0-E regression batteries remain man
   `ledger/buildlogs/20260828T061015-2846772.log`,
   `ledger/buildlogs/20260828T061026-2846888.log`, and
   `ledger/buildlogs/20260828T061105-2849218.log`.
+- Committed-state CAPTURE relink, exact product preflight/no-work, unchanged cumulative replay,
+  modal trace, resize recovery, capture producer self-checks, REUSE, and pinned-container
+  regression:
+  `ledger/buildlogs/20260828T061436-2851144.log`,
+  `ledger/buildlogs/20260828T061600-2852412.log`,
+  `ledger/buildlogs/20260828T061604-2852443.log`,
+  `ledger/buildlogs/20260828T061624-2852562.log`,
+  `ledger/buildlogs/20260828T061933-2854276.log`,
+  `ledger/buildlogs/20260828T062002-2854534.log`,
+  `ledger/buildlogs/20260828T062036-2854993.log`,
+  `ledger/buildlogs/20260828T062041-2855027.log`,
+  `ledger/buildlogs/20260828T062210-2857484.log`,
+  `ledger/buildlogs/20260828T062229-2857655.log`,
+  `ledger/buildlogs/20260828T061321-2850604.log`,
+  `ledger/buildlogs/20260828T062418-2858804.log`, and
+  `ledger/buildlogs/20260828T062145-2856610.log`.
 
 The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
 `67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data
@@ -342,6 +358,10 @@ manifest `51810a386b3d`.
 The patch-0299 CAPTURE generation is bound by JS SHA-256 `a8bf85c309b4`, split Wasm
 `60a5f2dd7320`, `.wasm.orig` `6b868aaf8522` (118,979,921 bytes), data `095d0ba748c3`, and split
 manifest `7acc3bfa0912`.
+
+The patch-0300 CAPTURE generation is bound by JS SHA-256 `4de9b95b0e7d`, split Wasm
+`e8cc732ef28c`, `.wasm.orig` `32881203c7ba` (118,977,585 bytes), data `095d0ba748c3`, and split
+manifest `0f60d338dc84`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

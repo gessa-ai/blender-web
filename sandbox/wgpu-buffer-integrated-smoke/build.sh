@@ -72,6 +72,7 @@ source_digest()
     source/blender/gpu/webgpu/wgpu_buffer.hh
     source/blender/gpu/webgpu/wgpu_common.hh
     source/blender/gpu/webgpu/wgpu_context.cc
+    source/blender/gpu/webgpu/wgpu_context.hh
     source/blender/gpu/webgpu/wgpu_pixel_buffer.cc
     source/blender/gpu/webgpu/wgpu_pixel_buffer.hh
     source/blender/gpu/webgpu/wgpu_readback.cc
@@ -116,6 +117,8 @@ require_file "$PYBIN"
 require_file "$HOST_CMAKE"
 require_file "$ROOT/scripts/ninja-locked.sh"
 require_file "$ROOT/sandbox/series-replay/verify.py"
+require_file "$ROOT/sandbox/p0-interaction-stress/verify_buffer_texture_pending.py"
+require_file "$ROOT/sandbox/p0-interaction-stress/verify_buffer_texture_readback_pending.py"
 require_file "$HERE/integrated_buffer_test.cc"
 require_file "$HERE/integrated_index_test.cc"
 require_file "$HERE/extract_index_strip.py"
@@ -437,6 +440,8 @@ if ! "$PYBIN" -c 'import pyexpat, xml.etree.ElementTree' >/dev/null 2>&1; then
   echo "ERROR: pinned host Python lacks working XML modules" >&2
   exit 1
 fi
+"$PYBIN" "$ROOT/sandbox/p0-interaction-stress/verify_buffer_texture_pending.py"
+"$PYBIN" "$ROOT/sandbox/p0-interaction-stress/verify_buffer_texture_readback_pending.py"
 if [ "$("$HOST_CMAKE" --version | sed -n '1s/^cmake version //p')" != "4.0.3" ]; then
   echo "ERROR: expected host CMake 4.0.3" >&2
   exit 1
@@ -650,7 +655,7 @@ if [ "${BW_VERTEX_UPLOAD_ONLY:-0}" = "1" ]; then
     exit 1
   fi
   if ! grep -qx \
-    'CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B pending_intent=1' \
+    'CONTRACT vertex-upload-generation PASS cases=4 writes=6 order=A:B final=B pending_intent=1 pending_readback=1 redraw=1' \
     "$VERTEX_NATIVE_STDOUT"
   then
     echo "ERROR: pending buffer-texture PASS verdict missing" >&2
@@ -708,7 +713,7 @@ then
 fi
 for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
   if ! grep -qx \
-    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=3' \
+    'INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 index_upload_cases=7 vertex_generation_cases=4' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT index-point-restart PASS cases=4 removed=9 survivors=9 order=stable' \
@@ -735,7 +740,7 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT readback-command PASS cases=5 copies=4 submit_policy=native-validated/browser-same-turn scopes=complete completion=once' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B pending_intent=1' \
+    'CONTRACT vertex-upload-generation PASS cases=4 writes=6 order=A:B final=B pending_intent=1 pending_readback=1 redraw=1' \
     "$stdout_file"
   then
     echo "ERROR: integrated buffer PASS verdict missing: $stdout_file" >&2

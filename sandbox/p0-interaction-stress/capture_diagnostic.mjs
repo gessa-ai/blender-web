@@ -45,6 +45,8 @@ const REQUIRED_PRODUCT_FILES = Object.freeze([
 const SAME_POSE_CHANGED_FRACTION_LIMIT = 0.01;
 const TEXT_REGION_CHANGED_FRACTION_LIMIT = 0.002;
 const PIXEL_RECOVERY_TIMEOUT_MS = 12000;
+const PIXEL_STABLE_WINDOW_MS = 3000;
+const PIXEL_STABLE_SAMPLE_MS = 250;
 const ISOLATED_VIEW_KEYS = Object.freeze(["Numpad1", "Numpad3", "Numpad7", "Numpad0", "Numpad4"]);
 
 function isDescendant(parent, candidate) {
@@ -742,6 +744,23 @@ try {
     }
     throw new Error(`${label} stayed pixel-identical for ${PIXEL_RECOVERY_TIMEOUT_MS}ms`);
   };
+  const waitForCanvasStable = async (label) => {
+    const started = Date.now();
+    let previous = sha256(await canvas.screenshot());
+    let stableSince = Date.now();
+    while (Date.now() - started <= PIXEL_RECOVERY_TIMEOUT_MS) {
+      await page.waitForTimeout(PIXEL_STABLE_SAMPLE_MS);
+      const current = sha256(await canvas.screenshot());
+      if (current !== previous) {
+        previous = current;
+        stableSince = Date.now();
+      }
+      if (Date.now() - stableSince >= PIXEL_STABLE_WINDOW_MS) {
+        return Date.now() - started;
+      }
+    }
+    throw new Error(`${label} did not hold stable pixels for ${PIXEL_STABLE_WINDOW_MS}ms`);
+  };
   const canvasBox = await canvas.boundingBox();
   if (!canvasBox) throw new Error("canvas has no bounding box");
   const viewCenter = (state = latestState()) => {
@@ -994,7 +1013,13 @@ try {
       `isolated ${key} view transition`, 10000);
     }
     await page.waitForTimeout(500);
-    const sample = await capture(name, {isolatedInput: key, expectedEffect});
+    const pixelSettleMs = (key === "Numpad0" || key === "Numpad4") ?
+      await waitForCanvasStable(`isolated ${key} camera pixels`) : null;
+    const sample = await capture(name, {
+      isolatedInput: key,
+      expectedEffect,
+      ...(pixelSettleMs === null ? {} : {pixelSettleMs}),
+    });
     isolatedViews.push({
       key,
       expectedEffect,
@@ -1004,6 +1029,7 @@ try {
       perspective: sample.state.view_perspective,
       rotation: sample.state.view_rotation,
       sha256: sample.sha256,
+      ...(pixelSettleMs === null ? {} : {pixelSettleMs}),
     });
   }
 
@@ -1277,6 +1303,8 @@ try {
 
   const hardCompletenessWarnings = consoleLines.filter((line) =>
     /assembled group-0 resources do not match surviving WGSL bindings/i.test(line));
+  const pendingCompletenessDiagnostics = consoleLines.filter((line) =>
+    /WGPUWeb-bind-pending shader=/i.test(line));
   const relevantWarnings = consoleLines.filter((line) =>
     /WGPUShader|WebGPU|reject|validation|device lost|Pointer Lock/i.test(line));
   const diagnostic = {
@@ -1334,6 +1362,7 @@ try {
     samePoseCanaries,
     postStressOperatorCanary,
     hardCompletenessWarnings,
+    pendingCompletenessDiagnostics,
     relevantWarnings: relevantWarnings.slice(-300),
     lifecycleEvents,
     pageErrors,

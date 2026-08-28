@@ -1015,6 +1015,6 @@ int main(const int argc, char **argv)
   std::printf(
       "INTEGRATED_BUFFER_PASS contracts=20 usage_cases=32 pixel_cases=7 exact_cap=256 "
       "buffer_create_cases=6 pending_payload_cases=6 buffer_update_cases=13 index_cases=4 "
-      "index_upload_cases=7 vertex_generation_cases=3\n");
+      "index_upload_cases=7 vertex_generation_cases=4\n");
   return 0;
 }

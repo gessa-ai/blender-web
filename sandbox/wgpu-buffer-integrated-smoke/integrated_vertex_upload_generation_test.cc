@@ -92,6 +92,7 @@ struct Trace {
   size_t binds = 0;
   size_t pending_binds = 0;
   size_t hard_missing_binds = 0;
+  size_t readback_redraws = 0;
   std::vector<uint8_t> bound_bytes;
   std::vector<Write> writes;
 };
@@ -191,6 +192,21 @@ class Buffer {
     return device_bytes_;
   }
 
+  void defer_readback()
+  {
+    readback_pending_ = true;
+    readback_failed_ = false;
+  }
+
+  void settle_readback(const bool accepted)
+  {
+    readback_pending_ = false;
+    readback_failed_ = !accepted;
+    if (accepted && trace_ != nullptr) {
+      trace_->readback_redraws++;
+    }
+  }
+
   template<typename InstanceT, typename DeviceT>
   bool create_scoped(const InstanceT &,
                      const DeviceT &,
@@ -276,8 +292,15 @@ class Buffer {
                             const QueueT &,
                             SchedulerT &,
                             const size_t offset,
-                            const size_t size) const
+                            const size_t size,
+                            bool *r_pending = nullptr) const
   {
+    if (r_pending != nullptr) {
+      *r_pending = readback_pending_;
+    }
+    if (readback_pending_ || readback_failed_) {
+      return {};
+    }
     if (!valid_ || offset > device_bytes_.size() || size > device_bytes_.size() - offset) {
       return {};
     }
@@ -292,6 +315,8 @@ class Buffer {
   bool valid_ = false;
   bool creation_pending_ = false;
   bool defer_updates_ = false;
+  bool readback_pending_ = false;
+  bool readback_failed_ = false;
   std::vector<uint8_t> device_bytes_;
   std::deque<std::function<void(bool)>> completions_;
   ::blender::gpu::webgpu::PendingBufferPayloadQueue<int> pending_;
@@ -331,12 +356,13 @@ class WGPUContext {
   void buffer_ssbo_bind(int,
                         webgpu::Buffer *buffer,
                         BufferSSBOBindKind,
-                        const webgpu::Buffer *pending_dependency = nullptr)
+                        const webgpu::Buffer *pending_dependency = nullptr,
+                        const bool pending_external = false)
   {
     const bool dependency_pending =
         pending_dependency != nullptr &&
         pending_dependency->creation_pending_or_retryable();
-    if (dependency_pending ||
+    if (pending_external || dependency_pending ||
         (!buffer->valid() && buffer->creation_pending_or_retryable()))
     {
       trace_->pending_binds++;
@@ -453,6 +479,16 @@ class VertexFrontendHarness {
   void settle_primary_creation(const bool accepted)
   {
     buffer_.settle_creation(accepted);
+  }
+
+  void defer_primary_readback()
+  {
+    buffer_.defer_readback();
+  }
+
+  void settle_primary_readback(const bool accepted)
+  {
+    buffer_.settle_readback(accepted);
   }
 
   bool dirty() const
@@ -711,19 +747,49 @@ bool pending_float_texture_bind_intent_contract()
                             "accepted primary allocation publishes expanded sampler binding");
 }
 
+bool pending_float_texture_readback_contract()
+{
+  constexpr std::array<float, 2> sentinel = {-12.25f, 48.5f};
+  const std::vector<uint8_t> source = bytes_of(sentinel);
+  const std::vector<uint8_t> expanded = expanded_float_bytes(sentinel);
+  Trace trace;
+  vertex_generation_contract::WGPUContext context(trace);
+  vertex_generation_contract::active_context_value = &context;
+  VertexFrontendHarness vertex(
+      trace, vertex_generation_contract::GPU_USAGE_DYNAMIC, 1, source, source, false);
+
+  vertex.defer_primary_readback();
+  vertex.bind_as_texture(11);
+  if (!require_generation(trace.pending_binds == 1 && trace.binds == 0 &&
+                              trace.hard_missing_binds == 0 && trace.readback_redraws == 0,
+                          "float sampler binding survives primary readback pending"))
+  {
+    return false;
+  }
+
+  vertex.settle_primary_readback(true);
+  vertex.bind_as_texture(11);
+  vertex_generation_contract::active_context_value = nullptr;
+  return require_generation(trace.pending_binds == 1 && trace.binds == 1 &&
+                                trace.hard_missing_binds == 0 &&
+                                trace.readback_redraws == 1 && trace.bound_bytes == expanded,
+                            "readback readiness redraw publishes expanded sampler binding");
+}
+
 }  // namespace
 
 bool run_vertex_upload_generation_contracts()
 {
   if (!ordinary_generation_contract() || !float_texture_generation_contract() ||
-      !pending_float_texture_bind_intent_contract())
+      !pending_float_texture_bind_intent_contract() ||
+      !pending_float_texture_readback_contract())
   {
     vertex_generation_contract::active_context_value = nullptr;
     return false;
   }
   std::puts(
-      "CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B "
-      "pending_intent=1");
+      "CONTRACT vertex-upload-generation PASS cases=4 writes=6 order=A:B final=B "
+      "pending_intent=1 pending_readback=1 redraw=1");
   return true;
 }
 

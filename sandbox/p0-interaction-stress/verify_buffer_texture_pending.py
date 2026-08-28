@@ -57,14 +57,19 @@ def validate(vertex: str, header: str, context: str, series: str, patch: str) ->
         raise ValueError("expanded allocation/update pending exits lost their dependency")
 
     bound_struct = "const webgpu::Buffer *pending_dependency = nullptr;"
-    signature = "const webgpu::Buffer *pending_dependency = nullptr)"
-    initializer = "slot, buffer, pending_dependency, kind, ++storage_bind_serial_"
+    signature = (
+        "const webgpu::Buffer *pending_dependency = nullptr,\n"
+        "                        bool pending_external = false)"
+    )
+    initializer = (
+        "slot, buffer, pending_dependency, pending_external, kind, ++storage_bind_serial_"
+    )
     for marker in (bound_struct, signature, initializer):
         if header.count(marker) != 1:
             raise ValueError(f"bound-buffer dependency contract lost {marker}")
 
     candidate = "const webgpu::Buffer *pending_dependency;"
-    propagation = "record.buffer, record.pending_dependency"
+    propagation = "record.buffer,\n        record.pending_dependency"
     predicate = "item.second.pending_dependency->creation_pending_or_retryable()"
     for marker in (candidate, propagation, predicate):
         if context.count(marker) != 1:
@@ -104,14 +109,21 @@ def self_check(vertex: str, header: str, context: str, series: str, patch: str) 
          header, context, series, patch),
         (vertex, header.replace("const webgpu::Buffer *pending_dependency = nullptr;", "", 1),
          context, series, patch),
-        (vertex, header.replace("const webgpu::Buffer *pending_dependency = nullptr)",
-                                "const webgpu::Buffer *)", 1),
+        (vertex, header.replace(
+            "const webgpu::Buffer *pending_dependency = nullptr,\n"
+            "                        bool pending_external = false)",
+            "const webgpu::Buffer *)",
+            1,
+        ),
          context, series, patch),
-        (vertex, header.replace("slot, buffer, pending_dependency, kind, ++storage_bind_serial_",
-                                "slot, buffer, nullptr, kind, ++storage_bind_serial_", 1),
+        (vertex, header.replace(
+            "slot, buffer, pending_dependency, pending_external, kind, ++storage_bind_serial_",
+            "slot, buffer, nullptr, pending_external, kind, ++storage_bind_serial_",
+            1,
+        ),
          context, series, patch),
-        (vertex, header, context.replace("record.buffer, record.pending_dependency",
-                                         "record.buffer, nullptr", 1),
+        (vertex, header, context.replace("record.buffer,\n        record.pending_dependency",
+                                         "record.buffer,\n        nullptr", 1),
          series, patch),
         (vertex, header, context.replace(
             "item.second.pending_dependency->creation_pending_or_retryable()", "false", 1),

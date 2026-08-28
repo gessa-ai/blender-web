@@ -9,6 +9,7 @@ import copy
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any
 
@@ -196,6 +197,15 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
     hard_warnings = document.get("hardCompletenessWarnings")
     require(isinstance(hard_warnings, list), "hard completeness warning census is absent")
     require(not hard_warnings, f"hard completeness warnings remain: {hard_warnings[:3]}")
+    pending_diagnostics = document.get("pendingCompletenessDiagnostics")
+    require(isinstance(pending_diagnostics, list),
+            "pending completeness diagnostic census is absent")
+    pending_pattern = re.compile(
+        r"^\[bw\] WGPUWeb-bind-pending shader=.+ surviving=\[[0-9,]*\] "
+        r"assembled=\[[0-9,]*\] pending=\[[0-9,]*\]$")
+    require(all(isinstance(line, str) and pending_pattern.fullmatch(line)
+                for line in pending_diagnostics),
+            "pending completeness diagnostic is malformed")
     page_errors = document.get("pageErrors")
     lifecycle = document.get("lifecycleEvents")
     require(isinstance(page_errors, list) and not page_errors, f"page errors remain: {page_errors}")
@@ -273,6 +283,12 @@ def validate(document: dict[str, Any]) -> dict[str, int]:
             "isolated changing views did not all change pixels")
     require(views[4].get("sha256") == views[3].get("sha256"),
             "cancelled camera-view orbit unexpectedly changed pixels")
+    camera_settles = [view.get("pixelSettleMs") for view in views[3:]]
+    require(all(type(value) is int and 3000 <= value <= 12000 for value in camera_settles),
+            "camera-view stable-pixel windows are absent or out of bounds")
+    require([steps[name].get("pixelSettleMs") for name in ISOLATED_VIEW_STEPS[3:]] ==
+            camera_settles,
+            "camera-view stable-pixel evidence differs")
     sequences = [view.get("sequence") for view in views]
     require(all(type(sequence) is int and sequence > 0 for sequence in sequences),
             "isolated native view sequence is invalid")
@@ -591,6 +607,8 @@ def synthetic_document() -> dict[str, Any]:
             metadata["expectedEffect"] = (
                 "cancelled-in-camera-view" if key == "Numpad4" else "view-change"
             )
+            if key in {"Numpad0", "Numpad4"}:
+                metadata["pixelSettleMs"] = 3000
         if name == "02f-isolated-select-all":
             state["selected_count"] = 3
         if name in {"02i-isolated-click-select", "02j-isolated-move", "02k-isolated-undo",
@@ -694,6 +712,10 @@ def synthetic_document() -> dict[str, Any]:
             "perspective": perspective,
             "rotation": rotation,
             "sha256": step_by_name[name]["sha256"],
+            **(
+                {"pixelSettleMs": step_by_name[name]["pixelSettleMs"]}
+                if "pixelSettleMs" in step_by_name[name] else {}
+            ),
         })
     return {
         "schema": "blender-web.p0ij-interaction-stress.v2",
@@ -728,6 +750,7 @@ def synthetic_document() -> dict[str, Any]:
         "steps": steps,
         "states": [{}],
         "hardCompletenessWarnings": [],
+        "pendingCompletenessDiagnostics": [],
         "relevantWarnings": ["[bw] Pointer Lock request rejected; continuing without lock"],
         "lifecycleEvents": [],
         "pageErrors": [],
@@ -863,6 +886,7 @@ def self_check() -> int:
         lambda value: value.__setitem__("schema", "blender-web.p0ij-interaction-stress.v1"),
         lambda value: value["product"].__setitem__("state", "error"),
         lambda value: value["hardCompletenessWarnings"].append("incomplete"),
+        lambda value: value["pendingCompletenessDiagnostics"].append("malformed"),
         lambda value: value["pageErrors"].append("pageerror"),
         lambda value: step_named(value, "01-preflight-modeling-click").__setitem__(
             "workspaceAccepted", False),
@@ -887,6 +911,9 @@ def self_check() -> int:
         lambda value: value["isolationCanary"]["viewKeys"].__setitem__(4, "Numpad5"),
         lambda value: value["isolationCanary"]["views"][3].__setitem__(
             "perspective", "PERSP"),
+        lambda value: value["isolationCanary"]["views"][3].pop("pixelSettleMs"),
+        lambda value: step_named(value, "02e-isolated-camera-orbit-cancelled").__setitem__(
+            "pixelSettleMs", 2999),
         lambda value: value["isolationCanary"]["views"][1].__setitem__(
             "sha256", value["isolationCanary"]["views"][0]["sha256"]),
         lambda value: value["isolationCanary"].__setitem__("selectionCounts", [1, 0, 1]),

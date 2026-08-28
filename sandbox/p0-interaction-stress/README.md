@@ -39,6 +39,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_buffer_texture_pending.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_buffer_texture_readback_pending.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_auxiliary_cache_redraw.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_capture_contract.py --self-check
@@ -104,6 +106,13 @@ The adjacent buffer-texture contract verifies that patch 0298 preserves the even
 shaped backing plus its separate pending allocation dependency. In particular, float1-3 sampler
 buffers must wait for their expanded float4 backing rather than binding the smaller primary buffer.
 Its device-free PASS likewise binds only that state transition, not pixels.
+The readback-readiness sibling contract covers the next float1-3 transition: a valid primary VBO
+whose browser `MapAsync` readback has not settled yet. The eventual expanded float4 binding remains
+exactly Pending, and successful cache settlement publishes one bounded retry. A synchronous
+non-pending absence stays hard Incomplete; failed/canceled callbacks, ordinary cache callers, and
+exact ticket owners do not acquire a self-perpetuating redraw edge. The runtime also records each
+distinct pending shader/set signature once (up to 128) so a hardware interaction pass retains the
+full surviving/assembled/pending census without letting boot repetition consume the diagnostic.
 The adjacent input-recovery contract also requires the production aggregate retry export and a
 separate coalesced input-tail generation. Its tick-179 case proves the final accepted callback
 starts one complete bounded tail instead of inheriting the last tick of an older readiness burst;

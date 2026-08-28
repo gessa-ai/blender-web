@@ -1,0 +1,412 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+index 276e358..d19f4ae 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -410,8 +410,12 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+                                   const wgpu::Queue &queue,
+                                   OrderedQueueScheduler &scheduler,
+                                   size_t offset,
+-                                  size_t size) const
++                                  size_t size,
++                                  bool *r_pending) const
+ {
++  if (r_pending != nullptr) {
++    *r_pending = false;
++  }
+   std::vector<uint8_t> out;
+   const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
+   if (allocation == nullptr || !allocation.readable || size == 0) {
+@@ -437,10 +441,23 @@ std::vector<uint8_t> Buffer::read(const wgpu::Instance &instance,
+         readback::SourceKind::Buffer, this, uint64_t(offset), uint64_t(size)};
+     out.resize(size);
+     const bool hit = readback::take_settled(key, out.data(), size);
+-    readback::kick_buffer(
+-        instance, device, queue, scheduler, allocation.handle, key, offset, copy, size);
++    const readback::Ticket ticket = readback::kick_buffer(
++        instance,
++        device,
++        queue,
++        scheduler,
++        allocation.handle,
++        key,
++        offset,
++        copy,
++        size,
++        readback::RequestMode::Cache,
++        r_pending != nullptr);
+     if (!hit) {
+       out.clear();
++      if (r_pending != nullptr) {
++        *r_pending = readback::ticket_status(ticket) == readback::TicketStatus::Pending;
++      }
+     }
+     (void)instance;
+     return out;
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+index 42f6679..6af86c2 100644
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -97,13 +97,15 @@ class Buffer {
+   size_t retry_pending_updates();
+ 
+   /** Read `size` bytes at `offset` back to host via a MAP_READ staging buffer.
+-   * Requires the buffer was created `readable`. Blocks on the instance. */
++   * Requires the buffer was created `readable`. Native blocks on the instance; browser reads
++   * return empty while the cache request settles and report that state through `r_pending`. */
+   std::vector<uint8_t> read(const wgpu::Instance &instance,
+                             const wgpu::Device &device,
+                             const wgpu::Queue &queue,
+                             OrderedQueueScheduler &scheduler,
+                             size_t offset,
+-                            size_t size) const;
++                            size_t size,
++                            bool *r_pending = nullptr) const;
+ 
+   wgpu::Buffer handle() const
+   {
+diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
+index 1401b7b..d2ea7b1 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.cc
++++ b/source/blender/gpu/webgpu/wgpu_context.cc
+@@ -1089,6 +1089,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+   struct StorageCandidate {
+     const webgpu::Buffer *buffer;
+     const webgpu::Buffer *pending_dependency;
++    bool pending_external;
+     uint64_t serial;
+     int slot;
+   };
+@@ -1097,7 +1098,8 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+                                         shader::ShaderCreateInfo::Resource::BindType type,
+                                         uint64_t serial,
+                                         const webgpu::Buffer *buffer,
+-                                        const webgpu::Buffer *pending_dependency) {
++                                        const webgpu::Buffer *pending_dependency,
++                                        bool pending_external) {
+     const bool mapped = shader->slot_is_mapped(type, slot);
+     if (mapped != (pass == 0)) {
+       return; /* wrong pass for this bind flavor */
+@@ -1114,7 +1116,7 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+     auto winner = storage_candidates.find(b);
+     if (winner == storage_candidates.end() || serial > winner->second.serial) {
+       storage_candidates.insert_or_assign(
+-          b, StorageCandidate{buffer, pending_dependency, serial, slot});
++          b, StorageCandidate{buffer, pending_dependency, pending_external, serial, slot});
+     }
+   };
+ 
+@@ -1126,7 +1128,8 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+         shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER,
+         record.serial,
+         buffer,
+-        nullptr);
++        nullptr,
++        false);
+   }
+ 
+   for (const auto &item : bound_buffer_ssbos_) {
+@@ -1136,17 +1139,25 @@ void WGPUContext::append_resource_bind_entries(WGPUShader *shader,
+             shader::ShaderCreateInfo::Resource::BindType::SAMPLER :
+             shader::ShaderCreateInfo::Resource::BindType::STORAGE_BUFFER;
+     consider_storage_candidate(
+-        record.slot, type, record.serial, record.buffer, record.pending_dependency);
++        record.slot,
++        type,
++        record.serial,
++        record.buffer,
++        record.pending_dependency,
++        record.pending_external);
+   }
+ 
+   for (const auto &item : storage_candidates) {
+     const uint32_t b = item.first;
+     const webgpu::Buffer &buffer = *item.second.buffer;
+-    if (pass == 0 && item.second.pending_dependency != nullptr &&
+-        item.second.pending_dependency->creation_pending_or_retryable())
++    if (pass == 0 &&
++        (item.second.pending_external ||
++         (item.second.pending_dependency != nullptr &&
++          item.second.pending_dependency->creation_pending_or_retryable())))
+     {
+-      /* A derived binding can depend on a different first-use allocation. Keep the exact mapped
+-       * ID pending without binding the dependency itself under the derived resource's layout. */
++      /* A derived binding can depend on a different first-use allocation or an external
++       * asynchronous producer. Keep the exact mapped ID pending without binding the dependency
++       * itself under the derived resource's layout. */
+       claimed.insert(b);
+       r_pending_bindings.push_back(b);
+       continue;
+diff --git a/source/blender/gpu/webgpu/wgpu_context.hh b/source/blender/gpu/webgpu/wgpu_context.hh
+index cca2af4..90c48f6 100644
+--- a/source/blender/gpu/webgpu/wgpu_context.hh
++++ b/source/blender/gpu/webgpu/wgpu_context.hh
+@@ -60,6 +60,7 @@ class WGPUContext : public Context {
+     int slot = 0;
+     const webgpu::Buffer *buffer = nullptr;
+     const webgpu::Buffer *pending_dependency = nullptr;
++    bool pending_external = false;
+     BufferSSBOBindKind kind = BufferSSBOBindKind::Storage;
+     uint64_t serial = 0;
+   };
+@@ -160,18 +161,21 @@ class WGPUContext : public Context {
+    * webgpu::Buffer they own is recorded here keyed by the typed frontend slot and
+    * added to the group-0 bind group alongside the StorageBufs. Storage and Sampler
+    * slots are distinct namespaces until shader remapping; the shared serial lets the
+-   * newest valid bind win if they converge on one dense storage binding. */
++   * newest valid bind win if they converge on one dense storage binding. A derived
++   * buffer may additionally be pending on either another allocation or an external
++   * asynchronous producer such as a browser readback. */
+   void buffer_ssbo_bind(int slot,
+                         const webgpu::Buffer *buffer,
+                         BufferSSBOBindKind kind,
+-                        const webgpu::Buffer *pending_dependency = nullptr)
++                        const webgpu::Buffer *pending_dependency = nullptr,
++                        bool pending_external = false)
+   {
+     const uint64_t key = (uint64_t(kind) << 32) | uint32_t(slot);
+     if (kind == BufferSSBOBindKind::Storage) {
+       bound_storage_buffers_.erase(slot);
+     }
+     bound_buffer_ssbos_[key] = {
+-        slot, buffer, pending_dependency, kind, ++storage_bind_serial_};
++        slot, buffer, pending_dependency, pending_external, kind, ++storage_bind_serial_};
+   }
+   void buffer_ssbo_unbind(const webgpu::Buffer *buffer)
+   {
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
+index d4e2175..f02575d 100644
+--- a/source/blender/gpu/webgpu/wgpu_readback.cc
++++ b/source/blender/gpu/webgpu/wgpu_readback.cc
+@@ -18,6 +18,7 @@
+ 
+ #include <algorithm>
+ #include <atomic>
++#include <cstdio>
+ #include <cstring>
+ #include <deque>
+ #include <limits>
+@@ -27,10 +28,21 @@
+ #include <utility>
+ #include <vector>
+ 
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ namespace blender::gpu::webgpu::readback {
+ 
+ namespace {
+ 
++static void request_webgpu_redraw_retry()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::request_redraw_retry();
++#endif
++}
++
+ constexpr size_t kMaxInFlight = 64;
+ constexpr size_t kMaxInFlightBytes = size_t(512) * 1024 * 1024;
+ constexpr size_t kMaxSettled = 128;
+@@ -98,6 +110,7 @@ struct Pending {
+   size_t result_size = 0;
+   size_t want = 0;
+   bool is_buffer = false;
++  bool redraw_on_ready = false;
+   std::atomic_bool orphaned{false};
+ };
+ 
+@@ -402,7 +415,9 @@ Ticket failed_ticket(RequestMode mode, const SourceKey &key, TicketError error)
+   return allocate_ticket_locked(reg, mode, key, TicketStatus::Failed, error);
+ }
+ 
+-Ticket cache_pending_ticket_locked(Registry &reg, const SourceKey &key)
++Ticket cache_pending_ticket_locked(Registry &reg,
++                                   const SourceKey &key,
++                                   const bool redraw_on_ready = false)
+ {
+   const auto found = reg.cache_pending.find(key);
+   if (found == reg.cache_pending.end()) {
+@@ -415,6 +430,7 @@ Ticket cache_pending_ticket_locked(Registry &reg, const SourceKey &key)
+     reg.cache_pending.erase(found);
+     return kInvalidTicket;
+   }
++  pending->redraw_on_ready = pending->redraw_on_ready || redraw_on_ready;
+   return pending->ticket;
+ }
+ 
+@@ -429,6 +445,7 @@ void complete_pending(const std::shared_ptr<Pending> &pending, wgpu::MapAsyncSta
+ {
+   TicketError completion_error = TicketError::None;
+   std::vector<uint8_t> tight;
++  bool publish_cache_redraw = false;
+ 
+   if (map_status != wgpu::MapAsyncStatus::Success) {
+     completion_error = TicketError::MapFailed;
+@@ -514,10 +531,27 @@ void complete_pending(const std::shared_ptr<Pending> &pending, wgpu::MapAsyncSta
+         reg.settled_order.push_back(pending->key);
+         reg.cache_payload_bytes += record.bytes->size();
+         evict_settled_locked(reg);
++        publish_cache_redraw = pending->redraw_on_ready;
+       }
+     }
+     evict_cache_tickets_locked(reg);
+   }
++  /* A cache caller already returned without the requested bytes. Once those bytes become live,
++   * publish one coalescible bounded retry so the abandoned draw/operator can consume them. Exact
++   * tickets have explicit poll/consume owners and must not create an unrelated redraw edge. */
++  if (publish_cache_redraw) {
++#ifdef __EMSCRIPTEN__
++    static std::atomic<uint32_t> readiness_log_count{0};
++    const uint32_t log_index = readiness_log_count.fetch_add(1u, std::memory_order_relaxed);
++    if (log_index < 64u) {
++      std::printf("[bw] WGPUWeb-buffer-readback-ready source=%p offset=%llu bytes=%llu\n",
++                  pending->key.obj,
++                  static_cast<unsigned long long>(pending->key.sub),
++                  static_cast<unsigned long long>(pending->key.span));
++    }
++#endif
++    request_webgpu_redraw_retry();
++  }
+ }
+ 
+ bool reserve_pending(const std::shared_ptr<Pending> &pending)
+@@ -526,7 +560,8 @@ bool reserve_pending(const std::shared_ptr<Pending> &pending)
+   std::lock_guard lock(reg.mutex);
+ 
+   if (pending->mode == RequestMode::Cache) {
+-    const Ticket existing = cache_pending_ticket_locked(reg, pending->key);
++    const Ticket existing = cache_pending_ticket_locked(
++        reg, pending->key, pending->redraw_on_ready);
+     if (existing != kInvalidTicket) {
+       pending->ticket = existing;
+       return false;
+@@ -758,7 +793,8 @@ Ticket kick_buffer(const wgpu::Instance &instance,
+                    uint64_t offset,
+                    uint64_t copy,
+                    uint64_t want,
+-                   RequestMode mode)
++                   RequestMode mode,
++                   bool redraw_on_ready)
+ {
+   const uint64_t handle_size = (handle != nullptr) ? handle.GetSize() : 0;
+   wgpu::Limits device_limits = {};
+@@ -778,7 +814,7 @@ Ticket kick_buffer(const wgpu::Instance &instance,
+   if (mode == RequestMode::Cache) {
+     Registry &reg = registry();
+     std::lock_guard lock(reg.mutex);
+-    if (const Ticket existing = cache_pending_ticket_locked(reg, key);
++    if (const Ticket existing = cache_pending_ticket_locked(reg, key, redraw_on_ready);
+         existing != kInvalidTicket)
+     {
+       return existing;
+@@ -789,6 +825,7 @@ Ticket kick_buffer(const wgpu::Instance &instance,
+   pending->mode = mode;
+   pending->key = key;
+   pending->buffer_pin = handle;
++  pending->redraw_on_ready = redraw_on_ready;
+   pending->staging_size = size_t(copy);
+   pending->result_size = size_t(want);
+   pending->want = size_t(want);
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.hh b/source/blender/gpu/webgpu/wgpu_readback.hh
+index 9725731..ec9130e 100644
+--- a/source/blender/gpu/webgpu/wgpu_readback.hh
++++ b/source/blender/gpu/webgpu/wgpu_readback.hh
+@@ -168,7 +168,8 @@ Ticket kick_texture(const wgpu::Instance &instance,
+  * `MapAsync(AllowSpontaneous)`. `want` (<= copy) bytes are latched under `key` when the
+  * map resolves. The underlying buffer handle is pinned in the record so its raw address
+  * cannot be reused before its callback completes. Cache mode reuses an identical
+- * in-flight key; exact mode always creates a new ticket and copy. */
++ * in-flight key; exact mode always creates a new ticket and copy. `redraw_on_ready` lets an
++ * abandoned cache caller request one bounded retry after successful settlement. */
+ Ticket kick_buffer(const wgpu::Instance &instance,
+                    const wgpu::Device &device,
+                    const wgpu::Queue &queue,
+@@ -178,7 +179,8 @@ Ticket kick_buffer(const wgpu::Instance &instance,
+                    uint64_t offset,
+                    uint64_t copy,
+                    uint64_t want,
+-                   RequestMode mode = RequestMode::Cache);
++                   RequestMode mode = RequestMode::Cache,
++                   bool redraw_on_ready = false);
+ 
+ /** CONSUME the latched device bytes for `key`, if a settled record exists whose payload
+  * is exactly `dst_len` bytes. Copies into `dst` and returns true (the record is kept so
+diff --git a/source/blender/gpu/webgpu/wgpu_shader.cc b/source/blender/gpu/webgpu/wgpu_shader.cc
+index 57164a1..6805289 100644
+--- a/source/blender/gpu/webgpu/wgpu_shader.cc
++++ b/source/blender/gpu/webgpu/wgpu_shader.cc
+@@ -34,6 +34,7 @@
+ #include <algorithm>
+ #include <atomic>
+ #include <cctype>
++#include <cstdio>
+ #include <cstring>
+ #include <functional>
+ #include <sstream>
+@@ -2697,6 +2698,36 @@ bool WGPUShader::bind_group_entries_complete(
+ 
+   note_webgpu_draw_drop();
+   if (status == webgpu::BindGroupBindingStatus::Pending) {
++    static std::unordered_set<std::string> pending_log_signatures;
++    if (pending_log_signatures.size() < 128u) {
++      const auto ids = [](std::vector<uint32_t> bindings) {
++        std::sort(bindings.begin(), bindings.end());
++        bindings.erase(std::unique(bindings.begin(), bindings.end()), bindings.end());
++        std::ostringstream stream;
++        stream << '[';
++        for (size_t index = 0; index < bindings.size(); index++) {
++          if (index != 0) {
++            stream << ',';
++          }
++          stream << bindings[index];
++        }
++        stream << ']';
++        return stream.str();
++      };
++      const std::string surviving = ids(surviving_bindings_);
++      const std::string assembled = ids(assembled_bindings);
++      const std::string pending = ids(pending_bindings);
++      const std::string shader_name = name_get();
++      const std::string signature =
++          shader_name + '|' + surviving + '|' + assembled + '|' + pending;
++      if (pending_log_signatures.insert(signature).second) {
++        std::printf("[bw] WGPUWeb-bind-pending shader=%s surviving=%s assembled=%s pending=%s\n",
++                    shader_name.c_str(),
++                    surviving.c_str(),
++                    assembled.c_str(),
++                    pending.c_str());
++      }
++    }
+     /* Browser validation has not published one or more buffers that are already bound to these
+      * exact surviving IDs. This is a deferred draw, not a malformed resource set. The buffer's
+      * successful publication emits the one readiness edge that retries it; the drop itself stays
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+index 33e384e..88a413e 100644
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -530,13 +530,24 @@ void WGPUVertexBuffer::bind_as_texture(uint binding)
+   }
+   if (needs_float_expansion) {
+     if (buffer_texture_buffer_dirty_ || !buffer_texture_buffer_.valid()) {
++      bool source_pending = false;
+       const std::vector<uint8_t> source = buffer_.read(ctx->instance_get(),
+                                                        ctx->device_get(),
+                                                        ctx->queue_get(),
+                                                        ctx->queue_scheduler_get(),
+                                                        0,
+-                                                       size_used_get());
++                                                       size_used_get(),
++                                                       &source_pending);
+       if (source.empty()) {
++        /* The expanded vec4 backing cannot be created until browser MapAsync returns the primary
++         * bytes. Retain the eventual binding now and classify only that exact mapped ID Pending;
++         * readback settlement publishes the bounded retry that revisits this bind. A failed read
++         * records the same intent as non-pending, preserving the hard incomplete diagnostic. */
++        ctx->buffer_ssbo_bind(int(binding),
++                              binding_buffer,
++                              WGPUContext::BufferSSBOBindKind::Sampler,
++                              nullptr,
++                              source_pending);
+         return;
+       }
+       const GPUVertAttr &attr = format.attrs[0];

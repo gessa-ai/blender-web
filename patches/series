@@ -1206,3 +1206,6 @@
 # 0300: publish one bounded redraw-readiness edge when a persistent auxiliary GPU cache miss
 # becomes usable, so first-use clear/blit/dummy/fan work cannot leave a region stale at idle.
 0300-gpu-webgpu-auxiliary-cache-redraw-readiness.patch
+# 0301: retain a float buffer-texture binding while its browser readback is pending, publish one
+# bounded retry on readiness, and retain one bounded census row per distinct pending shader set.
+0301-gpu-webgpu-buffer-texture-readback-readiness.patch

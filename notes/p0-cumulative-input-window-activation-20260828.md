@@ -285,3 +285,29 @@ regression reproduced the known M0 3/6 environment boundary
 (`20260828T065119-2884454`, `20260828T065119-2884498`). The authoritative pinned-container rerun
 restores M0 6/6 while M1-M8 retain their named strict-receipt, browser-pixel, APPLY, and release
 boundaries (`20260828T065152-2884930`; suite timestamp 2026-08-28T06:51:55Z).
+
+## Repeated hardware evidence series
+
+Commit `3d1d799` makes the filed "repeated clean hardware verification" bar machine-checkable.
+`analyze_diagnostic.py --hardware-series` requires at least two distinct evidence paths and reruns
+the complete P0-I/J single-receipt contract for every document. It additionally requires unique run
+labels and valid unique UTC capture timestamps, then holds the producer, pinned browser stack,
+accepted Apple adapter, local/served split generation, and all five product files byte-identical
+across the series. A fallback receipt, one passing run, duplicated evidence, or mixed candidate can
+no longer satisfy the closure wording.
+
+The original multi-path invocation failed first (`20260828T070003-2890932`). Final self-checks pass
+3 positive cases and reject 49 mutations, including 11 series-specific cases
+(`20260828T070234-2892188`, committed-state `20260828T070504-2894510`). The unchanged single-run
+diagnostic remains compatible (`20260828T070234-2892189`), while a repeated path fails before
+evidence parsing (`20260828T070234-2892192`). Producer/source self-checks and pinned REUSE 6.2.0 are
+green (`20260828T070326-2893141`, `20260828T070326-2893145`,
+`20260828T070352-2893323`).
+
+No runtime source or product byte changed: the CAPTURE identities remain JS `4de9b95b0e7d`, Wasm
+`5b4933d440bf`, `.wasm.orig` `dbfad903a2be`, data `095d0ba748c3`, and split manifest
+`0a551f2c8e81`. Direct M4 remains honestly RED at `browser_pixels`; the authoritative
+container-backed regression restores M0 6/6 and preserves every later named boundary at suite
+timestamp 2026-08-28T07:03:56Z. This contract does not hardware-close P0-I/J; the driver must still
+produce at least two clean Apple diagnostics against this exact generation and run the modal and
+resize regressions.

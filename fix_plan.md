@@ -3375,6 +3375,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   source contract, 68-case byte-identical native/Wasm model, exact original-freeze/cumulative replay,
   modal four-operator settle, resize recovery, loader-content adjacency, committed-state relink, and
   REUSE are green. The exact candidate is `.wasm.orig` SHA-256 `dbfad903a2be` (118,978,050 bytes).
+  **Repeated-hardware gate implemented (`3d1d799`):** the analyzer now accepts an explicit
+  `--hardware-series` of at least two immutable diagnostics, reruns the complete single-run contract
+  for each, and rejects duplicate evidence paths/run labels/timestamps or any producer, pinned
+  browser stack, accepted Apple adapter, local/served generation, or five-file product-identity
+  drift. The 3-positive/49-negative self-check and existing single-run diagnostic remain green.
+  This strengthens the already-required repeated Apple closure without binding a receipt itself;
+  the CAPTURE product and `dbfad903a2be` identity are unchanged.
   This is a stronger pending-hardware candidate, not closure. Closure still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See

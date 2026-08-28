@@ -11,9 +11,11 @@ transient region draws. Patch 0295 provides the first runtime candidate: browser
 command-buffer submissions happen in their JavaScript calling turn, while error-scope results
 remain asynchronous diagnostics. Patch 0296 adds the independently observed missing-compute-draw
 candidate: exact buffer binding intent survives asynchronous allocation, and only successful
-publication emits one bounded redraw-readiness edge. The fallback diagnostic completes with no
-page error or hard incomplete-group warning, but it binds no hardware pixel claim, receipt,
-profile, APPLY bundle, or release tag.
+publication emits one bounded redraw-readiness edge. Patch 0297 closes the same intent-loss window
+in typed vertex and index buffers after an exact cumulative-interaction run identified polyline
+bindings 0, 1, and 2 as missing. The fallback diagnostics complete with no page error or hard
+incomplete-group warning, but they bind no hardware pixel claim, receipt, profile, APPLY bundle,
+or release tag. A separately reproduced cumulative workspace-click failure remains open.
 
 The driver-operated Apple M4 Pro remains the pixel authority. Its accepted v0.1.1 candidate
 (`.wasm.orig` SHA-256 prefix `505702dbf41c`) shows multiple constraint-guide trails during modal
@@ -132,6 +134,46 @@ publication, accepted publication, one readiness edge, exact/missing/extra class
 native/Wasm parity. This repairs the observed resource-state distinction without weakening the
 all-shader receipt gate.
 
+## Typed geometry binding intent and cumulative interaction
+
+The filed production battery mixed navigation, workspace hit testing, and pixels, so the new
+diagnostic first binds every screenshot to Blender-native state. It records the active workspace,
+screen areas, mode and topology, live `VIEW_3D` rectangle, view transform, and the projected Cube
+position. It also proves that the exact Modeling-tab coordinate is accepted before navigation,
+then runs ten orbits, ten Shift-pans, ten wheel zooms, and all nine filed tab coordinates. A stock
+Frame Selected operation distinguishes a legitimately distant Cube from a missing geometry draw.
+Raw PNG byte size is never used as the visual verdict.
+
+On the pre-candidate product the scene remained alive and the Cube remained projected inside the
+view, but the all-shader census emitted six identical hard failures:
+
+```text
+WGPUShader 'gpu_shader_3D_polyline_flat_color': assembled group-0 resources do not match
+surviving WGSL bindings surviving=[0,1,2,3] assembled=[3] missing=[0,1,2] extra=[]
+```
+
+Binding 3 is the already-live push constant. Bindings 0, 1, and 2 are the polyline position,
+color, and index storage resources; a single `WGPUVertexBuffer` can supply the first two and the
+`WGPUIndexBuffer` supplies the third. Both typed `bind_as_ssbo()` frontends uploaded on first use
+and then returned whenever the WebGPU handle was not yet valid. In the browser, that includes the
+ordinary allocation-validation pending window, so the frontend never recorded the bindings and
+resource assembly could only see binding 3. This exactly repeats the intent-loss ordering class
+that patch 0296 repaired for storage/uniform buffers.
+
+Patch 0297 changes only that predicate: a valid or `creation_pending_or_retryable()` buffer records
+its exact SSBO slot. Existing assembly then classifies the exact pending IDs as `Pending`, keeps
+genuine unbound/extra resources as hard `Incomplete`, and retries after publication. The strict
+set-completeness gate is unchanged.
+
+After relinking, the final 21-step run records 74 Blender-native state changes, 121 presents,
+zero hard completeness warnings, zero page/lifecycle errors, a Cube projected inside every
+required `VIEW_3D` sample, byte-identical Frame Selected pixels at three and six seconds, and a
+pixel-changing final orbit. Visual inspection shows intact text, toolbar icons, grid, gizmo, and
+shaded Cube. The preflight Modeling click is accepted, but none of the eight later state-changing
+workspace clicks is accepted while Blender stays in Layout; the already-active Layout click is not
+counted as a transition. That is direct evidence for separate P0-J cumulative input/modal-state
+failure; patch 0297 neither claims nor receives credit for fixing it.
+
 ## Evidence and acceptance
 
 - Apple screenshots: `~/bw-logs/mac-capture-evidence-20260827-extrude-artifact/`.
@@ -172,10 +214,32 @@ all-shader receipt gate.
   `ledger/buildlogs/20260827T233933-2568490.log`,
   `ledger/buildlogs/20260827T234005-2568972.log`, and
   `ledger/buildlogs/20260827T234211-2570387.log`.
+- Cumulative interaction fail-first run with six exact polyline failures, source fail-first, and
+  final source mutation checks:
+  `ledger/buildlogs/20260828T000504-2587117.log`,
+  `ledger/buildlogs/20260828T001114-2591748.log`,
+  `ledger/buildlogs/20260828T001858-2595679.log`, and
+  `ledger/buildlogs/20260828T001858-2595686.log`.
+- Patch-0297 affected-object build, CAPTURE relink/no-work, final cumulative browser run, analyzer,
+  and analyzer self-check:
+  `ledger/buildlogs/20260828T001204-2592052.log`,
+  `ledger/buildlogs/20260828T001215-2592117.log`,
+  `ledger/buildlogs/20260828T001323-2592576.log`,
+  `ledger/buildlogs/20260828T002703-2604404.log`,
+  `ledger/buildlogs/20260828T002908-2605812.log`, and
+  `ledger/buildlogs/20260828T002908-2605813.log`.
+- Fresh canonical freeze/replay and focused buffer plus full pipeline parity:
+  `ledger/buildlogs/20260828T002036-2597024.log`,
+  `ledger/buildlogs/20260828T002119-2597501.log`, and
+  `ledger/buildlogs/20260828T002131-2598038.log`.
 
 The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
 `67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data
 `095d0ba748c3`, and split manifest `b6f4b5ff558c`.
+
+The patch-0297 CAPTURE generation retains JS/data identities and is bound by JS SHA-256
+`763dba372ec3`, split Wasm `e834745977a5`, `.wasm.orig` `8ff3a2d87544`, data
+`095d0ba748c3`, and split manifest `b6b4f8a0337f`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

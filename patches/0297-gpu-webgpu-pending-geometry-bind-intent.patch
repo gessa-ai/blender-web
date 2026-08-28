@@ -1,0 +1,24 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -140,7 +140,7 @@ void WGPUIndexBuffer::bind_as_ssbo(uint binding)
+   if (!buffer_.valid()) {
+     upload_data();
+   }
+-  if (!buffer_.valid()) {
++  if (!(buffer_.valid() || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+   if (WGPUContext *ctx = active_context()) {
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -473,7 +473,7 @@ void WGPUVertexBuffer::bind_as_ssbo(uint binding)
+     return;
+   }
+   upload_data();
+-  if (!buffer_.valid()) {
++  if (!(buffer_.valid() || buffer_.creation_pending_or_retryable())) {
+     return;
+   }
+   ctx->buffer_ssbo_bind(

@@ -1919,3 +1919,19 @@ names and arbitrary future names. A zero-warning receipt does not prove pixels b
 nonzero warning can never be compatible with a complete frame while every caller abandons the draw.
 See `upstream/source/blender/gpu/webgpu/wgpu_shader.cc` and
 `sandbox/m8-wasm-split/capture_blender_profile.mjs`.
+
+## Class 130 — typed buffer frontends can discard pending bind intent independently
+
+Signature: a general storage/uniform binding path correctly records a slot while browser buffer
+allocation is pending, yet a polyline or geometry shader still reports every vertex/index storage
+binding missing and only its push constant assembled. Vertex and index wrappers may each implement
+their own upload-then-bind frontend; a post-upload `valid()` return repeats the same intent-loss
+bug outside the generic buffer path. Treat pending allocation as an exact resource state, record
+the typed binding ID before handle publication, and let resource assembly distinguish exact
+pending IDs from genuinely unbound or extra resources. Do not weaken set completeness: a pending
+draw may retry, while any unaccounted missing/extra ID remains a hard draw drop and receipt failure.
+Bind the source predicate with mutation checks, census every shader at runtime, and retain
+conformant-hardware pixels as closure. See
+`upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_index_buffer.cc`, and
+`sandbox/p0-interaction-stress/`.

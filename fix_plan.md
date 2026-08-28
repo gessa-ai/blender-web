@@ -3282,9 +3282,30 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   indefinitely rearmed recovery ceiling. Focused native/Wasm buffer and full pipeline parity,
   canonical replay, final CAPTURE relink, and a zero-page-error/zero-hard-warning fallback modal
   run are green. This makes the receipt honest and provides a hardware candidate; it does not
-  hardware-close P0-I. Current-generation acceptance additionally requires
+  hardware-close P0-I. **Typed-geometry candidate implemented (patch 0297):** the cumulative
+  10-orbit/10-pan/10-zoom diagnostic first proves that the exact Modeling-tab coordinate works,
+  then binds screenshots to Blender-native workspace/region/Cube state. Before the candidate it
+  emitted six `gpu_shader_3D_polyline_flat_color` hard drops with surviving `[0,1,2,3]`, assembled
+  `[3]`, and missing `[0,1,2]`. Those three IDs are the polyline vertex/index storage resources:
+  their typed frontends repeated patch 0296's ordering bug by returning before recording SSBO
+  intent while first-use allocation was pending. Vertex and index binds now preserve that exact
+  pending intent. The relinked unchanged stress sequence has zero hard warnings/page errors,
+  coherent semantic pixels through Frame Selected plus final orbit, and a stable 3-to-6-second
+  settle. It still accepts 0/8 post-stress state-changing workspace clicks even though the
+  identical preflight click succeeds; that cumulative input/modal-state defect is explicitly open
+  and is not hidden inside the geometry-bind PASS. Apple pixels remain required for both the filed transient
+  artifact battery and closure. Current-generation acceptance additionally requires
   `incompleteBindGroups=[]`. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
+- [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
+  the exact Modeling-tab coordinate changes Blender's native active workspace before navigation,
+  but after 10 orbit + 10 Shift-pan + 10 wheel-zoom interactions, none of the eight other workspace
+  coordinates changes the native workspace; all remain Layout. This separates a cumulative
+  pointer/modal/hit-test failure from P0-I's polyline bind drops and from a visual screenshot
+  heuristic. Reproduce with `sandbox/p0-interaction-stress/capture_diagnostic.mjs`; inspect the
+  active modal handler, captured-pointer retirement, and header event admission before changing
+  coordinates or redraw code. Closure requires repeated trusted Apple input switching every tab
+  after the navigation battery, with scene/text pixels intact and P0-D/E/F regressions green.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

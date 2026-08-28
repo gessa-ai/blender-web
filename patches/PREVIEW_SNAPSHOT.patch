@@ -41196,7 +41196,7 @@ index 0000000000000000000000000000000000000000..fb405f61591c478d5a8772a203921ee0
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..81c0d4cf71872b15f211cbd9cbdb895481380b5f
+index 0000000000000000000000000000000000000000..488be1cfef49f1ab167c96b13d23b38442304fab
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
 @@ -0,0 +1,174 @@
@@ -41342,7 +41342,7 @@ index 0000000000000000000000000000000000000000..81c0d4cf71872b15f211cbd9cbdb8954
 +  if (!buffer_.valid()) {
 +    upload_data();
 +  }
-+  if (!buffer_.valid()) {
++  if (!(buffer_.valid() || buffer_.creation_pending_or_retryable())) {
 +    return;
 +  }
 +  if (WGPUContext *ctx = active_context()) {
@@ -53657,7 +53657,7 @@ index 0000000000000000000000000000000000000000..975a418eb8c0512a1a7285c8bc55467f
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f22e8a90d1561e3759134c03925f8baa6a0c683f
+index 0000000000000000000000000000000000000000..529e6f57140b5a860ab90703c568476e9928ede0
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
 @@ -0,0 +1,601 @@
@@ -54137,7 +54137,7 @@ index 0000000000000000000000000000000000000000..f22e8a90d1561e3759134c03925f8baa
 +    return;
 +  }
 +  upload_data();
-+  if (!buffer_.valid()) {
++  if (!(buffer_.valid() || buffer_.creation_pending_or_retryable())) {
 +    return;
 +  }
 +  ctx->buffer_ssbo_bind(

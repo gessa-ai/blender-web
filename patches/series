@@ -1194,3 +1194,6 @@
 # 0296: retain a bound buffer's exact group-0 ID while browser allocation validation is pending;
 # retry that transient draw without weakening hard missing/extra binding diagnostics.
 0296-gpu-webgpu-pending-bind-intent.patch
+# 0297: retain first-use vertex/index buffer binding intent while allocation is pending so
+# polyline position/color/index resources retry instead of hard-dropping the draw.
+0297-gpu-webgpu-pending-geometry-bind-intent.patch

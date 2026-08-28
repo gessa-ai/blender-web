@@ -181,3 +181,56 @@ This is a device-free control and an Apple-ready producer, not Apple evidence. P
 until the driver runs `--hardware` against exact `wasm.orig` `00aa3c159b63`, obtains both clean
 same-pose canaries with the transform/undo and all-shader census green, and retains the modal plus
 P0-E resize regressions.
+
+## Exact original-freeze replay and live recovery evidence
+
+Commit `c8ef725` upgrades the producer to schema v2 and puts the driver's tighter isolation before
+the cumulative battery: Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click,
+`G X 2 Enter`, undo, and a second MMB orbit. View records use the settled native state paired with
+their screenshots; the intermediate `PERSP` state emitted while entering camera view cannot be
+misattributed to the following Numpad4 no-op. Both orbits require changed native view rotation,
+changed pixels, and an increased production redraw-retry generation within 12 seconds.
+
+`GHOST_ContextWGPUWeb.cc` now exposes that retry generation read-only as
+`_bw_redraw_retry_count`. It is distinct from resize's drawable episode, so an interaction receipt
+cannot pass merely because source contains the callback or because a resize happened earlier. The
+source mutation contract binds the export back to `ghost_web::redraw_retry_generation()`.
+
+The exact SwiftShader control found and removed two test-only ambiguities without weakening Apple:
+
+- a failed software GPU pick leaves `VIEW3D_OT_select` asynchronous and can consume an immediate
+  fallback key; the diagnostic cancels that pick before using Select All as a liveness check;
+- Select All legitimately selects Camera, Cube, and Light, so a real Outliner click restores Cube
+  alone before Frame Selected establishes the visual reference. DOM top-left `(1150,106)` and
+  GHOST bottom-left `(1150,613)` coordinates must both match. Hardware may take neither fallback:
+  its trusted viewport click must select exactly Cube.
+
+The final unchanged fallback product run and consumer are green
+(`20260828T043125-2767382`, `20260828T043422-2768934`): 41 screenshots, 88 native-state samples,
+1,800 WM ticks, 171 presents, retry generation 2,273, 9/9 workspace transitions, two successful
+move/undo canaries, two byte-identical restored-pose comparisons, and zero hard completeness
+warnings, page errors, or lifecycle errors. The isolated orbits repainted after 484 ms and 74 ms
+while their retry generations advanced `576 -> 587` and `856 -> 867`.
+
+Source/analyzer mutation checks and syntax are green (`20260828T043121-2767317`,
+`20260828T042629-2764067`, `20260828T043121-2767316`). The integrated native/Wasm pipeline and
+GHOST suite is green at identical 5,751-byte output (`20260828T043640-2771241`); that run also
+corrects the stale resize consumer vocabulary from absolute counters to the post-boot delta
+variables introduced with `8f2e09b` (`20260828T043636-2771192`). REUSE 6.2.0 covers 2,767/2,767
+files (`20260828T043540-2770152`). Direct M4 remains hardware-binding red
+(`20260828T043655-2772604`), while container-backed regression restores M0 6/6 and keeps every later
+strict receipt/APPLY/product boundary red (`20260828T043734-2773083`).
+
+The committed-state locked relink is no-work (`20260828T043806-2774653`). Exact CAPTURE identities:
+
+- `blender_browser.js`: `08bbe627c1c5` (707,845 bytes)
+- `blender_browser.wasm`: `58d37a9786a6` (120,325,036 bytes)
+- `blender_browser.wasm.orig`: `a1520b30a4a7` (118,976,522 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `93c530fc5e7c` (13,325 bytes)
+
+Apple handoff uses `--hardware --expected-wasm-orig-sha256
+a1520b30a4a707ad689403d0d91ec91028be02df805faa5867ea5eec8ec75e55` and a fresh immutable run
+label. This host's pass remains diagnostic-only. P0-I/J stay open until repeated Apple runs of the
+exact original-freeze and cumulative batteries retain scene/text pixels, trusted selection,
+modal artifacts, P0-E resize recovery, and `incompleteBindGroups=[]`.

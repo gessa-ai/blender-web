@@ -14,6 +14,15 @@ and GHOST press coordinates are identical. Moving back into the canvas between t
 prevents a tooltip from turning the automation's settle delay into a false input failure; the
 fallback diagnostic also allows the real workspace layout time instead of queuing later clicks.
 
+Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
+Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a
+second MMB orbit. Each changing view is coupled to settled Blender-native perspective/rotation and
+new pixels. Each orbit must advance the read-only `_bw_redraw_retry_count` generation and change
+the canvas within the 12-second bounded recovery ceiling; the measured settle time is retained.
+Hardware must select exactly Cube through the trusted viewport click. SwiftShader may cancel its
+known asynchronous failed GPU pick, use Select All only as a liveness canary, then restore Cube-only
+selection through a real, coordinate-checked Outliner click before visual comparison begins.
+
 The default Linux run deliberately exercises the Apple-verified pointer-lock rejection fallback
 and forces SwiftShader. It is diagnostic-only and binds no hardware or pixel receipt.
 
@@ -64,8 +73,14 @@ adapters, verifies local and served split manifests against the requested `wasm.
 the immutable evidence directory only after those checks pass. Pointer lock may succeed or take the
 single bounded rejection fallback; either path must leave zero page errors.
 
+Hardware input receipts retain the five-second delivery bar. Only the explicitly non-receipt
+SwiftShader lane permits a 15-second workspace-event window for synchronous Shading workspace
+construction.
+
 The source contract verifies that vertex and index buffers preserve SSBO binding intent while
 first-use allocation is pending, and that numbered patch 0297 carries both changes. The original
 diagnostic emitted six `gpu_shader_3D_polyline_flat_color` failures with surviving bindings
 `[0,1,2,3]`, assembled bindings `[3]`, and missing bindings `[0,1,2]`. A device-free PASS proves the
 specific retry contract and does not close P0-I's required Apple-hardware pixel verification.
+The adjacent input-recovery contract also requires the production retry-generation export, so
+hardware evidence proves the callback path fired rather than accepting a source-only hook.

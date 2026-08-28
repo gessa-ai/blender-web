@@ -3327,8 +3327,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   interaction and after the final orbit, compares real full-region plus viewport-header/toolbar/
   Outliner/workspace-label pixels, and requires a post-stress native `G X 2` plus undo. The exact
   fallback product passes with pixel-exact VIEW_3D/detail regions, 9/9 workspace transitions,
-  move/undo, and zero hard warnings/page/lifecycle errors; this binds no hardware pixels. Closure
-  still requires repeated
+  move/undo, and zero hard warnings/page/lifecycle errors; this binds no hardware pixels.
+  **Original-freeze replay v2 implemented (`c8ef725`):** before the broad
+  battery the same producer now executes the driver's exact Numpad view/select/deselect/orbit/
+  click/transform/undo/orbit isolation, binds every action to settled native state plus pixels,
+  samples the shipped input-retry generation, and requires both orbits to repaint within the
+  bounded recovery window. Hardware keeps a strict trusted viewport Cube selection and five-second
+  input receipt; the software-only failed-pick fallback is explicitly canceled and returns to
+  Cube-only selection with a coordinate-checked Outliner click. The exact fallback CAPTURE product
+  passes 41 steps, both orbit recoveries, 9/9 transitions, two exact same-pose comparisons, and an
+  empty all-shader census. This is a stronger pending-hardware candidate, not closure. Closure still
+  requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.

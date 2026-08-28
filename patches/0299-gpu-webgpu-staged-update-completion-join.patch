@@ -1,0 +1,76 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -268,5 +268,48 @@ bool Buffer::update_allocation(PendingUpdateContext context,
+   /* Large path — dedicated staging buffer + CopyBufferToBuffer (the vk staging
+    * path for device-local buffers). */
++  struct StagedUpdateCompletion {
++    explicit StagedUpdateCompletion(std::function<void(bool)> completion)
++        : completion(std::move(completion))
++    {
++    }
++
++    void settle(const bool leg_valid)
++    {
++      std::function<void(bool)> callback;
++      bool result = false;
++      {
++        std::lock_guard lock(mutex);
++        if (!active) {
++          return;
++        }
++        valid = valid && leg_valid;
++        pending--;
++        if (pending != 0) {
++          return;
++        }
++        active = false;
++        result = valid;
++        callback = std::move(completion);
++      }
++      callback(result);
++    }
++
++    void abandon()
++    {
++      std::lock_guard lock(mutex);
++      active = false;
++      completion = {};
++    }
++
++    std::mutex mutex;
++    uint8_t pending = 2;
++    bool valid = true;
++    bool active = true;
++    std::function<void(bool)> completion;
++  };
++  auto joined_completion = std::make_shared<StagedUpdateCompletion>(std::move(complete));
++  auto settle = [joined_completion](const bool valid) { joined_completion->settle(valid); };
++
+   wgpu::BufferDescriptor sd = {};
+   sd.size = size;
+   sd.usage = wgpu::BufferUsage::CopySrc;
+@@ -277,12 +320,14 @@ bool Buffer::update_allocation(PendingUpdateContext context,
+       context.scheduler,
+       "staged buffer creation",
+       [&]() { return context.device.CreateBuffer(&sd); },
+-      [](const bool /*valid*/) {});
++      settle);
+   if (staging == nullptr) {
++    joined_completion->abandon();
+     return false;
+   }
+   void *mapped = staging.GetMappedRange(0, size);
+   if (mapped == nullptr) {
++    joined_completion->abandon();
+     return false;
+   }
+   std::memcpy(mapped, data, size);
+@@ -296,6 +341,6 @@ bool Buffer::update_allocation(PendingUpdateContext context,
+                                  encoder.CopyBufferToBuffer(
+                                      staging, 0, allocation.handle, offset, size);
+                                },
+-                               std::move(complete));
++                               std::move(settle));
+   return true;
+ }

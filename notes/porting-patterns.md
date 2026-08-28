@@ -1966,3 +1966,31 @@ expanded-publication transition in exact native/Wasm behavior, then retain hardw
 closure bar. See `upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`, and
 `sandbox/wgpu-buffer-integrated-smoke/`.
+
+## Class 133 — browser same-turn submission and native validation ordering are distinct contracts
+
+Signature: a shared command helper validates before queue submission on native Dawn, but its
+browser branch must submit a finished command buffer in the JavaScript calling turn so synchronous
+presentation cannot overtake frame work. A byte-identical test that expects native submit counts
+from Wasm then fails even though both runtime policies are deliberate. Encode the policy pair in
+one contract: native suppresses submit after an encoding-scope failure; browser submits any valid
+finished buffer before that asynchronous diagnostic arrives; both suppress null encoder/command
+handles, report a failed completion for either scope error, balance every pushed scope, and invoke
+completion exactly once. Keep native/Wasm evidence text identical by naming both policies rather
+than pretending their raw submit counts match. See
+`upstream/source/blender/gpu/webgpu/wgpu_common.hh` and
+`sandbox/wgpu-buffer-integrated-smoke/integrated_buffer_test.cc`.
+
+## Class 134 — same-turn commands must join separately validated transient resources
+
+Signature: browser command buffers must submit in the calling turn, but a staging resource used by
+that command was created under its own asynchronous error scope and scheduler gate. Ignoring the
+gate preserves queue order yet disconnects the payload transaction from resource rejection: clean
+command scopes can falsely commit bytes whose non-null staging handle later proves to be an error
+object. Keep the same-turn submission, but join the resource-creation and command-validation
+completions. Publish success exactly once only after both legs accept; either rejection retains the
+owned payload for a clean-epoch retry. Null creation or mapping remains a synchronous setup failure
+and must abandon the join before the caller's ordinary failure path runs. Exercise native's
+validation-ordered cancellation and browser's already-submitted path in one native/Wasm contract.
+See `upstream/source/blender/gpu/webgpu/wgpu_buffer.cc` and
+`sandbox/wgpu-buffer-integrated-smoke/integrated_buffer_update_test.cc`.

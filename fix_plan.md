@@ -3306,8 +3306,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   backing remains hard `Incomplete`; the completeness gate is unchanged. Fail-first/final exact
   native/Wasm behavior, source mutations, canonical replay, affected archive build, CAPTURE relink,
   and the 41-step fallback interaction replay are green with an empty hard-warning census. The
-  broader buffer suite independently retains its pre-existing `readback submit ordering` failure;
-  neither device-free result hardware-closes P0-I/J. Apple must rerun the exact candidate. See
+  broader buffer suite's adjacent stale `readback submit ordering` expectation is now reconciled:
+  native validates before submit while browser Wasm submits in-turn and joins later diagnostics;
+  both paths require balanced scopes and exactly-once completion. **Staged-update sibling candidate
+  implemented (patch 0299):** the newly reachable aggregate case then exposed a real fail-closed
+  gap: browser same-turn copy submission bypassed the staging resource's scheduler gate, so its
+  payload transaction could accept independently of a rejected non-null staging-buffer creation.
+  Resource and command validation now form one two-leg completion join; either rejection retains
+  the exact bytes for a clean retry without delaying browser submission. The aggregate native/Wasm
+  suite, canonical replay, affected object build, CAPTURE relink, and unchanged cumulative/modal/
+  resize fallback diagnostics are green. The exact candidate is `.wasm.orig` SHA-256
+  `6b868aaf8522` (118,979,921 bytes). Neither device-free result hardware-closes P0-I/J. Apple must
+  rerun the exact candidate. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md`.
 - [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,

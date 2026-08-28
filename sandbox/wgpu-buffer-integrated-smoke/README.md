@@ -37,7 +37,11 @@ the CPU-backed pixel-upload buffer's map/unmap and byte-preservation lifecycle, 
 readback registry's invalid-request lifecycle. A deterministic command transaction rejects null
 encoder and finished-command-buffer handles before copy, mapping, or submission; exact source
 checks bind both texture and buffer kicks to that helper and their terminal
-`CommandEncodingFailed` path. The index cases cover mixed and all-restart point lists,
+`CommandEncodingFailed` path. It also binds the backend-specific ordering contract explicitly:
+native Dawn submits only after a clean encoding scope, while browser Wasm submits a finished
+command buffer in the calling turn and joins asynchronous encoding/submission scope results for
+the completion verdict. Both paths require balanced scopes and exactly one completion callback.
+The index cases cover mixed and all-restart point lists,
 wide u32 indices, rebased u16 squeezing, build-on-device metadata, allocation failure
 and retry, and both u16 and u32 subrange binding plans (byte offset plus base vertex). Direct plans bind the
 subrange byte window; indirect plans bind offset zero because Blender's generated
@@ -56,8 +60,10 @@ aligned payloads and copy only unaligned payloads into zero-filled four-byte tra
 The mapped-buffer cases reject null/empty sources and a missing mapped range before copying or
 unmapping, then preserve exact payload and tail bytes on success. Direct and staged updates remain
 pending until their implementation scopes settle, retain exact bytes across rejection, and commit
-only after a clean-epoch retry is accepted; the deferred UBO keeps its owned host allocation over
-the same boundary. Exact source checks bind that
+only after a clean-epoch retry is accepted. Browser staging copies may submit in the calling turn,
+but their retained payload joins the independent staging-resource and command validations and
+cannot commit if either asynchronous leg rejects. The deferred UBO keeps its owned host allocation
+over the same boundary. Exact source checks bind that
 helper to both mapped buffers in the shipping depth-texture upload transaction, and bind the
 other helpers to limit-aware buffer creation, updates, readback, and the shipping
 vertex-to-storage copy path.

@@ -519,7 +519,11 @@ bool run_integrated_buffer_update_contracts()
                                     payload.size(),
                                     transaction) &&
                      transaction.pending() && buffer.pending_update_count() == 1 &&
+#ifdef __EMSCRIPTEN__
+                     scheduler.pending_count() == 0,
+#else
                      scheduler.pending_count() == 1,
+#endif
                  "direct upload remains pending until implementation scopes settle") ||
         !require(settle_scope_batch(trace, true) && transaction.accepted() &&
                      buffer.pending_update_count() == 0 && scheduler.pending_count() == 0,
@@ -590,14 +594,33 @@ bool run_integrated_buffer_update_contracts()
                                     caller.size(),
                                     transaction) &&
                      transaction.pending() && buffer.pending_update_count() == 1 &&
+#ifdef __EMSCRIPTEN__
+                     scheduler.pending_count() == 1 && trace.scope_callbacks.size() == 9 &&
+                     trace.error_scope_pushes == 9 && trace.error_scope_pops == 9 &&
+                     trace.uncaptured_errors == 0 && trace.submit_calls == 1,
+#else
                      scheduler.pending_count() == 2 && trace.scope_callbacks.size() == 6 &&
                      trace.error_scope_pushes == 6 && trace.error_scope_pops == 6 &&
                      trace.uncaptured_errors == 0 && trace.submit_calls == 0,
+#endif
                  "non-null staging error object is captured before dependent work"))
     {
       return false;
     }
     caller.assign(caller.size(), 0x3c);
+#ifdef __EMSCRIPTEN__
+    if (!require(settle_scope_batch(trace, false) && transaction.pending() &&
+                     buffer.pending_update_count() == 1 && scheduler.pending_count() == 0 &&
+                     trace.submit_calls == 1 && trace.uncaptured_errors == 0,
+                 "rejected browser staging resource remains joined to submitted command") ||
+        !require(settle_scope_batch(trace, true) && transaction.pending() &&
+                     trace.submit_calls == 1,
+                 "accepted browser submission scope still awaits encoding scope") ||
+        !require(settle_scope_batch(trace, true) && transaction.rejected() &&
+                     trace.scope_callbacks.empty() && scheduler.pending_count() == 0 &&
+                     trace.submit_calls == 1,
+                 "browser staging creation rejection prevents payload commit"))
+#else
     if (!require(settle_scope_batch(trace, false) && transaction.pending() &&
                      buffer.pending_update_count() == 1 && scheduler.pending_count() == 1 &&
                      trace.submit_calls == 0 && trace.uncaptured_errors == 0,
@@ -606,23 +629,41 @@ bool run_integrated_buffer_update_contracts()
                      trace.scope_callbacks.empty() && scheduler.pending_count() == 0 &&
                      trace.submit_calls == 0,
                  "settled command scopes cancel same-epoch work without submission"))
+#endif
     {
       return false;
     }
     trace.create_error_object = false;
     scheduler.begin_epoch();
     if (!require(buffer.retry_pending_updates() == 1 && transaction.pending() &&
+#ifdef __EMSCRIPTEN__
+                     trace.mapped_bytes == original && trace.scope_callbacks.size() == 9 &&
+                     trace.submit_calls == 2,
+#else
                      trace.mapped_bytes == original && trace.scope_callbacks.size() == 6,
+#endif
                  "clean epoch retries exact retained staging bytes") ||
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
+#ifdef __EMSCRIPTEN__
+                     trace.submit_calls == 2,
+#else
                      trace.submit_calls == 0,
+#endif
                  "accepted retry resource advances to command validation") ||
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
+#ifdef __EMSCRIPTEN__
+                     trace.submit_calls == 2,
+#else
                      trace.submit_calls == 1,
+#endif
                  "accepted retry encoding advances to submission validation") ||
         !require(settle_scope_batch(trace, true) && transaction.accepted() &&
                      buffer.pending_update_count() == 0 && scheduler.pending_count() == 0 &&
+#ifdef __EMSCRIPTEN__
+                     trace.error_scope_pushes == 18 && trace.error_scope_pops == 18 &&
+#else
                      trace.error_scope_pushes == 15 && trace.error_scope_pops == 15 &&
+#endif
                      trace.uncaptured_errors == 0,
                  "clean retry accepts with no uncaptured creation error"))
     {
@@ -646,19 +687,40 @@ bool run_integrated_buffer_update_contracts()
                                     caller.data(),
                                     caller.size(),
                                     transaction) &&
-                     transaction.pending() && trace.submit_calls == 0,
-                 "staged upload waits for encoding scopes before submission") ||
+                     transaction.pending() &&
+#ifdef __EMSCRIPTEN__
+                     trace.submit_calls == 1 && trace.scope_callbacks.size() == 9,
+                 "browser staged upload submits in-turn and retains validation join") ||
+#else
+                     trace.submit_calls == 0 && trace.scope_callbacks.size() == 6,
+                 "native staged upload waits for encoding scopes before submission") ||
+#endif
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
+#ifdef __EMSCRIPTEN__
+                     trace.submit_calls == 1,
+                 "browser staging creation accepts before command scopes settle") ||
+#else
                      trace.submit_calls == 0,
                  "accepted staging creation advances to encoding validation") ||
+#endif
+#ifdef __EMSCRIPTEN__
+        !require(settle_scope_batch(trace, false) && transaction.pending() &&
+                     trace.submit_calls == 1,
+                 "browser submission scope still awaits encoding validation"))
+#else
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
                      trace.submit_calls == 1,
                  "accepted encoding advances staged upload to submission validation"))
+#endif
     {
       return false;
     }
     caller.assign(caller.size(), 0x6b);
+#ifdef __EMSCRIPTEN__
+    if (!require(settle_scope_batch(trace, true) && transaction.rejected() &&
+#else
     if (!require(settle_scope_batch(trace, false) && transaction.rejected() &&
+#endif
                      buffer.pending_update_count() == 1,
                  "rejected staged submission retains owned bytes"))
     {
@@ -666,14 +728,27 @@ bool run_integrated_buffer_update_contracts()
     }
     scheduler.begin_epoch();
     if (!require(buffer.retry_pending_updates() == 1 && transaction.pending() &&
-                     trace.mapped_bytes == original,
+                     trace.mapped_bytes == original &&
+#ifdef __EMSCRIPTEN__
+                     trace.submit_calls == 2 && trace.scope_callbacks.size() == 9,
+#else
+                     trace.submit_calls == 1 && trace.scope_callbacks.size() == 6,
+#endif
                  "clean epoch remaps the exact retained staged bytes") ||
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
+#ifdef __EMSCRIPTEN__
+                     trace.submit_calls == 2,
+#else
                      trace.submit_calls == 1,
+#endif
                  "staged retry accepts resource creation before encoding") ||
         !require(settle_scope_batch(trace, true) && transaction.pending() &&
                      trace.submit_calls == 2,
+#ifdef __EMSCRIPTEN__
+                 "staged browser retry joins submission before encoding") ||
+#else
                  "staged retry validates encoding before its second submission") ||
+#endif
         !require(settle_scope_batch(trace, true) && transaction.accepted() &&
                      buffer.pending_update_count() == 0,
                  "accepted staged retry commits exact owned bytes"))
@@ -684,8 +759,8 @@ bool run_integrated_buffer_update_contracts()
 
   std::printf(
       "CONTRACT buffer-staging-map PASS cases=13 large_bytes=%zu map_failure=reject "
-      "error_object=blocked uncaptured=0 canceled=1 writes=validated submits=validated "
-      "retry=owned\n",
+      "error_object=blocked uncaptured=0 canceled=1 writes=validated "
+      "submits=native-validated/browser-same-turn join=resource+command retry=owned\n",
       large_payload.size());
   return true;
 }

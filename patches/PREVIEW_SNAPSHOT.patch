@@ -32915,10 +32915,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b3c8d536618b6d379bd101a4e69817fd7b4099b2
+index 0000000000000000000000000000000000000000..276e358031801fd8d64302b507d6f1bdeda21279
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,444 @@
+@@ -0,0 +1,489 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -33188,6 +33188,49 @@ index 0000000000000000000000000000000000000000..b3c8d536618b6d379bd101a4e69817fd
 +
 +  /* Large path — dedicated staging buffer + CopyBufferToBuffer (the vk staging
 +   * path for device-local buffers). */
++  struct StagedUpdateCompletion {
++    explicit StagedUpdateCompletion(std::function<void(bool)> completion)
++        : completion(std::move(completion))
++    {
++    }
++
++    void settle(const bool leg_valid)
++    {
++      std::function<void(bool)> callback;
++      bool result = false;
++      {
++        std::lock_guard lock(mutex);
++        if (!active) {
++          return;
++        }
++        valid = valid && leg_valid;
++        pending--;
++        if (pending != 0) {
++          return;
++        }
++        active = false;
++        result = valid;
++        callback = std::move(completion);
++      }
++      callback(result);
++    }
++
++    void abandon()
++    {
++      std::lock_guard lock(mutex);
++      active = false;
++      completion = {};
++    }
++
++    std::mutex mutex;
++    uint8_t pending = 2;
++    bool valid = true;
++    bool active = true;
++    std::function<void(bool)> completion;
++  };
++  auto joined_completion = std::make_shared<StagedUpdateCompletion>(std::move(complete));
++  auto settle = [joined_completion](const bool valid) { joined_completion->settle(valid); };
++
 +  wgpu::BufferDescriptor sd = {};
 +  sd.size = size;
 +  sd.usage = wgpu::BufferUsage::CopySrc;
@@ -33198,12 +33241,14 @@ index 0000000000000000000000000000000000000000..b3c8d536618b6d379bd101a4e69817fd
 +      context.scheduler,
 +      "staged buffer creation",
 +      [&]() { return context.device.CreateBuffer(&sd); },
-+      [](const bool /*valid*/) {});
++      settle);
 +  if (staging == nullptr) {
++    joined_completion->abandon();
 +    return false;
 +  }
 +  void *mapped = staging.GetMappedRange(0, size);
 +  if (mapped == nullptr) {
++    joined_completion->abandon();
 +    return false;
 +  }
 +  std::memcpy(mapped, data, size);
@@ -33217,7 +33262,7 @@ index 0000000000000000000000000000000000000000..b3c8d536618b6d379bd101a4e69817fd
 +                                 encoder.CopyBufferToBuffer(
 +                                     staging, 0, allocation.handle, offset, size);
 +                               },
-+                               std::move(complete));
++                               std::move(settle));
 +  return true;
 +}
 +

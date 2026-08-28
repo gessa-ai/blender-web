@@ -279,34 +279,57 @@ bool readback_command_transaction_contract()
     const ReadbackInstanceProbe instance;
     bw::OrderedQueueScheduler scheduler;
     bool result = false;
+    int completion_count = 0;
     bw::command_encode_submit_scoped(instance,
                                      device,
                                      queue,
                                      scheduler,
                                      nullptr,
                                      [](auto &encoder) { encoder.Copy(); },
-                                     [&](const bool valid) { result = valid; });
+                                     [&](const bool valid) {
+                                       result = valid;
+                                       completion_count++;
+                                     });
 
     const bool expect_success = failure == ReadbackCommandTrace::Failure::None;
     const int expect_copy = failure == ReadbackCommandTrace::Failure::Encoder ? 0 : 1;
     const int expect_finish = expect_copy;
+#ifdef __EMSCRIPTEN__
+    /* Browser error scopes are asynchronous diagnostics. A finished command buffer must enter
+     * the queue in this calling turn, including when the enclosing encoding scope later reports
+     * an error; otherwise a synchronous window present can overtake ordinary frame work. */
+    const int expect_submit =
+        failure == ReadbackCommandTrace::Failure::Encoder ||
+                failure == ReadbackCommandTrace::Failure::CommandBuffer ?
+            0 :
+            1;
+#else
+    /* Native Dawn settles the encoding scope before the ordered ticket may submit. */
     const int expect_submit =
         failure == ReadbackCommandTrace::Failure::None ||
                 failure == ReadbackCommandTrace::Failure::SubmissionScope ?
             1 :
             0;
+#endif
+    const int expect_scope_groups = expect_submit ? 2 : 1;
     if (!require(result == expect_success, "readback command result") ||
+        !require(completion_count == 1, "readback command completion count") ||
         !require(trace.encoder_creates == 1, "readback encoder creation count") ||
         !require(trace.copies == expect_copy, "readback copy ordering") ||
         !require(trace.finishes == expect_finish, "readback finish ordering") ||
         !require(trace.submits == expect_submit, "readback submit ordering") ||
+        !require(trace.scope_pushes == expect_scope_groups * 3,
+                 "readback scope push ordering") ||
+        !require(trace.scope_pops == expect_scope_groups * 3,
+                 "readback scope pop ordering") ||
         !require(scheduler.pending_count() == 0, "readback scheduler settles"))
     {
       return false;
     }
   }
 
-  std::printf("CONTRACT readback-command PASS cases=%zu copies=4 submits=1 scopes=complete\n",
+  std::printf("CONTRACT readback-command PASS cases=%zu copies=4 "
+              "submit_policy=native-validated/browser-same-turn scopes=complete completion=once\n",
               failures.size());
   return true;
 }

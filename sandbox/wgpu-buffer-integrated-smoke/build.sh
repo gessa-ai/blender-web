@@ -355,6 +355,15 @@ require_fixed_count 1 'std::memcpy(mapped, data, size);' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
 require_fixed_count 1 'wgpu::Buffer staging = transient_resource_create_scoped(' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'struct StagedUpdateCompletion {' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 \
+  'auto joined_completion = std::make_shared<StagedUpdateCompletion>(std::move(complete));' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 2 'joined_completion->abandon();' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
+require_fixed_count 1 'std::move(settle));' \
+  "$WEBGPU_SOURCE/wgpu_buffer.cc"
 STAGING_SCOPE_LINE="$(grep -nF 'wgpu::Buffer staging = transient_resource_create_scoped(' \
   "$WEBGPU_SOURCE/wgpu_buffer.cc" | cut -d: -f1)"
 STAGING_COMMAND_LINE="$(grep -nF 'command_encode_submit_scoped(context.instance,' \
@@ -717,13 +726,13 @@ for stdout_file in "$NATIVE_STDOUT" "$WASM_STDOUT"; do
     'CONTRACT pending-buffer-payload PASS cases=6 creates=6 payloads=12 order=fifo retry=retained bind_intent=pending concurrent_drainer=one final=E3' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT buffer-staging-map PASS cases=13 large_bytes=65540 map_failure=reject error_object=blocked uncaptured=0 canceled=1 writes=validated submits=validated retry=owned' \
+    'CONTRACT buffer-staging-map PASS cases=13 large_bytes=65540 map_failure=reject error_object=blocked uncaptured=0 canceled=1 writes=validated submits=native-validated/browser-same-turn join=resource+command retry=owned' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT mapped-buffer-write PASS cases=4 copied=8 map_failure=reject' \
     "$stdout_file" ||
      ! grep -qx \
-    'CONTRACT readback-command PASS cases=5 copies=4 submits=1 scopes=complete' \
+    'CONTRACT readback-command PASS cases=5 copies=4 submit_policy=native-validated/browser-same-turn scopes=complete completion=once' \
     "$stdout_file" ||
      ! grep -qx \
     'CONTRACT vertex-upload-generation PASS cases=3 writes=6 order=A:B final=B pending_intent=1' \

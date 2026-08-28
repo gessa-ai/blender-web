@@ -196,10 +196,14 @@ genuinely absent final buffer remains hard `Incomplete`; the set-completeness ga
 The extracted native fixture failed first at `float sampler binding survives primary allocation
 pending`. The final focused native/Wasm contract covers primary-pending intent, publication of the
 expanded bytes, and exact output parity. The full aggregate fixture reaches the new contract but
-still stops at its pre-existing `readback submit ordering` failure on two unchanged runs; the
-focused contract isolates this change without relabeling that adjacent failure. The shipping GPU
-archive, CAPTURE relink, and exact 41-step fallback replay are green with zero hard completeness
-warnings or page errors. Hardware pixels remain the closure authority.
+first exposed a stale expectation and then a real browser-only transaction gap. Native Dawn
+validates before submit, while browser Wasm intentionally submits in the calling turn and joins
+asynchronous scope diagnostics later; the aggregate contract now verifies both policies, balanced
+scopes, and exactly-once completion. Patch 0299 additionally joins large-upload staging-resource
+creation with command validation. Same-turn submission remains intact, but either rejected leg
+keeps the exact retained bytes retryable instead of allowing a false commit. The shipping GPU
+archive, CAPTURE relink, and unchanged cumulative/modal/resize fallback diagnostics are green.
+Hardware pixels remain the closure authority.
 
 ## Evidence and acceptance
 
@@ -276,6 +280,24 @@ warnings or page errors. Hardware pixels remain the closure authority.
   `ledger/buildlogs/20260828T050717-2797583.log`,
   `ledger/buildlogs/20260828T050937-2798424.log`, and
   `ledger/buildlogs/20260828T050937-2798425.log`.
+- Aggregate stale-expectation run, staged-resource fail-first, and final exact native/Wasm
+  transaction parity:
+  `ledger/buildlogs/20260828T051811-2805574.log`,
+  `ledger/buildlogs/20260828T052759-2812706.log`, and
+  `ledger/buildlogs/20260828T053648-2821371.log`.
+- Final source freeze/replay, affected object build, CAPTURE relink/preflight, unchanged cumulative
+  and modal interaction diagnostics, resize recovery, and REUSE:
+  `ledger/buildlogs/20260828T053210-2817333.log`,
+  `ledger/buildlogs/20260828T054830-2830952.log`,
+  `ledger/buildlogs/20260828T053710-2822724.log`,
+  `ledger/buildlogs/20260828T053720-2822806.log`,
+  `ledger/buildlogs/20260828T053903-2823727.log`,
+  `ledger/buildlogs/20260828T053914-2823813.log`,
+  `ledger/buildlogs/20260828T054229-2826464.log`,
+  `ledger/buildlogs/20260828T054235-2826517.log`,
+  `ledger/buildlogs/20260828T054310-2827012.log`,
+  `ledger/buildlogs/20260828T054325-2827114.log`, and
+  `ledger/buildlogs/20260828T054603-2829207.log`.
 
 The patch-0296 CAPTURE generation is bound by JS SHA-256 `763dba372ec3`, split Wasm
 `67554d3a4871`, `.wasm.orig` `518dcdffa7cc` (118,976,355 bytes), data
@@ -288,6 +310,10 @@ The patch-0297 CAPTURE generation retains JS/data identities and is bound by JS 
 The patch-0298 CAPTURE generation is bound by JS SHA-256 `08bbe627c1c5`, split Wasm
 `4dd6325a9dd5`, `.wasm.orig` `f5060f52481b` (118,977,221 bytes), data `095d0ba748c3`, and split
 manifest `51810a386b3d`.
+
+The patch-0299 CAPTURE generation is bound by JS SHA-256 `a8bf85c309b4`, split Wasm
+`60a5f2dd7320`, `.wasm.orig` `6b868aaf8522` (118,979,921 bytes), data `095d0ba748c3`, and split
+manifest `7acc3bfa0912`.
 
 Closure requires the driver to run modal extrude, move, rotate, and scale with active constraints on
 the Apple rig and show thin guides with no retained trails; confirmed-operation HUDs must remain

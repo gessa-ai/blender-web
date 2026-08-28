@@ -1200,3 +1200,6 @@
 # 0298: retain the eventual buffer-texture binding while its primary or expanded allocation is
 # pending, without binding an unexpanded float1-3 source under the vec4 storage layout.
 0298-gpu-webgpu-pending-buffer-texture-bind-intent.patch
+# 0299: join staged-buffer creation and command validation so browser same-turn submission
+# cannot commit a retained payload after either asynchronous leg rejects.
+0299-gpu-webgpu-staged-update-completion-join.patch

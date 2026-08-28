@@ -34,12 +34,15 @@ def main() -> int:
         "allocation_cache_.lookup(kAllocationKey)",
         "pending_updates_->retain(",
         "queue_write_buffer_scoped(context.instance,",
+        "struct StagedUpdateCompletion {",
+        "auto joined_completion = std::make_shared<StagedUpdateCompletion>",
         "wgpu::Buffer staging = transient_resource_create_scoped(",
         '"staged buffer creation"',
         "context.device.CreateBuffer(&sd)",
         "staging.GetMappedRange(0, size)",
         "command_encode_submit_scoped(context.instance,",
         "staging, 0, allocation.handle, offset, size",
+        "std::move(settle)",
     )
     missing = [needle for needle in required if needle not in method]
     if missing:

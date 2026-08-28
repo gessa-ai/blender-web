@@ -1935,3 +1935,18 @@ conformant-hardware pixels as closure. See
 `upstream/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_index_buffer.cc`, and
 `sandbox/p0-interaction-stress/`.
+
+## Class 131 — ordinary input may need bounded recovery without owning a drawable episode
+
+Signature: boot recovery and resource-readiness retries are bounded correctly, but an interaction
+first exposes a lazy browser resource after that budget has ended. The input event reaches Blender
+and requests its normal redraw; that one frame drops, and no later input-driven full-window retry
+exists to repair the retained region. Route accepted move, supported button, nonzero wheel, and key
+events into the existing redraw-retry generation. Do not start a resize episode: ordinary input has
+no replacement drawable and must not acquire resize's completed-frame barrier semantics. Sampling
+the monotonic generation once per WM poll coalesces a queued input burst; a request inside an active
+budget produces an immediate update without resetting its ceiling, while the first request after a
+completed budget starts one fresh bounded burst. Bind unsupported/zero events, mutation-test every
+bridge, prove native/Wasm coalescing and ceiling parity, and retain trusted hardware pixels as the
+closure bar. See `platform_web/ghost/GHOST_EventBridgeWeb.cc`,
+`platform_web/ghost/GHOST_WebDisplayState.hh`, and `sandbox/p0-interaction-stress/`.

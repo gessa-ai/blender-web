@@ -3313,7 +3313,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   construction, and requires nine native transitions plus exact DOM/GHOST press coordinates. The
   relinked fallback product passes 9/9 after 10 orbit + 10 Shift-pan + 10 zoom, stable settle plus a
   pixel-changing final orbit, and zero hard warnings/page/lifecycle errors. Integrated focus,
-  pointer, lifecycle, and WebGPU/GHOST regressions are green. Closure still requires repeated
+  pointer, lifecycle, and WebGPU/GHOST regressions are green. **Bounded input-recovery candidate
+  implemented (`8f2e09b`):** accepted move, supported button, nonzero wheel, and key callbacks now
+  publish the existing redraw-retry generation, never the resize-only drawable episode. Queued
+  callbacks coalesce at the WM poll; active bursts retain their hard ceiling, while the first input
+  after a completed burst starts one fresh bounded WindowUpdate retry. A 9-mutation bridge contract,
+  68-case native/Wasm model, exact cumulative fallback battery, four-operator modal pass, and
+  shrink/restore regression are green. This is resilience behind the initial-activation fix, not a
+  hardware closure or a substitute for the pending-resource fixes. Closure still requires repeated
   trusted Apple input on the original total-freeze and navigation/workspace sequences, with
   scene/text pixels intact and P0-D/E/F plus P0-I regressions green. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.

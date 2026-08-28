@@ -95,3 +95,54 @@ pending hardware until the driver repeats the original Apple M4 Pro total-freeze
 trusted 30-navigation/workspace battery, confirms native actions and scene/text pixels remain live,
 and keeps P0-D/E/F plus the broader P0-I artifact regression green. No APPLY/public bundle, profile,
 receipt, tag, or launch claim is promoted by this candidate.
+
+## Ordinary-input recovery hardening
+
+The initial activation/cursor-order defect above was the direct cause of the reproduced workspace
+misrouting, but the driver's separate recovery observation exposed a real resilience gap: after
+the 180-tick asynchronous-draw recovery budget finished, accepted mouse, wheel, and keyboard input
+did not publish a new retry generation. A first-use browser resource could therefore drop the frame
+triggered by an otherwise correctly delivered interaction and leave a retained region stale until a
+later resource-readiness callback or resize happened to re-arm recovery.
+
+Commit `8f2e09b` routes accepted mouse move, supported button, nonzero wheel, and key events through
+`GHOST_SystemWeb::requestInputRedrawRetry()`. The helper deliberately calls the existing
+`request_redraw_retry()` generation rather than `request_redraw_episode()`: ordinary input does not
+own a replacement drawable and must never enter the resize-only frame barrier. Multiple callbacks
+before one WM poll collapse into one `readiness_published` decision. A request during an active
+burst gets an immediate update but does not reset its hard ceiling; the first later input after a
+completed burst starts one fresh bounded retry. Unsupported buttons and zero-delta wheel callbacks
+publish nothing.
+
+The new source contract failed first (`20260828T015608-2665325`) and passes with 9 mutation controls
+(`20260828T015657-2665599`, `20260828T015717-2665740`). The native/Wasm recovery model is identical
+across 68 cases and now includes three coalesced input publications inside an active budget
+(`20260828T015815-2666657`). The exact fallback product passes the corrected cumulative battery—10
+orbit, 10 pan, 10 zoom, nine native workspace transitions, matched DOM/GHOST button coordinates,
+stable settle, pixel-changing final orbit, and zero hard warnings/page errors
+(`20260828T020045-2669114`, `20260828T020305-2671122`). The modal extrude/move/rotate/scale rerun
+also reaches every surface phase and passes its analyzer (`20260828T020411-2672491`,
+`20260828T020441-2672925`). One immediately preceding Chromium process exited during that modal
+probe with no page error (`20260828T020309-2671162`); the clean fresh-context rerun is recorded, not
+silently substituted.
+
+The adjacent resize regression was reconciled with semantic first-frame admission without relaxing
+its bar: its source contract now binds both viewport-content and ordinary resize completeness, and
+its live probe uses diagnostic-only 16 ms idle polling and counts the two resize barriers after the
+settled boot barrier. The exact relink passes shrink and restore with two WM relayouts, episodes
+1/2/3, two successful resize-only barriers, current contained plans, and zero rejection
+(`20260828T021218-2678642`, `20260828T021233-2678727`). Hardware producer/consumer self-checks remain
+42/17 and 2/13; neither binds hardware pixels (`20260828T020545-2673439`,
+`20260828T020545-2673440`).
+
+Relinked CAPTURE identities for the pending Apple candidate:
+
+- `blender_browser.js`: `763dba372ec3` (707,729 bytes)
+- `blender_browser.wasm`: `e444e925238d` (120,324,987 bytes)
+- `blender_browser.wasm.orig`: `00aa3c159b63` (118,976,482 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `cfd620f63744` (13,294 bytes)
+
+P0-J remains open. Closure still requires repeated trusted Apple runs of both original freeze
+sequences plus the navigation/modal/resize batteries, intact scene and text pixels, and an empty
+all-shader incomplete-bind-group census.

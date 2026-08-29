@@ -3716,7 +3716,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   selection-fallback/page/lifecycle errors. This closes one input-loss teardown seam, not the Apple
   pixel gate: P0-I/J remain open for exact Apple 10/10 plus the same-generation P0-E gauntlet. See
   `notes/p0-selection-failure-nonmodal-20260829.md` and
-  `notes/p0-selection-cancel-replay-20260829.md`.
+  `notes/p0-selection-cancel-replay-20260829.md`. **Exact-generation software stability verified/
+  pending hardware:** the unchanged `63e188ba4232` CAPTURE generation completed 10/10 fresh
+  slow/sparse isolated-X runs. Every completed run retired both orbits, selected exactly Cube via
+  the live projected viewport click, balanced GHOST/WM delivery, and recorded zero selection-
+  fallback/page/lifecycle errors. One separate WSLg page/context closure had zero product errors
+  and was rejected rather than counted. Stream/retry/admission/validation mutation contracts,
+  locked no-work, and REUSE remain green. This binds software stability only: P0-I/J stay open for
+  exact Apple 10/10 plus the same-generation P0-E gauntlet; no runtime byte or receipt changed.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

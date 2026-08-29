@@ -55,6 +55,30 @@ during context replacement cannot inject events into the replacement UI.
 The optional numbered-history diagnostic remains independently stale at historical patch 0016;
 the accepted canonical source replay is green and contains 305 exact paths.
 
+## Exact-generation software stability follow-up
+
+The relinked `63e188ba4232` CAPTURE generation completed ten of ten fresh slow/sparse runs on
+isolated X servers. Every completed run retired the first orbit, selected exactly Cube through the
+live projected viewport click, and retired the independent recovery orbit with balanced GHOST/WM
+input and zero selection-fallback, page, or lifecycle errors. One earlier WSLg attempt closed its
+page and context externally with zero product errors; it was rejected rather than counted and the
+batch was repeated under isolated X.
+
+- first isolated-X pass: `20260829T100727-4050900`
+- remaining nine isolated-X passes: `20260829T100823-4052123`
+- separately rejected WSLg page/context closure: `20260829T100644-4050405`
+- selection stream, retry, admission, and validation contracts:
+  `20260829T101455-4057950`, `20260829T101455-4057951`,
+  `20260829T101455-4057957`, and `20260829T101455-4057965`
+- locked no-work and REUSE 6.2.0: `20260829T101513-4058072` and
+  `20260829T101532-4058254`
+- direct M4 remains RED at `browser_pixels`; the pinned-oracle regression restores M0 6/6 while
+  later tiers retain their named strict/hardware/APPLY/product boundaries:
+  `20260829T101532-4058255` and `20260829T101612-4059755`
+
+This binds software stability only. It does not replace the exact Apple 10/10 pixel gate or the
+same-generation composed P0-E gauntlet, and it changes no runtime byte.
+
 ## Candidate identity and closure bar
 
 - implementation commit: `da29c42`

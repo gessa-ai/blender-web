@@ -3749,7 +3749,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   six cached-result replays with zero failures, selects Cube in 11,354 ms, and retires the recovery
   orbit in 1,860 ms. RELINKED CAPTURE `.wasm.orig` is `199d4fafb399` (119,003,425 bytes). P0-I/J
   remain open for this exact inventory to pass Apple 10/10 plus the same-generation P0-E gauntlet;
-  no hardware or release claim changed. See
+  no hardware or release claim changed. **Exact-generation software stability verified/pending
+  hardware:** the unchanged candidate completed 10/10 fresh isolated-X slow/sparse runs. Every run
+  selected exactly Cube, retired both isolated orbits, finished one continuation at GPU sessions/
+  attempts/results/replays/failures `1/5/3/6/0`, returned validation pending to zero with no
+  failures, and recorded no selection fallback, page error, or lifecycle error. Action/selection/
+  recovery drains were 328-1,366/11,321-14,651/1,885-2,310 ms. This binds repeatable software
+  behavior only; the exact Apple 10/10 and same-generation P0-E gauntlet remain mandatory, and no
+  runtime byte or product claim changed. See
   `notes/p0-selection-continuation-telemetry-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

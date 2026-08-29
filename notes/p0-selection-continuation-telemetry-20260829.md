@@ -58,6 +58,37 @@ zero page errors and was rejected rather than counted
   `ledger/buildlogs/20260829T112510-4111619.log` and
   `ledger/buildlogs/20260829T112513-4111669.log`
 
+## Exact-generation software stability
+
+The unchanged `199d4fafb399` CAPTURE generation completed 10/10 fresh isolated-X
+slow/sparse runs. Every run retired both isolated orbits, selected exactly `Cube` through the
+live projected viewport point, and completed one selection continuation with five GPU attempts,
+three results, six cached-result replays, and zero failures. Selection validation peaked at 19
+pending tickets and returned to zero; the modal continuation began and finished exactly once and
+ended inactive with no queued events. Action, selection, and recovery drains were respectively
+328–1,366 ms, 11,321–14,651 ms, and 1,885–2,310 ms. All native state contracts passed and every
+page-error, lifecycle-error, and selection-fallback census was empty.
+
+The ten immutable run logs are
+`ledger/buildlogs/20260829T113851-4120838.log`,
+`ledger/buildlogs/20260829T113952-4121863.log`,
+`ledger/buildlogs/20260829T114033-4122315.log`,
+`ledger/buildlogs/20260829T114113-4122933.log`,
+`ledger/buildlogs/20260829T114154-4123970.log`,
+`ledger/buildlogs/20260829T114235-4124414.log`,
+`ledger/buildlogs/20260829T114317-4124880.log`,
+`ledger/buildlogs/20260829T114358-4126038.log`,
+`ledger/buildlogs/20260829T114441-4126504.log`, and
+`ledger/buildlogs/20260829T114522-4127005.log`. Focused continuation, validation, stream, and
+hardware-gauntlet self-checks remain green in
+`ledger/buildlogs/20260829T114709-4128389.log`,
+`ledger/buildlogs/20260829T114709-4128390.log`,
+`ledger/buildlogs/20260829T114709-4128396.log`, and
+`ledger/buildlogs/20260829T114709-4128391.log`.
+
+This repeatability is fallback-adapter diagnostic evidence only. It neither supplies Apple pixels
+nor weakens the exact 10/10 hardware and same-generation P0-E gauntlet below.
+
 ## Exact candidate and closure bar
 
 - implementation commit: `4877574`

@@ -3832,6 +3832,25 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   12-second bar. RELINKED CAPTURE `.wasm.orig` is `fe1301f99fae` (119,029,274 bytes). Direct M4 stays
   red at its hardware receipt boundary; P0-I/J remain open for exact Apple 10/10 plus the
   same-generation P0-E/broader gauntlet. See `notes/p0-selection-wall-timeout-20260829.md`.
+  **Pending-selection navigation pass-through candidate implemented/relinked/pending Apple
+  (`4563b0c`, patches 0315-0316):** the exact slow/sparse boundary showed the projected Cube click
+  blocking in `DRWContext::engines_init_and_sync()` while 36 cold `*_selectable` shader variants
+  compiled inline, then installing the asynchronous selection modal. Blender maps
+  `OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH` to a breaking modal-handler result, so the prior
+  supposed pass-through still hid the following MMB orbit from the viewport keymap. Navigation now
+  returns bare `OPERATOR_PASS_THROUGH`, leaving the selection modal installed while allowing the
+  rotate operator to invoke and retire immediately; state-changing ordinary input remains in the
+  bounded FIFO. Monotonic selection-loop completion plus bounded sync/shader stages make this edge
+  fail-closed in the hardware producer. Five consecutive exact SwiftShader controls pass, including
+  one with the selection modal provably active during orbit: rotate invokes/terminals `1 -> 2`, no
+  navigation replay, loop start/complete `5/5`, Cube selected, and zero selection/page/lifecycle
+  errors. Focused/adjacent mutation suites, CAPTURE preflight, locked committed-state no-work,
+  20,258-entry canonical replay (`ee7ae6b5d52b`), and REUSE 6.2.0 are green. RELINKED CAPTURE
+  `.wasm.orig` is `82f6254700cc` (119,031,238 bytes); JS/Wasm/data/manifest are
+  `bba3f480bb3b`/`d09c9c6a5cee`/`095d0ba748c3`/`53076509e2b2`. Direct M4 remains red at the unchanged
+  Apple pixel boundary. P0-I/J stay open until this exact generation passes the driver's 10/10
+  slow/sparse series and same-generation P0-E/zero-artifact gauntlet. See
+  `notes/stuck-2026-08-29.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

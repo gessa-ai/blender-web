@@ -91,13 +91,36 @@ def validate(sources: dict[str, str]) -> None:
     for token in (
         'const stateOnlyDiagnostic = process.env.BW_P0_STATE_ONLY === "1";',
         'throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic")',
+        "const nativeSelectionComplete = (current, baseline) =>",
+        "from bpy_extras import view3d_utils",
+        '"cube_window_xy":[round(region.x+projection.x,3),round(region.y+projection.y,3)]',
+        "const nativeCubePagePoint = (current, canvasBox) =>",
+        "selectionPoint = nativeCubePagePoint(selectionBaseline, box);",
+        "await page.mouse.click(selectionPoint.x, selectionPoint.y);",
+        '"isolated-selection-drain"',
+        "current, selectionInputBaseline, {left: 1, middle: 0, keys: 0}",
+        "current, selectionWmInputBaseline, {left: 1, middle: 0, keys: 0}",
+        "(current) => nativeSelectionComplete(current, selectionBaseline),",
+        "selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)",
         "view3dRotateRetired(current, rotateBaseline, expectedRotates)",
         "selectionReadbackFailureLines: consoleLines.filter(",
         "evidence.selectionReadbackFailureLines.length !== 0",
         '"diagnostic-software-fallback-state-only"',
     ):
         require(producer, token)
+    require(producer, "selectionDrainMs: selectionDrain?.settleMs ?? null")
     require(producer, "/WebGPU selection readback failed/.test(line)", 2)
+    require(
+        producer,
+        "(current) => nativeSelectionComplete(current, selectionBaseline),\n"
+        "      drainTimeoutMs,\n      true,",
+    )
+    if not (
+        producer.index('"isolated-orbit-drain"')
+        < producer.index('"isolated-selection-drain"')
+        < producer.index('"isolated-recovery-orbit"')
+    ):
+        raise ValueError("slow/sparse producer lost exact orbit -> selection -> orbit order")
 
     for path in (
         "source/blender/draw/intern/DRW_gpu_wrapper.hh",
@@ -153,6 +176,23 @@ def self_check(sources: dict[str, str]) -> None:
             "      return OPERATOR_RUNNING_MODAL;\n    }",
         ),
         ("producer", 'throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic")', ""),
+        (
+            "producer",
+            "selectionPoint = nativeCubePagePoint(selectionBaseline, box);",
+            "selectionPoint = center;",
+        ),
+        ("producer", '"isolated-selection-drain"', '"selection-drain-bypassed"'),
+        (
+            "producer",
+            "(current) => nativeSelectionComplete(current, selectionBaseline),\n"
+            "      drainTimeoutMs,\n      true,",
+            "(current) => true,\n      drainTimeoutMs,\n      false,",
+        ),
+        (
+            "producer",
+            "selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)",
+            "selectionComplete: true",
+        ),
         ("producer", "view3dRotateRetired(current, rotateBaseline, expectedRotates)", "true"),
         ("producer", "evidence.selectionReadbackFailureLines.length !== 0", "false"),
         (

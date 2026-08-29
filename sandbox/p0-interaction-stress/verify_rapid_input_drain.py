@@ -51,6 +51,7 @@ def validate(source: str) -> None:
         'elapsedMs: Date.now() - started,',
         'drainTimelines[name].push({',
         'nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,',
+        'requireNativeState = hardwareDiagnostic,',
         'if (nativeStates.length === 0) throw new Error("native rapid-input monitor did not start");',
         "current.sha256 !== baseline",
         "current.ticks > counterBaseline.ticks",
@@ -63,15 +64,24 @@ def validate(source: str) -> None:
         "current.inputRedraw.episode === counterBaseline.inputRedraw.episode",
         "nativeDeliveryComplete(current)",
         "ghostWindowSettled(current)",
-        "(!hardwareDiagnostic || nativeStateComplete(current))",
+        "(!requireNativeState || nativeStateComplete(current))",
         'operator === "WM_OT_bwp0r_input_probe"',
         'await page.waitForTimeout(sampleCadenceMs);',
         'const hardwareIsolatedOrbitStateComplete = (current, baseline) =>',
         'current.nativeState?.selected_count === baseline.nativeState?.selected_count',
+        'from bpy_extras import view3d_utils',
+        '"cube_window_xy":[round(region.x+projection.x,3),round(region.y+projection.y,3)]',
+        'selectionPoint = nativeCubePagePoint(selectionBaseline, box);',
+        'await page.mouse.click(selectionPoint.x, selectionPoint.y);',
         'if (sparseDiagnostic) {',
         '"isolated-orbit-drain",',
         'current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}',
         '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline)',
+        '"isolated-selection-drain",',
+        'current, selectionInputBaseline, {left: 1, middle: 0, keys: 0}',
+        '(current) => nativeSelectionComplete(current, selectionBaseline)',
+        'selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)',
+        'selectionDrainMs: selectionDrain?.settleMs ?? null',
         '"isolated-recovery-orbit",',
         'const isolatedRecoveryBaseline = await sample("isolated-recovery-baseline");',
         'current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
@@ -94,7 +104,6 @@ def validate(source: str) -> None:
         'stateArrayChanged(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation)',
         'stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location)',
         'const hardwareRecoveryStateComplete = (current, baseline) =>',
-        'stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)',
         'const rapidInputBaseline = steps.at(-1).ghostInput;',
         'const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;',
         'current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}',
@@ -125,6 +134,10 @@ def validate(source: str) -> None:
         "evidence.selectionReadbackFailureLines.length !== 0",
     ):
         require_once(source, token)
+    if source.count(
+        "stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)"
+    ) != 2:
+        raise ValueError("selection and recovery must both preserve Cube location")
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
         raise ValueError("pixel and counter liveness is checked after accepting the sample")
     if source.index('"action-drain",\n      orbitBeforeClick.sha256') > source.index(
@@ -313,8 +326,8 @@ def validate_delivery_sources(
         raise ValueError("producer must sample left and middle GHOST press counters")
     if source.count('readArg("_bw_input_button_release_count"') != 2:
         raise ValueError("producer must sample left and middle GHOST release counters")
-    if source.count("wmInputDeliveryComplete(") != 4:
-        raise ValueError("producer must enforce WM-queue delivery for all four drains")
+    if source.count("wmInputDeliveryComplete(") != 5:
+        raise ValueError("producer must enforce WM-queue delivery for all five drains")
     for token in (
         'keyPresses: read("_bw_input_key_press_count")',
         'keyReleases: read("_bw_input_key_release_count")',
@@ -466,7 +479,7 @@ def self_check(
         replace_once(source, "ghostWindowSettled(current)", "true"),
         replace_once(
             source,
-            "(!hardwareDiagnostic || nativeStateComplete(current))",
+            "(!requireNativeState || nativeStateComplete(current))",
             "true",
         ),
         replace_once(
@@ -483,6 +496,21 @@ def self_check(
             source,
             '"isolated-orbit-drain",',
             '"isolated-orbit-skipped",',
+        ),
+        replace_once(
+            source,
+            '"isolated-selection-drain",',
+            '"isolated-selection-skipped",',
+        ),
+        replace_once(
+            source,
+            'selectionPoint = nativeCubePagePoint(selectionBaseline, box);',
+            'selectionPoint = center;',
+        ),
+        replace_once(
+            source,
+            'selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)',
+            'selectionComplete: true',
         ),
         replace_once(
             source,
@@ -526,8 +554,11 @@ def self_check(
         ),
         replace_once(
             source,
-            "stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)",
-            "true",
+            "const hardwareRecoveryStateComplete = (current, baseline) =>\n"
+            "    current.nativeStateSequence > baseline.nativeStateSequence &&\n"
+            "    nativeCubeSelected(current) && nativeViewChanged(current, baseline) &&\n"
+            "    stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location);",
+            "const hardwareRecoveryStateComplete = (current, baseline) => true;",
         ),
         replace_once(
             source,

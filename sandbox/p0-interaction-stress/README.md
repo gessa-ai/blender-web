@@ -45,10 +45,18 @@ presentation, strict VIEW_3D content presentation, a confirmed and retired `VIEW
 changed native view state, and changed pixels, or exhausts the same 12-second Apple bound. The
 rotate invoke/confirm/terminal/active counters sit after GHOST-to-WM delivery, so a failure now
 separates a retained modal operator from a normally retired operator whose frame went stale. Only
-then does it send a second isolated orbit and
-require the same end-to-end receipt again. A bounded per-poll timeline preserves every generation,
-pixel hash, held-button mask, native state, and modal stack, so a hardware failure identifies the
-first stalled boundary instead of treating an immediate identical screenshot as permanent freeze.
+then does it send the filed Cube click and no later input until the asynchronous selection has
+crossed both input stages, produced strict content pixels, retired its modal continuation, and
+changed Blender-native state from zero selected objects to exactly Cube selected without moving the
+Cube or camera. The click point is Blender's own projection of the Cube origin into the live
+`VIEW_3D` window, converted from Blender's bottom-left window coordinates to the browser canvas;
+the producer does not guess a stale screen coordinate after the first orbit. A second isolated
+orbit is sent only after that selection receipt. A bounded
+per-poll timeline preserves every generation, pixel hash, held-button mask, native state, and modal
+stack, so a hardware failure identifies the first stalled boundary instead of treating an
+immediate identical screenshot as permanent freeze. This exact orbit -> click -> orbit order is
+load-bearing: the click, not the already-retired first orbit, triggered the selection-readback
+error popup in the diagnosed candidate.
 
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a
@@ -222,7 +230,19 @@ The one-draw selection continuation contract in `verify_select_stream_continuati
 temporary selection output to an ordered `GPU_USAGE_STREAM` resource. Browser validation,
 clear/draw, and exact readback therefore remain in one queue epoch even though the temporary draw
 engine is destroyed on return. While that owned readback is pending, ordinary input is retained in
-a bounded FIFO and replayed in order. The rapid producer fails on any
-`WebGPU selection readback failed` report and requires queued and recovery orbits to reach the exact
-rotate retirement boundary. `BW_P0_STATE_ONLY=1` is a software-adapter diagnostic only; Apple
-hardware mode rejects it, so it cannot satisfy the pixel acceptance gate.
+a bounded FIFO and replayed in order. The slow/sparse producer now isolates the exact triggering
+click between its two orbits and requires the click to select Cube before any recovery input is
+sent. The rapid producer fails on any `WebGPU selection readback failed` report and requires queued
+and recovery orbits to reach the exact rotate retirement boundary. `BW_P0_STATE_ONLY=1` is a
+software-adapter diagnostic only; Apple hardware mode rejects it, so it cannot satisfy the pixel
+acceptance gate.
+
+`verify_select_draw_retry.py` closes the adjacent semantic hole: a browser selection pass can own a
+valid stream readback while one of that pass's first-use WebGPU draws was synchronously dropped.
+The async select-next state snapshots the draw-drop generation, cancels that cleared result, and
+waits for a later resource-readiness generation before executing the exact selection again. A
+clean empty hit remains a valid miss; only an attempt proven to have dropped work is retried.
+Shader-module and pipeline deferral now contribute to that generation just like an incomplete bind
+group, rather than silently returning from batch/immediate drawing. Buffers first allocated by the
+one-draw `G_FLAG_PICKSEL` context use its ordered transient resource gate, so a retry does not
+recreate persistent allocations whose owner disappears before browser validation can publish them.

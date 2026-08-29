@@ -3639,7 +3639,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   candidate aimed at the observed error source, not hardware closure: Apple must pass the exact
   slow/sparse repro 10/10 and the same-generation composed gauntlet. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md` and
-  `notes/p0-selection-stream-continuation-20260829.md`.
+  `notes/p0-selection-stream-continuation-20260829.md`. **Selection draw retry implemented/relinked/
+  pending hardware (patch 0306):** the exact projected viewport click then proved the stream could
+  map a semantically false cleared result: four live IDs, four `0xffffffff` words, and zero hits
+  while `overlay_depth_mesh_conservative_selectable` plus related selectable shaders returned at
+  the pending-module gate without incrementing the draw-drop generation. Module and pipeline
+  deferral now participate in the existing drop signal; select-next cancels only attempts whose
+  generation changed and retries after a later readiness edge. Buffers first created by the
+  one-draw `G_FLAG_PICKSEL` manager share its ordered transient epoch instead of recreating
+  never-published persistent allocations. The exact cold SwiftShader slow/sparse control now
+  selects Cube and retires its independent recovery orbit in 13,514/2,116 ms with zero selection,
+  page, or lifecycle errors; the rapid control also passes. RELINKED CAPTURE `.wasm.orig` is
+  `5b95408deafe` (artifact SHA-256 prefix), canonical replay and REUSE are green. This software lane
+  binds no pixel verdict: P0-I/J remain open until the driver passes the unchanged Apple 10/10 and
+  same-generation composed P0-E interaction gauntlet. See
+  `notes/p0-selection-draw-retry-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

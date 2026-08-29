@@ -21,6 +21,7 @@ const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
 ]);
 const PY_MONITOR = String.raw`
 import bpy,json,os,time
+from bpy_extras import view3d_utils
 _bwp0r={"started":time.perf_counter(),"input_sequence":0,"state_sequence":0,"last_state":None}
 class WM_OT_bwp0r_input_probe(bpy.types.Operator):
     bl_idname="wm.bwp0r_input_probe"
@@ -53,13 +54,16 @@ def _bwp0r_poll():
     if window is None or window.screen is None: return 0.05
     obj=bpy.data.objects.get("Cube")
     area=next((item for item in window.screen.areas if item.type == 'VIEW_3D'),None)
+    region=next((item for item in area.regions if item.type == 'WINDOW'),None) if area else None
     space=area.spaces.active if area else None
     rv3d=space.region_3d if space else None
+    projection=view3d_utils.location_3d_to_region_2d(region,rv3d,obj.matrix_world.translation) if obj and region and rv3d else None
     state={
       "modal_operators":[operator.bl_idname for operator in window.modal_operators],
       "selected_count":len(bpy.context.selected_objects),
       "active_object":bpy.context.view_layer.objects.active.name if bpy.context.view_layer.objects.active else None,
       "location":_bwp0r_round(obj.location) if obj else None,
+      "cube_window_xy":[round(region.x+projection.x,3),round(region.y+projection.y,3)] if projection else None,
       "view_rotation":_bwp0r_round(rv3d.view_rotation) if rv3d else None,
       "view_perspective":rv3d.view_perspective if rv3d else None,
     }
@@ -317,8 +321,29 @@ try {
   const nativeCubeSelected = (current) =>
     current.nativeState?.active_object === "Cube" &&
     current.nativeState?.selected_count === 1;
+  const nativeCubePagePoint = (current, canvasBox) => {
+    const point = current.nativeState?.cube_window_xy;
+    if (!Array.isArray(point) || point.length !== 2 ||
+        !point.every((value) => Number.isFinite(value))) {
+      throw new Error("Blender did not publish a projected Cube selection point");
+    }
+    const pagePoint = {
+      x: canvasBox.x + point[0],
+      y: canvasBox.y + canvasBox.height - point[1],
+    };
+    if (pagePoint.x < canvasBox.x || pagePoint.x >= canvasBox.x + canvasBox.width ||
+        pagePoint.y < canvasBox.y || pagePoint.y >= canvasBox.y + canvasBox.height) {
+      throw new Error(`projected Cube selection point is outside canvas: ${JSON.stringify(pagePoint)}`);
+    }
+    return pagePoint;
+  };
   const nativeViewChanged = (current, baseline) =>
     stateArrayChanged(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation);
+  const nativeSelectionComplete = (current, baseline) =>
+    current.nativeStateSequence > baseline.nativeStateSequence &&
+    baseline.nativeState?.selected_count === 0 && nativeCubeSelected(current) &&
+    stateArraysEqual(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation) &&
+    stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location);
   const hardwareActionStateComplete = (current, baseline) =>
     current.nativeStateSequence > baseline.nativeStateSequence &&
     nativeCubeSelected(current) && nativeViewChanged(current, baseline) &&
@@ -340,6 +365,7 @@ try {
   const waitForActionDrain = async (
     name, baseline, counterBaseline, rotateBaseline, expectedRotates,
     nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
+    requireNativeState = hardwareDiagnostic,
   ) => {
     const started = Date.now();
     drainTimelines[name] = [];
@@ -374,7 +400,7 @@ try {
           nativeDeliveryComplete(current) &&
           view3dRotateRetired(current, rotateBaseline, expectedRotates) &&
           ghostWindowSettled(current) &&
-          (!hardwareDiagnostic || nativeStateComplete(current)) &&
+          (!requireNativeState || nativeStateComplete(current)) &&
           current.nativeModalOperators.every((operator) =>
             operator === "WM_OT_bwp0r_input_probe")) {
         return {...current, settleMs: Date.now() - started};
@@ -421,6 +447,8 @@ try {
   const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");
   const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;
   let actionDrain;
+  let selectionDrain = null;
+  let selectionPoint = null;
   let recoveryOrbit;
   let nativeStateContract;
   let retainedActionFramesEqual = null;
@@ -439,7 +467,32 @@ try {
       drainTimeoutMs,
     );
     steps.push(actionDrain);
-    await page.mouse.move(center.x, center.y);
+
+    /* The filed freeze changes the first orbit, then becomes permanent when the following click
+     * starts VIEW3D_OT_select and its asynchronous readback fails. Keep that click isolated too:
+     * no recovery orbit is sent until the click has reached both input stages, presented strict
+     * VIEW_3D content, retired its modal continuation, and selected exactly Cube. */
+    const selectionBaseline = actionDrain;
+    const selectionInputBaseline = selectionBaseline.ghostInput;
+    const selectionWmInputBaseline = selectionBaseline.wmInput;
+    selectionPoint = nativeCubePagePoint(selectionBaseline, box);
+    await page.mouse.move(selectionPoint.x, selectionPoint.y);
+    await page.mouse.click(selectionPoint.x, selectionPoint.y);
+    selectionDrain = await waitForActionDrain(
+      "isolated-selection-drain",
+      selectionBaseline.sha256,
+      selectionBaseline,
+      selectionBaseline,
+      0,
+      (current) => ghostInputDeliveryComplete(
+        current, selectionInputBaseline, {left: 1, middle: 0, keys: 0}) &&
+        wmInputDeliveryComplete(
+          current, selectionWmInputBaseline, {left: 1, middle: 0, keys: 0}),
+      (current) => nativeSelectionComplete(current, selectionBaseline),
+      drainTimeoutMs,
+      true,
+    );
+    steps.push(selectionDrain);
     await page.waitForTimeout(100);
     const isolatedRecoveryBaseline = await sample("isolated-recovery-baseline");
     const isolatedRecoveryInputBaseline = isolatedRecoveryBaseline.ghostInput;
@@ -463,7 +516,9 @@ try {
     steps.push(recoveryOrbit);
     nativeStateContract = {
       enforced: hardwareDiagnostic,
+      selectionEnforced: true,
       actionComplete: hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline),
+      selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline),
       recoveryComplete: hardwareIsolatedOrbitStateComplete(
         recoveryOrbit, isolatedRecoveryBaseline),
     };
@@ -538,7 +593,9 @@ try {
     adapter,
     steps,
     retainedActionFramesEqual,
+    selectionPoint,
     actionDrainMs: actionDrain.settleMs,
+    selectionDrainMs: selectionDrain?.settleMs ?? null,
     recoveryOrbitMs: recoveryOrbit.settleMs,
     nativeStateContract,
     drainTimelines,
@@ -549,6 +606,8 @@ try {
     pointerLockLines: consoleLines.filter((line) => /Pointer Lock|pointerlock/i.test(line)),
     selectionReadbackFailureLines: consoleLines.filter(
       (line) => /WebGPU selection readback failed/.test(line)),
+    selectionGpuLines: consoleLines.filter(
+      (line) => /WGPUWeb-(?:bind-pending|select-)|BW_SHADER_CACHE_RESULT .*select|WebGPU.*pipeline.*rejected/.test(line)),
     wmEventLines: consoleLines.filter((line) => /^wmEvent type:/.test(line)),
     inputRedrawLines: consoleLines.filter((line) => /GHOST-input-redraw/.test(line)),
     eventTail: consoleLines.filter((line) => /ghost_event_proc/.test(line)).slice(-80),
@@ -580,6 +639,8 @@ catch (error) {
       .filter((line) => /Pointer Lock|pointerlock/i.test(line)),
     selectionReadbackFailureLines: (failureContext?.consoleLines || [])
       .filter((line) => /WebGPU selection readback failed/.test(line)),
+    selectionGpuLines: (failureContext?.consoleLines || [])
+      .filter((line) => /WGPUWeb-(?:bind-pending|select-)|BW_SHADER_CACHE_RESULT .*select|WebGPU.*pipeline.*rejected/.test(line)),
     wmEventLines: (failureContext?.consoleLines || [])
       .filter((line) => /^wmEvent type:/.test(line)),
     inputRedrawLines: (failureContext?.consoleLines || [])

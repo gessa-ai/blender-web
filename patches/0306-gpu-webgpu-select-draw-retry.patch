@@ -1,0 +1,473 @@
+diff --git a/source/blender/gpu/intern/gpu_select_next.cc b/source/blender/gpu/intern/gpu_select_next.cc
+--- a/source/blender/gpu/intern/gpu_select_next.cc
++++ b/source/blender/gpu/intern/gpu_select_next.cc
+@@ -8,6 +8,7 @@
+  * Glue to make the new Select-Next engine work with the old GPU select API.
+  */
+ #include <cfloat>
++#include <cstdint>
+ #include <cstring>
+ 
+ #include "BLI_rect.h"
+@@ -18,6 +19,10 @@
+ 
+ #include "gpu_select_private.hh"
+ 
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ namespace blender {
+ 
+ struct GPUSelectNextState {
+@@ -31,6 +36,10 @@ struct GPUSelectNextState {
+   uint hits = -1;
+   /** Mode of operation. */
+   GPUSelectMode mode = GPUSelectMode::GPU_SELECT_INVALID;
++#ifdef __EMSCRIPTEN__
++  /** Draw-drop generation immediately before this exact selection attempt. */
++  uint64_t draw_drop_generation = 0;
++#endif
+ };
+ 
+ static GPUSelectNextState g_state = {};
+@@ -60,6 +69,11 @@ struct GPUSelectAsyncState {
+   Vector<uint> select_id_map;
+   Vector<bool> in_front_map;
+   Vector<GPUSelectAsyncResult> results;
++#ifdef __EMSCRIPTEN__
++  /** A dropped attempt has no valid result; wait for a later resource-readiness edge. */
++  bool retry_pending = false;
++  uint64_t retry_generation = 0;
++#endif
+ };
+ 
+ static GPUSelectAsyncState g_async = {};
+@@ -149,6 +163,9 @@ void gpu_select_next_begin(GPUSelectBuffer *buffer,
+   g_state.mode = mode;
+   g_state.radius = radius;
+   g_state.hits = uint(-1);
++#ifdef __EMSCRIPTEN__
++  g_state.draw_drop_generation = ghost_web::redraw_drop_generation();
++#endif
+ }
+ 
+ int2 gpu_select_next_get_pick_area_center()
+@@ -220,6 +237,13 @@ eGPUReadbackStatus GPU_select_async_status()
+   if (g_async.failed) {
+     return GPU_READBACK_FAILED;
+   }
++#ifdef __EMSCRIPTEN__
++  if (g_async.retry_pending) {
++    return ghost_web::redraw_retry_generation() <= g_async.retry_generation ?
++               GPU_READBACK_PENDING :
++               GPU_READBACK_READY;
++  }
++#endif
+   if (g_async.readback == nullptr) {
+     return g_async.results.is_empty() ? GPU_READBACK_INVALID : GPU_READBACK_READY;
+   }
+@@ -293,12 +317,34 @@ void gpu_select_next_async_readback_begin(GPUReadback *readback,
+   if (!g_async.session_active) {
+     GPU_select_async_session_begin();
+   }
+-  if (readback == nullptr || g_async.readback != nullptr || g_async.failed) {
++  if (g_async.readback != nullptr || g_async.failed) {
+     GPU_readback_cancel(readback);
+     gpu_select_async_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+     return;
+   }
+ 
++#ifdef __EMSCRIPTEN__
++  /* The selection output is cleared before drawing. If any requested draw synchronously dropped
++   * while its browser resources were pending, mapping that buffer would faithfully publish the
++   * clear value as a false empty hit. Cancel this attempt and let the existing modal continuation
++   * execute the exact request again only after a later resource-readiness edge. */
++  if (ghost_web::redraw_drop_generation() != g_state.draw_drop_generation) {
++    GPU_readback_cancel(readback);
++    g_async.select_id_map.clear();
++    g_async.in_front_map.clear();
++    g_async.retry_generation = ghost_web::redraw_retry_generation();
++    g_async.retry_pending = true;
++    return;
++  }
++#endif
++
++  if (readback == nullptr) {
++    gpu_select_async_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
++    return;
++  }
++#ifdef __EMSCRIPTEN__
++  g_async.retry_pending = false;
++#endif
+   g_async.pending_key = gpu_select_async_key_from_state();
+   g_async.select_id_map.extend(select_id_map);
+   g_async.in_front_map.extend(in_front_map);
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.hh b/source/blender/gpu/webgpu/wgpu_buffer.hh
+--- a/source/blender/gpu/webgpu/wgpu_buffer.hh
++++ b/source/blender/gpu/webgpu/wgpu_buffer.hh
+@@ -55,6 +55,18 @@
+                         bool readable,
+                         const char *label = nullptr);
+ 
++  /** Create persistent storage for ordinary draws, but keep buffers first created by an
++   * Emscripten one-draw selection context inside that context's ordered queue epoch. */
++  bool create_for_draw_scope(const wgpu::Instance &instance,
++                             const wgpu::Device &device,
++                             OrderedQueueScheduler &scheduler,
++                             BufferKind kind,
++                             UsageType usage,
++                             size_t size,
++                             const void *initial_data,
++                             bool readable,
++                             const char *label = nullptr);
++
+   /** Create a persistent buffer of `size` bytes. If `initial_data` is non-null it is written
+    * via `mappedAtCreation` (no queue submission). `size` is rounded up to a
+    * multiple of 4 (WebGPU requirement). The buffer and its metadata remain
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -18,6 +18,8 @@
+ 
+ #include "wgpu_readback.hh"
+ 
++#include "BKE_global.hh"
++
+ #include <cstring>
+ #include <utility>
+ 
+@@ -162,6 +164,30 @@
+          scope_status->load(std::memory_order_acquire) >= 0;
+ }
+ 
++bool Buffer::create_for_draw_scope(const wgpu::Instance &instance,
++                                   const wgpu::Device &device,
++                                   OrderedQueueScheduler &scheduler,
++                                   const BufferKind kind,
++                                   const UsageType usage,
++                                   const size_t size,
++                                   const void *initial_data,
++                                   const bool readable,
++                                   const char *label)
++{
++#ifdef __EMSCRIPTEN__
++  /* Selection without a viewport owns a one-draw DRWData. A persistent allocation cannot publish
++   * until after that owner is destroyed, so every retry would recreate the same pending buffers.
++   * Reserve their validation and dependent work in this exact ordered queue epoch instead. */
++  if ((G.f & G_FLAG_PICKSEL) != 0) {
++    return create_transient(
++        instance, device, scheduler, kind, usage, size, initial_data, readable, label);
++  }
++#else
++  (void)scheduler;
++#endif
++  return create_scoped(instance, device, kind, usage, size, initial_data, readable, label);
++}
++
+ bool Buffer::create_scoped(const wgpu::Instance &instance,
+                            const wgpu::Device &device,
+                            BufferKind kind,
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -160,9 +160,10 @@
+                                     true,
+                                     label_.c_str());
+   }
+-  return buffer_.create_scoped(
++  return buffer_.create_for_draw_scope(
+       ctx->instance_get(),
+       ctx->device_get(),
++      ctx->queue_scheduler_get(),
+       webgpu::BufferKind::Storage,
+       usage,
+       size_in_bytes_,
+diff --git a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_uniform_buffer.cc
+@@ -60,14 +60,15 @@
+     return false;
+   }
+   const size_t alloc = std::max(size_in_bytes_, kUboMinBindingPad);
+-  return buffer_.create_scoped(ctx->instance_get(),
+-                               ctx->device_get(),
+-                               webgpu::BufferKind::Uniform,
+-                               webgpu::UsageType::Dynamic,
+-                               alloc,
+-                               nullptr,
+-                               false,
+-                               label_.c_str());
++  return buffer_.create_for_draw_scope(ctx->instance_get(),
++                                       ctx->device_get(),
++                                       ctx->queue_scheduler_get(),
++                                       webgpu::BufferKind::Uniform,
++                                       webgpu::UsageType::Dynamic,
++                                       alloc,
++                                       nullptr,
++                                       false,
++                                       label_.c_str());
+ }
+ 
+ bool WGPUUniformBuffer::ensure_updated()
+diff --git a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_vertex_buffer.cc
+@@ -256,13 +256,14 @@
+   }
+   /* Vertex | Storage | Copy* (readable=true so it can be the CopySrc of
+    * GPU_storagebuf_copy_sub_from_vertbuf and of read()). */
+-  buffer_.create_scoped(ctx->instance_get(),
+-                        ctx->device_get(),
+-                        webgpu::BufferKind::Vertex,
+-                        to_wgpu_usage(usage_),
+-                        size_alloc_get(),
+-                        nullptr,
+-                        true);
++  buffer_.create_for_draw_scope(ctx->instance_get(),
++                                ctx->device_get(),
++                                ctx->queue_scheduler_get(),
++                                webgpu::BufferKind::Vertex,
++                                to_wgpu_usage(usage_),
++                                size_alloc_get(),
++                                nullptr,
++                                true);
+ }
+ 
+ void WGPUVertexBuffer::enable_device_allocation_tracking()
+@@ -568,14 +569,16 @@
+           buffer_texture_buffer_.size() < expanded.size() * sizeof(float))
+       {
+         buffer_texture_buffer_ = webgpu::Buffer();
+-        if (!buffer_texture_buffer_.create_scoped(ctx->instance_get(),
+-                                                  ctx->device_get(),
+-                                                  webgpu::BufferKind::Storage,
+-                                                  webgpu::UsageType::Static,
+-                                                  expanded.size() * sizeof(float),
+-                                                  expanded.data(),
+-                                                  false,
+-                                                  "float texel-buffer expansion"))
++        if (!buffer_texture_buffer_.create_for_draw_scope(
++                ctx->instance_get(),
++                ctx->device_get(),
++                ctx->queue_scheduler_get(),
++                webgpu::BufferKind::Storage,
++                webgpu::UsageType::Static,
++                expanded.size() * sizeof(float),
++                expanded.data(),
++                false,
++                "float texel-buffer expansion"))
+         {
+           if (buffer_texture_buffer_.creation_pending_or_retryable()) {
+             ctx->buffer_ssbo_bind(int(binding),
+diff --git a/source/blender/gpu/webgpu/wgpu_index_buffer.cc b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_index_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_index_buffer.cc
+@@ -35,13 +35,14 @@
+   if (ctx == nullptr) {
+     return;
+   }
+-  buffer_.create_scoped(ctx->instance_get(),
+-                        ctx->device_get(),
+-                        webgpu::BufferKind::Index,
+-                        webgpu::UsageType::Static,
+-                        size_get(),
+-                        nullptr,
+-                        true);
++  buffer_.create_for_draw_scope(ctx->instance_get(),
++                                ctx->device_get(),
++                                ctx->queue_scheduler_get(),
++                                webgpu::BufferKind::Index,
++                                webgpu::UsageType::Static,
++                                size_get(),
++                                nullptr,
++                                true);
+ }
+ 
+ void WGPUIndexBuffer::upload_data()
+@@ -73,13 +74,14 @@
+   /* Upload via mappedAtCreation so an odd U16 byte size (not a multiple of 4)
+    * still copies exactly. readable=true so read() can stage it back. */
+   initial_upload_pending_ = true;
+-  if (!buffer_.create_scoped(ctx->instance_get(),
+-                             ctx->device_get(),
+-                             webgpu::BufferKind::Index,
+-                             webgpu::UsageType::Static,
+-                             size_get(),
+-                             data_,
+-                             true))
++  if (!buffer_.create_for_draw_scope(ctx->instance_get(),
++                                     ctx->device_get(),
++                                     ctx->queue_scheduler_get(),
++                                     webgpu::BufferKind::Index,
++                                     webgpu::UsageType::Static,
++                                     size_get(),
++                                     data_,
++                                     true))
+   {
+     return;
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
+--- a/source/blender/gpu/webgpu/wgpu_batch.cc
++++ b/source/blender/gpu/webgpu/wgpu_batch.cc
+@@ -53,6 +53,13 @@
+ #endif
+ }
+ 
++static void note_webgpu_draw_drop()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::note_redraw_drop();
++#endif
++}
++
+ static wgpu::ComputePipeline triangle_fan_index_pipeline(WGPUContext &ctx)
+ {
+   const wgpu::Instance instance = ctx.instance_get();
+@@ -190,6 +197,7 @@
+ 
+   const wgpu::ComputePipeline pipeline = triangle_fan_index_pipeline(ctx);
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return false;
+   }
+   wgpu::BindGroupEntry entries[3] = {};
+@@ -256,6 +264,7 @@
+   if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
+       shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
+   {
++    note_webgpu_draw_drop();
+     return;
+   }
+ 
+@@ -405,6 +414,7 @@
+   wgpu::RenderPipeline pipeline = ctx->batch_pipeline_pool_get().get(
+       ctx->instance_get(), ctx->device_get(), info);
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return;
+   }
+ 
+@@ -727,6 +737,7 @@
+   if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
+       shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
+   {
++    note_webgpu_draw_drop();
+     return;
+   }
+ 
+@@ -810,6 +821,7 @@
+   wgpu::RenderPipeline pipeline = ctx->batch_pipeline_pool_get().get(
+       ctx->instance_get(), ctx->device_get(), info);
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return;
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_immediate.cc b/source/blender/gpu/webgpu/wgpu_immediate.cc
+--- a/source/blender/gpu/webgpu/wgpu_immediate.cc
++++ b/source/blender/gpu/webgpu/wgpu_immediate.cc
+@@ -38,6 +38,13 @@
+   return static_cast<WGPUContext *>(unwrap(GPU_context_active_get()));
+ }
+ 
++static void note_webgpu_draw_drop()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::note_redraw_drop();
++#endif
++}
++
+ enum class DashedTraceStage : uint8_t {
+   Attempt = 0,
+   ModuleDeferred,
+@@ -118,6 +125,7 @@
+   if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
+       shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
+   {
++    note_webgpu_draw_drop();
+     note_dashed_stage(dashed_diagnostic, DashedTraceStage::ModuleDeferred);
+     return;
+   }
+@@ -226,6 +234,7 @@
+   wgpu::RenderPipeline pipeline = ctx->immediate_pipeline_pool_get().get(
+       ctx->instance_get(), ctx->device_get(), info);
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     note_dashed_stage(dashed_diagnostic, DashedTraceStage::PipelineDeferred);
+     return;
+   }
+diff --git a/source/blender/gpu/webgpu/wgpu_backend.cc b/source/blender/gpu/webgpu/wgpu_backend.cc
+--- a/source/blender/gpu/webgpu/wgpu_backend.cc
++++ b/source/blender/gpu/webgpu/wgpu_backend.cc
+@@ -38,10 +38,21 @@
+ 
+ #include "MEM_guardedalloc.h"
+ 
++#ifdef __EMSCRIPTEN__
++#  include "GHOST_WebDisplayState.hh"
++#endif
++
+ #include <vector>
+ 
+ namespace blender::gpu {
+ 
++static void note_webgpu_draw_drop()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::note_redraw_drop();
++#endif
++}
++
+ void WGPUBackend::platform_init()
+ {
+   /* Static platform identity, mirroring VKBackend::platform_init() (vk_backend.cc:411).
+@@ -214,6 +225,7 @@
+   wgpu::Device device = ctx->device_get();
+   wgpu::ComputePipeline pipeline = shader->compute_pipeline(ctx->instance_get(), device);
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return;
+   }
+ 
+@@ -265,6 +277,7 @@
+   wgpu::Device device = ctx->device_get();
+   wgpu::ComputePipeline pipeline = shader->compute_pipeline(ctx->instance_get(), device);
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return;
+   }
+ 
+diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_framebuffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
+@@ -53,6 +53,13 @@
+ #endif
+ }
+ 
++static void note_webgpu_draw_drop()
++{
++#ifdef __EMSCRIPTEN__
++  ghost_web::note_redraw_drop();
++#endif
++}
++
+ static webgpu::WGPUTexture *as_wgpu(Texture *tex)
+ {
+   return static_cast<webgpu::WGPUTexture *>(tex);
+@@ -319,6 +326,7 @@
+         }
+       });
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return false;
+   }
+ 
+@@ -506,6 +514,7 @@
+         }
+       });
+   if (pipeline == nullptr) {
++    note_webgpu_draw_drop();
+     return false;
+   }
+ 

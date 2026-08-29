@@ -1069,6 +1069,7 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
                                  uint64_t &input_retry_generation_seen,
                                  const uint64_t input_terminal_generation,
                                  uint64_t &input_terminal_generation_seen,
+                                 uint64_t &input_tail_generation,
                                  uint32_t &heartbeat)
 {
   const uint64_t retry_delta = retry_generation - retry_generation_seen;
@@ -1084,6 +1085,9 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
       input_terminal_generation != input_terminal_generation_seen;
   if (episode_published) {
     episode_generation_seen = episode_generation;
+    /* A replacement drawable owns the shared recovery burst until its coherent frame reaches
+     * the surface. An older input-content receipt cannot retire that resize work. */
+    input_tail_generation = 0u;
     heartbeat = 0;
   }
   if (retry_published) {
@@ -1096,6 +1100,7 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
                              (input_published && heartbeat >= FIRST_PIXEL_SETTLE_TICKS);
   if (input_terminal_published) {
     input_terminal_generation_seen = input_terminal_generation;
+    input_tail_generation = input_terminal_generation;
   }
   if (input_rearmed) {
     const bool reopen_trace = heartbeat >= FIRST_PIXEL_SETTLE_TICKS;
@@ -1105,6 +1110,9 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
     }
   }
   if (readiness_published) {
+    /* A newly accepted lazy resource may belong to chrome outside the strict VIEW_3D trace.
+     * Keep its bounded generic burst even if the current terminal input already presented. */
+    input_tail_generation = 0u;
     if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
       heartbeat = 0;
       if (viewport_content_present_count() == 0u) {
@@ -1117,8 +1125,24 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
   }
   if (draw_dropped) {
     drop_generation_seen = drop_generation;
+    /* The strict frame can coexist with a dropped draw in another region. Preserve bounded
+     * generic recovery until that resource publishes readiness or the hard ceiling expires. */
+    input_tail_generation = 0u;
+  }
+  if (input_tail_generation != 0u &&
+      input_redraw_content_presented_count() >= input_tail_generation)
+  {
+    /* Stop producing synthetic full-screen work as soon as the exact terminal input has reached
+     * a validated background + grid + final-display surface transaction. Native input already
+     * requested its own redraw; retaining the full 180-tick tail after success only builds a
+     * queue behind the user's next sparse action. */
+    input_tail_generation = 0u;
+    heartbeat = FIRST_PIXEL_SETTLE_TICKS;
+    redraw_trace_finish(episode_generation);
+    return false;
   }
   if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
+    input_tail_generation = 0u;
     redraw_trace_finish(episode_generation);
     return false;
   }

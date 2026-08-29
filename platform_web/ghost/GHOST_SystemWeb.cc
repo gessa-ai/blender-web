@@ -1448,6 +1448,7 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
                                       input_redraw_retry_generation_seen_,
                                       ghost_web::input_redraw_terminal_count(),
                                       input_redraw_terminal_generation_seen_,
+                                      input_redraw_tail_generation_,
                                       redraw_heartbeat_);
   const uint64_t input_redraw_admitted_generation =
       ghost_web::input_redraw_admitted_count();
@@ -1977,6 +1978,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
           redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();
           input_redraw_retry_generation_seen_ = ghost_web::input_redraw_retry_generation();
           input_redraw_terminal_generation_seen_ = ghost_web::input_redraw_terminal_count();
+          input_redraw_tail_generation_ = 0;
           redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();
           redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
           redraw_present_barrier_completion_seen_ =

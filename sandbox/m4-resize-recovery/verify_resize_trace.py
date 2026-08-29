@@ -86,9 +86,19 @@ def validate(
     request = method(display, "inline uint64_t request_redraw_episode()")
     require_once(request, "redraw_trace_begin(generation);", "episode trace start")
     helper = method(display, "inline bool redraw_recovery_tick(")
-    require_once(helper, "redraw_trace_finish(episode_generation);", "bounded trace stop")
-    if helper.index("redraw_trace_finish(episode_generation);") > helper.index("return false;"):
-        raise ValueError("trace stops after the recovery helper returns")
+    if helper.count("redraw_trace_finish(episode_generation);") != 2:
+        raise ValueError("bounded trace stop requires exactly two terminal paths")
+    finish_positions = [
+        offset for offset in range(len(helper))
+        if helper.startswith("redraw_trace_finish(episode_generation);", offset)
+    ]
+    return_positions = [
+        offset for offset in range(len(helper)) if helper.startswith("return false;", offset)
+    ]
+    if len(return_positions) != 2 or any(
+        finish > returned for finish, returned in zip(finish_positions, return_positions)
+    ):
+        raise ValueError("a recovery terminal path returns before stopping its trace")
     frame_begin = method(display, "inline void redraw_trace_frame_begin(")
     for token in (
         "redraw_trace_state.frame_draw_count = 0;",
@@ -237,7 +247,20 @@ def selfcheck(sources: tuple[str, ...]) -> int:
     validate(*sources)
     mutations: list[tuple[str, str, str]] = [
         ("display", "redraw_trace_begin(generation);", ""),
-        ("display", "redraw_trace_finish(episode_generation);", ""),
+        (
+            "display",
+            "heartbeat = FIRST_PIXEL_SETTLE_TICKS;\n    "
+            "redraw_trace_finish(episode_generation);",
+            "heartbeat = FIRST_PIXEL_SETTLE_TICKS;",
+        ),
+        (
+            "display",
+            "if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {\n"
+            "    input_tail_generation = 0u;\n"
+            "    redraw_trace_finish(episode_generation);",
+            "if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {\n"
+            "    input_tail_generation = 0u;",
+        ),
         (
             "display",
             "redraw_trace_state.frame_draw_count = 0;",

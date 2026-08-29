@@ -233,6 +233,7 @@ int main()
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t input_terminal_generation_seen = ghost_web::input_redraw_terminal_count();
+  uint64_t input_tail_generation = 0;
   uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
   uint64_t drop_generation_seen = ghost_web::redraw_drop_generation();
   uint32_t heartbeat = 0;
@@ -247,6 +248,7 @@ int main()
                                            input_retry_generation_seen,
                                            ghost_web::input_redraw_terminal_count(),
                                            input_terminal_generation_seen,
+                                           input_tail_generation,
                                            heartbeat);
   };
   if (!require(recovery_tick() &&
@@ -363,8 +365,34 @@ int main()
       !require(after_input_generation == before_input_generation + 6u && recovery_tick() &&
                    retry_generation_seen == after_terminal_input &&
                    input_retry_generation_seen == after_input_generation &&
-                   input_terminal_generation_seen == third_terminal_input && heartbeat == 1,
+                   input_terminal_generation_seen == third_terminal_input &&
+                   input_tail_generation == third_terminal_input && heartbeat == 1,
                "one WM tick coalesces terminal callbacks into a full trailing recovery budget"))
+  {
+    return 1;
+  }
+
+  ghost_web::input_redraw_trace_frame_begin(third_terminal_input, third_terminal_input);
+  note_input_draw(ghost_web::RedrawTracePass::OverlayBackground, false);
+  note_input_draw(ghost_web::RedrawTracePass::OverlayGrid, false);
+  note_input_draw(ghost_web::RedrawTracePass::OcioDisplay, true);
+  const ghost_web::RedrawTraceSnapshot settled_input_trace =
+      ghost_web::input_redraw_trace_snapshot();
+  if (!require(ghost_web::note_input_redraw_content_presented(
+                   settled_input_trace, third_terminal_input),
+               "the exact terminal input publishes a complete VIEW_3D presentation") ||
+      !require(!recovery_tick() && input_tail_generation == 0u &&
+                   heartbeat == ghost_web::FIRST_PIXEL_SETTLE_TICKS,
+               "complete input content retires its synthetic tail before the hard ceiling"))
+  {
+    return 1;
+  }
+
+  const uint64_t fourth_terminal_input = ghost_web::request_input_redraw_retry();
+  ghost_web::note_input_redraw_terminal(fourth_terminal_input);
+  if (!require(recovery_tick() && input_tail_generation == fourth_terminal_input &&
+                   heartbeat == 1u,
+               "the next terminal input starts a fresh tail after content retirement"))
   {
     return 1;
   }
@@ -373,7 +401,7 @@ int main()
    * surface/backbuffer is still validating. The resize request can spend that final update before
    * the new extent is drawable; the later coherent commit must therefore start its own budget. */
   heartbeat = ghost_web::FIRST_PIXEL_SETTLE_TICKS - 1u;
-  retry_generation_seen = after_terminal_input;
+  retry_generation_seen = ghost_web::redraw_retry_generation();
   ghost_web::request_redraw_retry();
   const uint64_t resize_request = ghost_web::redraw_retry_generation();
   if (!require(recovery_tick() && retry_generation_seen == resize_request &&
@@ -890,6 +918,7 @@ int main()
                                                input_retry_generation_seen,
                                                input_terminal_generation_seen,
                                                input_terminal_generation_seen,
+                                               input_tail_generation,
                                                heartbeat) &&
                    retry_generation_seen == 0 && heartbeat == 1,
                "retry generation wrap re-arms a terminal burst"))
@@ -909,6 +938,7 @@ int main()
                                                input_retry_generation_seen,
                                                input_terminal_generation_seen,
                                                input_terminal_generation_seen,
+                                               input_tail_generation,
                                                heartbeat) &&
                    episode_generation_seen == 0 && heartbeat == 1,
                "episode generation wrap starts a fresh bounded burst"))
@@ -919,7 +949,7 @@ int main()
   std::printf(
       "CONTRACT ghost_redraw_recovery PASS cases=%d periodic=15 "
       "late=immediate drops=bounded readiness=rearmed "
-      "input=bounded-burst+terminal-tail resize_commit=fresh "
+      "input=bounded-burst+content-retired-terminal-tail resize_commit=fresh "
       "present_settlement=coalesced-wm-retry "
       "present_telemetry=suppressed-wm-replayed "
       "input_delivery=balanced-mask "
@@ -927,5 +957,5 @@ int main()
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 98 ? 0 : 1;
+  return checks == 101 ? 0 : 1;
 }

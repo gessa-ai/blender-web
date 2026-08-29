@@ -26,6 +26,8 @@ def require_once(source: str, token: str) -> None:
 def validate(source: str) -> None:
     for token in (
         'const hardwareDiagnostic = process.env.BW_P0_RAPID_HARDWARE === "1";',
+        'const sparseDiagnostic = process.env.BW_P0_SPARSE === "1";',
+        'const sampleCadenceMs = sparseDiagnostic ? 650 : 350;',
         'hardwareDiagnostic && process.platform !== "darwin"',
         'const SOFTWARE_ADAPTER_TOKENS = Object.freeze([',
         'typeof info.isFallbackAdapter === "boolean"',
@@ -42,6 +44,11 @@ def validate(source: str) -> None:
         '"__bwP0RapidDomInputs"',
         'trusted: event.isTrusted === true',
         'const waitForActionDrain = async (',
+        'const drainTimelines = Object.create(null);',
+        'failureContext = {consoleLines, pageErrors, lifecycle, nativeInputs, nativeStates, drainTimelines};',
+        'drainTimelines[name] = [];',
+        'elapsedMs: Date.now() - started,',
+        'drainTimelines[name].push({',
         'nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,',
         'if (nativeStates.length === 0) throw new Error("native rapid-input monitor did not start");',
         "current.sha256 !== baseline",
@@ -57,7 +64,16 @@ def validate(source: str) -> None:
         "nativeDeliveryComplete(current)",
         "(!hardwareDiagnostic || nativeStateComplete(current))",
         'operator === "WM_OT_bwp0r_input_probe"',
-        'await page.waitForTimeout(350);',
+        'await page.waitForTimeout(sampleCadenceMs);',
+        'const hardwareIsolatedOrbitStateComplete = (current, baseline) =>',
+        'current.nativeState?.selected_count === baseline.nativeState?.selected_count',
+        'if (sparseDiagnostic) {',
+        '"isolated-orbit-drain",',
+        'current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}',
+        '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline)',
+        '"isolated-recovery-orbit",',
+        'current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
+        '(current) => hardwareIsolatedOrbitStateComplete(current, actionDrain)',
         'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
         'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
         'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
@@ -83,10 +99,10 @@ def validate(source: str) -> None:
         '(current) => hardwareActionStateComplete(current, orbitBeforeClick)',
         'current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
         '(current) => hardwareRecoveryStateComplete(current, actionDrain)',
-        'const actionDrain = await waitForActionDrain(',
-        '"action-drain",\n    orbitBeforeClick.sha256,\n    orbitBeforeClick,',
-        '"recovery-orbit",\n    actionDrain.sha256,\n    actionDrain,',
-        "retainedActionFramesEqual: new Set(retained).size === 1",
+        'let actionDrain;',
+        '"action-drain",\n      orbitBeforeClick.sha256,\n      orbitBeforeClick,',
+        '"recovery-orbit",\n      actionDrain.sha256,\n      actionDrain,',
+        "retainedActionFramesEqual,",
         "failureContext.lastSample = result",
         "steps: failureContext?.steps || []",
         "lastSample: failureContext?.lastSample || null",
@@ -96,17 +112,19 @@ def validate(source: str) -> None:
         "eventTail: (failureContext?.consoleLines || [])",
         "inputRedrawLines: (failureContext?.consoleLines || [])",
         "actionDrainMs: actionDrain.settleMs",
-        "recoveryOrbitMs: steps.at(-1).settleMs",
-        "nativeStateContract: {",
+        "recoveryOrbitMs: recoveryOrbit.settleMs",
+        'schema: 1,\n    mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst"',
+        "drainTimelines,",
+        "nativeStateContract,",
         "actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick)",
-        "recoveryComplete: hardwareRecoveryStateComplete(steps.at(-1), actionDrain)",
+        "recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, actionDrain)",
         "if (pageErrors.length !== 0 || lifecycle.length !== 0)",
     ):
         require_once(source, token)
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
         raise ValueError("pixel and counter liveness is checked after accepting the sample")
-    if source.index('"action-drain",\n    orbitBeforeClick.sha256') > source.index(
-        '"recovery-orbit",\n    actionDrain.sha256'
+    if source.index('"action-drain",\n      orbitBeforeClick.sha256') > source.index(
+        '"recovery-orbit",\n      actionDrain.sha256'
     ):
         raise ValueError("recovery orbit precedes queued-action drain")
     if "steps.slice(steps.indexOf(orbitBeforeClick) + 1).find" in source:
@@ -356,7 +374,21 @@ def self_check(
             'operator === "WM_OT_bwp0r_input_probe"',
             'operator !== "WM_OT_bwp0r_input_probe"',
         ),
-        replace_once(source, "await page.waitForTimeout(350);", "await page.waitForTimeout(0);"),
+        replace_once(
+            source,
+            "const sampleCadenceMs = sparseDiagnostic ? 650 : 350;",
+            "const sampleCadenceMs = sparseDiagnostic ? 0 : 350;",
+        ),
+        replace_once(
+            source,
+            '"isolated-orbit-drain",',
+            '"isolated-orbit-skipped",',
+        ),
+        replace_once(
+            source,
+            "current.nativeState?.selected_count === baseline.nativeState?.selected_count",
+            "true",
+        ),
         replace_once(
             source,
             'current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}',
@@ -404,13 +436,13 @@ def self_check(
         ),
         replace_once(
             source,
-            '"action-drain",\n    orbitBeforeClick.sha256,\n    orbitBeforeClick,',
-            '"action-drain",\n    steps.at(-1).sha256,\n    steps.at(-1),',
+            '"action-drain",\n      orbitBeforeClick.sha256,\n      orbitBeforeClick,',
+            '"action-drain",\n      steps.at(-1).sha256,\n      steps.at(-1),',
         ),
         replace_once(
             source,
-            '"recovery-orbit",\n    actionDrain.sha256,\n    actionDrain,',
-            '"recovery-orbit",\n    orbitBeforeClick.sha256,\n    orbitBeforeClick,',
+            '"recovery-orbit",\n      actionDrain.sha256,\n      actionDrain,',
+            '"recovery-orbit",\n      orbitBeforeClick.sha256,\n      orbitBeforeClick,',
         ),
         replace_once(
             source,

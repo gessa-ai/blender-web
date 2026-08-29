@@ -38,6 +38,15 @@ pointer-lock diagnostics so failure can be localized without another relink. Thi
 diagnostic does not replace the immutable hardware
 receipt below.
 
+Set `BW_P0_SPARSE=1` to run the complementary slow/sparse discriminator. It leaves 650 ms between
+the view/select/deselect samples, sends exactly one middle-mouse orbit, and queues no later input
+until that orbit either reaches balanced GHOST delivery, WM admission/dispatch, validated surface
+presentation, strict VIEW_3D content presentation, changed native view state, and changed pixels,
+or exhausts the same 12-second Apple bound. Only then does it send a second isolated orbit and
+require the same end-to-end receipt again. A bounded per-poll timeline preserves every generation,
+pixel hash, held-button mask, native state, and modal stack, so a hardware failure identifies the
+first stalled boundary instead of treating an immediate identical screenshot as permanent freeze.
+
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a
 second MMB orbit. Each changing view is coupled to settled Blender-native perspective/rotation and
@@ -85,6 +94,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_rapid_input_drain.py --self-check
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
+  harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
+DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir BW_P0_SPARSE=1 \
   harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 ```
 

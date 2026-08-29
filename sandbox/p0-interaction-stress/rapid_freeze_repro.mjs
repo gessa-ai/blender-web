@@ -11,6 +11,8 @@ const moduleRoot = process.env.BW_NODE_MODULES || resolve(root, ".m4-node/node_m
 const {chromium} = createRequire(resolve(moduleRoot, "package.json"))("playwright");
 const port = Number(process.argv[2] || 8123);
 const hardwareDiagnostic = process.env.BW_P0_RAPID_HARDWARE === "1";
+const sparseDiagnostic = process.env.BW_P0_SPARSE === "1";
+const sampleCadenceMs = sparseDiagnostic ? 650 : 350;
 const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
   "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
   "microsoft basic render", "warp",
@@ -131,7 +133,8 @@ try {
   const lifecycle = [];
   const nativeInputs = [];
   const nativeStates = [];
-  failureContext = {consoleLines, pageErrors, lifecycle, nativeInputs, nativeStates};
+  const drainTimelines = Object.create(null);
+  failureContext = {consoleLines, pageErrors, lifecycle, nativeInputs, nativeStates, drainTimelines};
   await page.addInitScript(() => {
     const events = [];
     for (const type of [
@@ -279,13 +282,32 @@ try {
     current.nativeStateSequence > baseline.nativeStateSequence &&
     nativeCubeSelected(current) && nativeViewChanged(current, baseline) &&
     stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location);
+  const hardwareIsolatedOrbitStateComplete = (current, baseline) =>
+    current.nativeStateSequence > baseline.nativeStateSequence &&
+    current.nativeState?.selected_count === baseline.nativeState?.selected_count &&
+    nativeViewChanged(current, baseline) &&
+    JSON.stringify(current.nativeState?.location) === JSON.stringify(baseline.nativeState?.location);
   const waitForActionDrain = async (
     name, baseline, counterBaseline, nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
   ) => {
     const started = Date.now();
+    drainTimelines[name] = [];
     while (Date.now() - started <= timeoutMs) {
       await page.waitForTimeout(250);
       const current = await sample(name);
+      drainTimelines[name].push({
+        elapsedMs: Date.now() - started,
+        sha256: current.sha256,
+        ticks: current.ticks,
+        presents: current.presents,
+        retries: current.retries,
+        inputRedraw: {...current.inputRedraw},
+        ghostInput: {...current.ghostInput},
+        nativeInputSequence: current.nativeInputSequence,
+        nativeStateSequence: current.nativeStateSequence,
+        nativeState: current.nativeState ? {...current.nativeState} : null,
+        nativeModalOperators: [...current.nativeModalOperators],
+      });
       if (current.sha256 !== baseline &&
           current.ticks > counterBaseline.ticks &&
           current.presents > counterBaseline.presents &&
@@ -311,7 +333,7 @@ try {
   failureContext.steps = steps;
   steps.push(await sample("splash-dismissed"));
   const settle = async (name) => {
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(sampleCadenceMs);
     steps.push(await sample(name));
   };
 
@@ -331,67 +353,113 @@ try {
   await page.keyboard.press("Alt+a");
   await settle("deselect-all");
 
+  const isolatedOrbitBaseline = steps.at(-1);
+  const isolatedOrbitInputBaseline = isolatedOrbitBaseline.ghostInput;
   const rapidInputBaseline = steps.at(-1).ghostInput;
   await page.mouse.down({button: "middle"});
   await page.mouse.move(center.x + 34, center.y + 20, {steps: 8});
   await page.mouse.up({button: "middle"});
   await settle("orbit-before-click");
 
-  await page.mouse.click(center.x, center.y);
-  await settle("click");
-  await page.mouse.move(center.x, center.y);
-  await page.mouse.down({button: "middle"});
-  await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
-  await page.mouse.up({button: "middle"});
-  await settle("orbit-after-click");
-  await page.keyboard.press("g");
-  await page.mouse.move(center.x + 40, center.y - 20);
-  await settle("move-pending");
-  await page.mouse.click(center.x + 40, center.y - 20);
-  await settle("move-confirmed");
-
   const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");
   const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;
-  const actionDrain = await waitForActionDrain(
-    "action-drain",
-    orbitBeforeClick.sha256,
-    orbitBeforeClick,
-    (current) => ghostInputDeliveryComplete(
-      current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}),
-    (current) => hardwareActionStateComplete(current, orbitBeforeClick),
-    drainTimeoutMs,
-  );
-  steps.push(actionDrain);
-  await page.keyboard.press("Escape");
-  await page.mouse.move(center.x, center.y);
-  const recoveryInputBaseline = actionDrain.ghostInput;
-  await page.mouse.down({button: "middle"});
-  await page.mouse.move(center.x + 24, center.y - 18, {steps: 8});
-  await page.mouse.up({button: "middle"});
-  steps.push(await waitForActionDrain(
-    "recovery-orbit",
-    actionDrain.sha256,
-    actionDrain,
-    (current) => ghostInputDeliveryComplete(
-      current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
-    (current) => hardwareRecoveryStateComplete(current, actionDrain),
-    drainTimeoutMs,
-  ));
+  let actionDrain;
+  let recoveryOrbit;
+  let nativeStateContract;
+  let retainedActionFramesEqual = null;
+  if (sparseDiagnostic) {
+    actionDrain = await waitForActionDrain(
+      "isolated-orbit-drain",
+      isolatedOrbitBaseline.sha256,
+      isolatedOrbitBaseline,
+      (current) => ghostInputDeliveryComplete(
+        current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline),
+      drainTimeoutMs,
+    );
+    steps.push(actionDrain);
+    await page.mouse.move(center.x, center.y);
+    const isolatedRecoveryInputBaseline = actionDrain.ghostInput;
+    await page.mouse.down({button: "middle"});
+    await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
+    await page.mouse.up({button: "middle"});
+    recoveryOrbit = await waitForActionDrain(
+      "isolated-recovery-orbit",
+      actionDrain.sha256,
+      actionDrain,
+      (current) => ghostInputDeliveryComplete(
+        current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareIsolatedOrbitStateComplete(current, actionDrain),
+      drainTimeoutMs,
+    );
+    steps.push(recoveryOrbit);
+    nativeStateContract = {
+      enforced: hardwareDiagnostic,
+      actionComplete: hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline),
+      recoveryComplete: hardwareIsolatedOrbitStateComplete(recoveryOrbit, actionDrain),
+    };
+  }
+  else {
+    await page.mouse.click(center.x, center.y);
+    await settle("click");
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down({button: "middle"});
+    await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
+    await page.mouse.up({button: "middle"});
+    await settle("orbit-after-click");
+    await page.keyboard.press("g");
+    await page.mouse.move(center.x + 40, center.y - 20);
+    await settle("move-pending");
+    await page.mouse.click(center.x + 40, center.y - 20);
+    await settle("move-confirmed");
 
-  const retained = steps.slice(8, 13).map((step) => step.sha256);
+    actionDrain = await waitForActionDrain(
+      "action-drain",
+      orbitBeforeClick.sha256,
+      orbitBeforeClick,
+      (current) => ghostInputDeliveryComplete(
+        current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}),
+      (current) => hardwareActionStateComplete(current, orbitBeforeClick),
+      drainTimeoutMs,
+    );
+    steps.push(actionDrain);
+    await page.keyboard.press("Escape");
+    await page.mouse.move(center.x, center.y);
+    const recoveryInputBaseline = actionDrain.ghostInput;
+    await page.mouse.down({button: "middle"});
+    await page.mouse.move(center.x + 24, center.y - 18, {steps: 8});
+    await page.mouse.up({button: "middle"});
+    recoveryOrbit = await waitForActionDrain(
+      "recovery-orbit",
+      actionDrain.sha256,
+      actionDrain,
+      (current) => ghostInputDeliveryComplete(
+        current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareRecoveryStateComplete(current, actionDrain),
+      drainTimeoutMs,
+    );
+    steps.push(recoveryOrbit);
+    const retained = steps.slice(8, 13).map((step) => step.sha256);
+    retainedActionFramesEqual = new Set(retained).size === 1;
+    nativeStateContract = {
+      enforced: hardwareDiagnostic,
+      actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick),
+      recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, actionDrain),
+    };
+  }
+
   const evidence = {
     schema: 1,
+    mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst",
+    sampleCadenceMs,
     evidenceClass: hardwareDiagnostic ? "diagnostic-apple" : "diagnostic-software-fallback",
     adapter,
     steps,
-    retainedActionFramesEqual: new Set(retained).size === 1,
+    retainedActionFramesEqual,
     actionDrainMs: actionDrain.settleMs,
-    recoveryOrbitMs: steps.at(-1).settleMs,
-    nativeStateContract: {
-      enforced: hardwareDiagnostic,
-      actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick),
-      recoveryComplete: hardwareRecoveryStateComplete(steps.at(-1), actionDrain),
-    },
+    recoveryOrbitMs: recoveryOrbit.settleMs,
+    nativeStateContract,
+    drainTimelines,
     nativeInputs,
     nativeStates,
     pageErrors,
@@ -406,15 +474,20 @@ try {
   process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
 }
 catch (error) {
-  const retained = (failureContext?.steps || []).slice(8, 13).map((step) => step.sha256);
+  const retained = sparseDiagnostic ? [] :
+    (failureContext?.steps || []).slice(8, 13).map((step) => step.sha256);
   process.stderr.write(`${JSON.stringify({
     error: error?.stack || String(error),
+    mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst",
+    sampleCadenceMs,
     adapter: failureContext?.adapter || null,
     steps: failureContext?.steps || [],
     lastSample: failureContext?.lastSample || null,
     nativeInputs: failureContext?.nativeInputs || [],
     nativeStates: failureContext?.nativeStates || [],
-    retainedActionFramesEqual: retained.length === 5 ? new Set(retained).size === 1 : null,
+    retainedActionFramesEqual: sparseDiagnostic ? null :
+      (retained.length === 5 ? new Set(retained).size === 1 : null),
+    drainTimelines: failureContext?.drainTimelines || {},
     pageErrors: failureContext?.pageErrors || [],
     lifecycle: failureContext?.lifecycle || [],
     pointerLockLines: (failureContext?.consoleLines || [])

@@ -3925,6 +3925,23 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   23-mutation census plus adjacent selection-stream/sync/rapid/capture contracts are green. This
   changes no runtime byte or hardware verdict: CAPTURE `.wasm.orig` remains `79c4a0f9edf4`, and
   P0-I/J remain open for exact Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet.
+  **Pending-selection transform-motion ordering candidate implemented/relinked/pending Apple
+  (`8e99bc8`, patches 0320-0321):** the strengthened sparse producer proved a transform's pointer
+  motion could pass the pending selection modal before its retained `G` and confirmation, yielding
+  a zero-delta replay despite complete input/readback/presentation counters. Tracking MMB release
+  inside selection alone was insufficient because the later rotate modal consumes that release.
+  The next ordinary non-navigation event now closes this otherwise-unobservable navigation tail,
+  so `G`, its following motion, and confirmation remain in one retained FIFO while a live orbit
+  still passes directly. The fail-first/final mutation contracts, affected Wasm object, canonical
+  replay, locked relink/no-work, CAPTURE preflights, rapid producer, and REUSE are green. Ten of ten
+  accepted exact slow/sparse software runs each replayed 13 events, retired two rotates and the
+  selection continuation, selected exactly Cube, cleared both held-button masks, presented strict
+  content, and changed native Cube location; two empty-error shared-display closures were rejected.
+  RELINKED CAPTURE `.wasm.orig` is `6b0ac5366aef` (119,031,283 bytes); JS/Wasm/data/manifest are
+  `bba3f480bb3b`/`e61b1f4cc5f3`/`095d0ba748c3`/`a3569ddfe799`. This remains software evidence:
+  P0-I/J stay open for this exact generation to pass the driver-operated Apple 10/10 and the
+  same-generation P0-E/zero-artifact gauntlet. See
+  `notes/p0-selection-navigation-motion-order-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

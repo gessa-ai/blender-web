@@ -118,3 +118,48 @@ This changes no runtime or product byte. Direct M4 remains honestly red at the A
 6/6 while retaining every named later boundary
 (`ledger/buildlogs/20260829T195105-288259.log`). P0-I/J still require the exact current generation
 to pass Apple 10/10 plus the same-generation P0-E and zero-artifact gauntlet.
+
+## Independent post-drain recovery
+
+Commit `060a89b` closes a separate acceptance gap. The slow/sparse producer proved that navigation
+could pass a pending selection and that the retained transform FIFO eventually replayed, but it
+then reused that pending-selection orbit as its `recoveryOrbit` evidence. A single clean replayed
+frame could therefore satisfy the focused run without proving that ordinary input remained live
+after the continuation had fully retired—the permanent-freeze property in the Apple filing.
+
+The producer now waits one real 650 ms interval after selection retirement and sends a third,
+independent MMB orbit. It must advance both GHOST and WM middle-button edges, retire another
+`VIEW3D_OT_rotate`, advance WM ticks and validated strict-content presentation in the same redraw
+episode, change screenshot and native view rotation, keep exactly Cube selected, and preserve the
+transformed Cube location. The series consumer rechecks each fact instead of trusting the
+producer's boolean and requires a nonempty bounded timeline for the new drain. Its synthetic
+census rejects 37 mutations, including unchanged pixels/rotation, moved or deselected Cube state,
+an unretired rotate or selection continuation, missing GHOST/WM edges, missing content
+presentation, and absent tick/present/timeline progress.
+
+The missing producer path failed first at
+`ledger/buildlogs/20260829T195953-295410.log`. Final producer and series mutation checks, syntax,
+scoped diff, and REUSE 2,828/2,828 are green at
+`ledger/buildlogs/20260829T200637-299680.log`,
+`ledger/buildlogs/20260829T200917-303156.log`,
+`ledger/buildlogs/20260829T200637-299686.log`,
+`ledger/buildlogs/20260829T200917-303158.log`, and
+`ledger/buildlogs/20260829T200917-303171.log`. Adjacent selection/navigation/readback contracts
+remain green at `ledger/buildlogs/20260829T200545-299382.log` through
+`ledger/buildlogs/20260829T200545-299414.log`.
+
+Two real software controls pass the new post-drain orbit. The shared-display run drains action,
+selection, and independent recovery in 318/3,261/2,046 ms; the isolated-X run does so in
+322/2,217/3,509 ms. Both retire three rotates, preserve Cube location, change native view and
+pixels, converge input presentation, and report no page/lifecycle errors
+(`ledger/buildlogs/20260829T200422-298028.log` and
+`ledger/buildlogs/20260829T200731-300315.log`). One intervening shared-display target closure had
+an empty page-error census and was rejected rather than counted
+(`ledger/buildlogs/20260829T200641-299744.log`).
+
+No runtime or product byte changed; CAPTURE `.wasm.orig` remains `6b0ac5366aef`. Direct M4 remains
+red at the Apple pixel boundary (`ledger/buildlogs/20260829T200825-301500.log`). The authoritative
+container regression restores M0 6/6 and retains the named strict/hardware/APPLY/product boundaries
+(`ledger/buildlogs/20260829T200846-301886.log`). This binds a stronger producer, not hardware
+closure: P0-I/J still require this exact producer and candidate to pass Apple 10/10 plus the
+same-generation P0-E/zero-artifact gauntlet.

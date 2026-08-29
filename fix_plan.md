@@ -3957,7 +3957,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   first diagnosis. Fail-first/final mutation, live failure/no-overwrite, sparse-series, composed-
   gauntlet, and REUSE checks are green. This changes no linked byte or hardware verdict; current
   CAPTURE `.wasm.orig` remains `6b0ac5366aef`, and P0-I/J remain open at the unchanged Apple 10/10
-  plus same-generation P0-E/zero-artifact gate.
+  plus same-generation P0-E/zero-artifact gate. **Independent post-drain liveness gate verified/
+  pending Apple (`060a89b`):** the sparse producer no longer aliases navigation through the pending
+  selection as recovery. After selection and its retained transform FIFO fully retire, it waits one
+  real 650 ms interval and requires a third isolated orbit to advance GHOST/WM edges, retire another
+  rotate, present strict same-episode VIEW_3D content, change pixels and native view rotation, and
+  preserve the transformed Cube location. The independent ten-run consumer rechecks those facts
+  plus the bounded timeline and rejects 37 mutations. Two real software controls pass the new drain
+  in 2,046/3,509 ms after selection retirement; one shared-display target closure with no page
+  errors was rejected rather than counted. No runtime byte or relink changed: CAPTURE `.wasm.orig`
+  remains `6b0ac5366aef`. P0-I/J remain open for this stronger producer and exact candidate to pass
+  Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
+  `notes/p0-sparse-hardware-series-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

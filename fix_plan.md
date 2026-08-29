@@ -3562,7 +3562,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   census. CAPTURE `.wasm.orig` is
   `025682159147` (118,988,932 bytes). This changes evidence provenance only; Apple must still run
   the exact deterministic freeze and same-generation gauntlet plus P0-E regression. P0-I/J remain
-  open. See
+  open. **Strict VIEW_3D content-presentation discriminator implemented/relinked (`d90aee1`):** a
+  clean frame-bound surface copy can still carry a persistent backbuffer that never encoded the
+  input's real 3D region. A separate bounded trace now follows the exact dispatched input
+  generation through successful overlay-background, stock-grid, and final OCIO-display encoding;
+  only validation of that surface transaction advances `contentPresented`. The focused producer
+  requires this stronger edge in addition to terminal/admitted/dispatched/presented. The exact
+  Xvfb SwiftShader control reaches action-drain `51/51/51/51/51` and recovery
+  `64/65/65/64/64` across terminal/admitted/dispatched/presented/content-presented with balanced
+  input, episode 1, and zero page/lifecycle errors. CAPTURE `.wasm.orig` is
+  `f6a096b53f13` (118,990,678 bytes). This is diagnostic provenance, not a redraw-policy change or
+  a software pixel receipt; Apple must run this exact generation and the composed 10/10 gauntlet.
+  P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

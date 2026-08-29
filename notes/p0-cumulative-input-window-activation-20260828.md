@@ -922,3 +922,59 @@ regression restores M0 6/6 while M1-M8 retain their named strict/APPLY/hardware/
 (`20260829T015653-3658192`). P0-I/J remain open for the exact Apple deterministic-freeze run and
 same-generation composed gauntlet. Final-tree REUSE 6.2.0 is green
 (`20260829T020734-3666676`).
+
+## Bind terminal presentation evidence to encoded VIEW_3D content
+
+Frame provenance removed one false label, but a validated frame-bound surface copy still did not
+prove that its persistent backbuffer contained the 3D region affected by input. A WM frame can
+present chrome or retained backbuffer bytes without successfully encoding the viewport background,
+grid, and final display composite. On the deterministic Apple failure, matching terminal,
+admitted, dispatched, and presented generations would therefore still leave two materially
+different explanations: a complete input frame was presented but pixels stayed stale, or the
+present was valid while the intended VIEW_3D content never entered that frame.
+
+Commit `d90aee1` adds a separate, bounded content trace. `WGPUContext::begin_frame()` opens it only
+when a fully dispatched terminal input generation has not yet acquired a strict content receipt.
+`WGPUFrameBuffer::debug_note_draw()` records the same successfully encoded draw plans already used
+by the resize and loader contracts without sharing or resetting their state. A trace is complete
+only when the exact input generation contains offscreen overlay-background and stock-grid draws,
+then a direct-window OCIO display composite, with the frame ending on a window target. The browser
+surface validation callback publishes a monotonic `contentPresented` generation only for that
+snapshot. Input callbacks, bounded recovery, resize episodes/barriers, surface ordering, and
+adapter policy are unchanged.
+
+The producer contract failed first on the absent content predicate
+(`ledger/buildlogs/20260829T021836-3674711.log`). The final 57-mutation/22-delivery source model,
+96-case native/wasm32 behavior model, integrated WebGPU/GHOST suite, canonical freeze/replay, and
+the real windowed Wasm objects are green (`20260829T022932-3686147`,
+`20260829T023055-3689060`, `20260829T022932-3686155`, and
+`20260829T023133-3691534`). Patch 0303 applies exactly over the preceding frozen source and the
+updated canonical snapshot remains byte-bound.
+
+The CAPTURE relink and committed-state locked no-work proof are
+`ledger/buildlogs/20260829T023337-3694050.log` and
+`20260829T023444-3695190.log`. Exact product identities are:
+
+- `blender_browser.js`: `b80ccc954b75` (710,108 bytes)
+- `blender_browser.wasm`: `34c7d4b16992` (120,339,472 bytes)
+- `blender_browser.wasm.orig`: `f6a096b53f13` (118,990,678 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `0bd8d5884659` (13,861 bytes)
+
+The first fallback attempt was invalidated by an external WSLg Xwayland abort at the exact browser
+close timestamp; its retained product evidence had zero page errors and valid content receipts up
+to that point (`ledger/buildlogs/20260829T023520-3695431.log`). A fresh isolated-X run under pinned
+Node 22.16.0 is green: action drain reaches terminal/admitted/dispatched/presented/content-presented
+`51/51/51/51/51`, with 85 recorded draws (69 offscreen, 16 window), and the independent recovery
+orbit reaches `64/65/65/64/64`, with 78 draws (63 offscreen, 15 window). Button/key edges are
+balanced, the held mask is zero, the resize episode remains 1, and page/lifecycle errors are empty
+(`ledger/buildlogs/20260829T023652-3696942.log`). REUSE 6.2.0 is green
+(`20260829T023832-3698228`).
+
+P0-I/J remain open. Direct M4 is still RED because this host cannot bind the required Apple pixel
+receipt, and aggregate regression retains the named strict/APPLY/product boundaries. The driver
+must run the exact deterministic freeze against `.wasm.orig` `f6a096b53f13`: if ordinary
+`presented` advances but `contentPresented` does not, the loss is now localized to complete
+VIEW_3D frame production; if both advance while native state or pixels stay stale, it is below
+that content-bearing surface transaction. Only the repeated same-generation Apple interaction
+series plus the composed 10/10 resize gauntlet can close P0-I/J.

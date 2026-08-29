@@ -2120,3 +2120,19 @@ the next producer frame adopts the new generation. This is an evidence fix, not 
 change redraw policy or promote software-adapter pixels. See
 `platform_web/ghost/GHOST_WebDisplayState.hh`, `platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and
 `sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.
+
+## Class 143 — frame-bound presentation is not post-input content evidence
+
+Signature: a validated surface transaction carries the exact dispatched input generation captured
+when its WM frame began, yet it can still copy a persistent backbuffer whose intended 3D region did
+not encode. Generic chrome draws or retained bytes make the surface transaction valid without
+proving the user's orbit, selection, or transform reached a complete viewport frame. Keep a
+separate bounded semantic trace for the pending terminal generation, record only successfully
+encoded background, stock-grid, and final-display work, snapshot it with the frame, and advance a
+monotonic content-presented edge only after that exact surface submission validates. Do not use
+the edge as a substitute for hardware pixels: it localizes a failure above or below content-bearing
+presentation but cannot establish visual correctness. See
+`platform_web/ghost/GHOST_WebDisplayState.hh`, `platform_web/ghost/GHOST_ContextWGPUWeb.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc`, and
+`sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

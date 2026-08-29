@@ -108,7 +108,6 @@ def validate(source: str) -> None:
         'current.selectionContinuation.queuedEvents === 0',
         'current.selectionContinuation.gpuFailures === baseline.selectionContinuation.gpuFailures',
         'const selectionPendingWindow = await sample("isolated-selection-pending");',
-        'await page.waitForTimeout(Math.max(sampleCadenceMs, 650));',
         'selectionNavigationPassthroughRequired =\n'
         '      selectionPendingWindow.selectionContinuation.gpuSessions >',
         'selectionPendingWindow.selectionContinuation.modalFinishes ===',
@@ -125,7 +124,14 @@ def validate(source: str) -> None:
         'selectionNavigationPassthroughRequired,',
         '\n    selectionNavigationPassedThrough,\n    actionDrainMs:',
         'selectionDrainMs: selectionDrain?.settleMs ?? null',
-        'recoveryOrbit = selectionNavigationWindow;',
+        'const postDrainBaseline = selectionDrain;',
+        'const postDrainInputBaseline = postDrainBaseline.ghostInput;',
+        'const postDrainWmInputBaseline = postDrainBaseline.wmInput;',
+        '"isolated-post-drain-recovery-orbit",',
+        'current, postDrainInputBaseline, {left: 0, middle: 1, keys: 0}',
+        'current, postDrainWmInputBaseline, {left: 0, middle: 1, keys: 0}',
+        '(current) => hardwareRecoveryStateComplete(current, postDrainBaseline)',
+        'recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, postDrainBaseline)',
         'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
         'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
         'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
@@ -186,6 +192,8 @@ def validate(source: str) -> None:
         "evidence.selectionReadbackFailureLines.length !== 0",
     ):
         require_once(source, token)
+    if source.count("await page.waitForTimeout(Math.max(sampleCadenceMs, 650));") != 2:
+        raise ValueError("slow/sparse selection and post-drain pauses are not both present")
     if source.count(
         "stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)"
     ) != 1:
@@ -200,6 +208,12 @@ def validate(source: str) -> None:
         '"recovery-orbit",\n      recoveryBaseline.sha256'
     ):
         raise ValueError("recovery orbit precedes queued-action drain")
+    if source.index('"isolated-selection-drain",') > source.index(
+        '"isolated-post-drain-recovery-orbit",'
+    ):
+        raise ValueError("independent sparse recovery orbit precedes selection retirement")
+    if "recoveryOrbit = selectionNavigationWindow;" in source:
+        raise ValueError("pending-selection navigation is still aliased as post-drain recovery")
     if "steps.slice(steps.indexOf(orbitBeforeClick) + 1).find" in source:
         raise ValueError("an intermediate action can still satisfy the terminal drain")
     if "retainedActionFramesEqual" not in source or "throw new Error" not in source:
@@ -390,8 +404,8 @@ def validate_delivery_sources(
         raise ValueError("producer must sample left and middle GHOST press counters")
     if source.count('readArg("_bw_input_button_release_count"') != 2:
         raise ValueError("producer must sample left and middle GHOST release counters")
-    if source.count("wmInputDeliveryComplete(") != 5:
-        raise ValueError("producer must enforce WM-queue delivery for all five drains")
+    if source.count("wmInputDeliveryComplete(") != 6:
+        raise ValueError("producer must enforce WM-queue delivery for all six drains")
     for token in (
         'keyPresses: read("_bw_input_key_press_count")',
         'keyReleases: read("_bw_input_key_release_count")',
@@ -602,6 +616,11 @@ def self_check(
         ),
         replace_once(
             source,
+            '"isolated-post-drain-recovery-orbit",',
+            '"isolated-post-drain-recovery-skipped",',
+        ),
+        replace_once(
+            source,
             'selectionPoint = nativeCubePagePoint(selectionBaseline, box);',
             'selectionPoint = center;',
         ),
@@ -614,6 +633,11 @@ def self_check(
             source,
             'navigationPassedThrough: selectionNavigationPassedThrough',
             'navigationPassedThrough: true',
+        ),
+        replace_once(
+            source,
+            'recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, postDrainBaseline)',
+            'recoveryComplete: true',
         ),
         replace_once(
             source,

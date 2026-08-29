@@ -49,6 +49,7 @@ REQUIRED_STEPS = {
     "isolated-selection-pending",
     "isolated-selection-navigation-passthrough",
     "isolated-selection-drain",
+    "isolated-post-drain-recovery-orbit",
 }
 
 
@@ -74,6 +75,14 @@ def vector_changed(left: object, right: object, size: int) -> bool:
     rhs = numeric_vector(right, size)
     return lhs is not None and rhs is not None and any(
         abs(a - b) > 0.00001 for a, b in zip(lhs, rhs, strict=True)
+    )
+
+
+def vector_equal(left: object, right: object, size: int) -> bool:
+    lhs = numeric_vector(left, size)
+    rhs = numeric_vector(right, size)
+    return lhs is not None and rhs is not None and all(
+        abs(a - b) <= 0.00001 for a, b in zip(lhs, rhs, strict=True)
     )
 
 
@@ -207,12 +216,15 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     baseline = by_name["isolated-orbit-drain"]
     navigation = by_name["isolated-selection-navigation-passthrough"]
     final = by_name["isolated-selection-drain"]
+    recovery = by_name["isolated-post-drain-recovery-orbit"]
     require(baseline["sha256"] != deselected["sha256"],
             "first isolated orbit did not change pixels")
     require(navigation["sha256"] != baseline["sha256"],
             "pending-selection navigation did not change pixels")
     require(final["sha256"] != baseline["sha256"],
             "replayed transform tail did not change pixels")
+    require(recovery["sha256"] != final["sha256"],
+            "independent post-drain orbit did not change pixels")
     require(final.get("selectionDrawValidation", {}).get("pending") == 0,
             "selection validation remained pending after the drain")
     continuation = final.get("selectionContinuation")
@@ -225,6 +237,33 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     require(vector_changed(final.get("nativeState", {}).get("view_rotation"),
                            baseline.get("nativeState", {}).get("view_rotation"), 4),
             "pending-selection navigation did not change the native view")
+    require(vector_changed(recovery.get("nativeState", {}).get("view_rotation"),
+                           final.get("nativeState", {}).get("view_rotation"), 4),
+            "independent post-drain orbit did not change the native view")
+    require(vector_equal(recovery.get("nativeState", {}).get("location"),
+                         final.get("nativeState", {}).get("location"), 3),
+            "independent post-drain orbit unexpectedly changed Cube location")
+    recovery_continuation = recovery.get("selectionContinuation")
+    require(isinstance(recovery_continuation, dict) and
+            recovery_continuation.get("active") == 0 and
+            recovery_continuation.get("queuedEvents") == 0 and
+            recovery_continuation.get("gpuFailures") == continuation.get("gpuFailures"),
+            "selection continuation resumed during post-drain recovery")
+    recovery_native = recovery.get("nativeState")
+    require(isinstance(recovery_native, dict) and
+            recovery_native.get("active_object") == "Cube" and
+            recovery_native.get("selected_count") == 1,
+            "independent post-drain orbit lost the selected Cube")
+    final_rotate = final.get("view3dRotate")
+    recovery_rotate = recovery.get("view3dRotate")
+    require(isinstance(final_rotate, dict) and isinstance(recovery_rotate, dict) and
+            all(type(final_rotate.get(field)) is int and
+                type(recovery_rotate.get(field)) is int and
+                recovery_rotate[field] >= final_rotate[field] + 1
+                for field in ("invokes", "confirms", "terminals")) and
+            recovery_rotate.get("cancels") == final_rotate.get("cancels") and
+            recovery_rotate.get("active") == final_rotate.get("active") == 0,
+            "independent post-drain VIEW3D_OT_rotate did not retire")
     input_contracts = {
         "ghostInput": (
             ("leftPresses", 2), ("leftReleases", 2),
@@ -246,6 +285,30 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
             require(type(before.get(counter)) is int and type(after.get(counter)) is int and
                     after[counter] >= before[counter] + delta,
                     f"{input_field} {counter} missed the complete slow/sparse tail")
+        recovery_after = recovery.get(input_field)
+        press = "middlePresses" if input_field == "ghostInput" else "wmMiddlePresses"
+        release = "middleReleases" if input_field == "ghostInput" else "wmMiddleReleases"
+        require(isinstance(recovery_after, dict) and
+                type(after.get(press)) is int and type(recovery_after.get(press)) is int and
+                type(after.get(release)) is int and type(recovery_after.get(release)) is int and
+                recovery_after[press] >= after[press] + 1 and
+                recovery_after[release] >= after[release] + 1,
+                f"{input_field} missed the independent post-drain orbit")
+    final_redraw = final.get("inputRedraw")
+    recovery_redraw = recovery.get("inputRedraw")
+    require(isinstance(final_redraw, dict) and isinstance(recovery_redraw, dict) and
+            type(final_redraw.get("terminal")) is int and
+            type(recovery_redraw.get("terminal")) is int and
+            recovery_redraw["terminal"] > final_redraw["terminal"] and
+            all(type(recovery_redraw.get(field)) is int and
+                recovery_redraw[field] >= recovery_redraw["terminal"]
+                for field in ("admitted", "dispatched", "presented", "contentPresented")) and
+            recovery_redraw.get("episode") == final_redraw.get("episode"),
+            "post-drain orbit lacks same-episode input presentation evidence")
+    require(type(final.get("ticks")) is int and type(recovery.get("ticks")) is int and
+            type(final.get("presents")) is int and type(recovery.get("presents")) is int and
+            recovery["ticks"] > final["ticks"] and recovery["presents"] > final["presents"],
+            "post-drain orbit did not advance WM and presentation")
     navigation_continuation = navigation.get("selectionContinuation")
     require(isinstance(navigation_continuation, dict) and
             navigation_continuation.get("active") == 1 and
@@ -260,6 +323,7 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
                     "isolated-orbit-drain",
                     "isolated-selection-navigation-passthrough",
                     "isolated-selection-drain",
+                    "isolated-post-drain-recovery-orbit",
                 )),
             "bounded drain timelines are incomplete")
     return {
@@ -299,11 +363,23 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
     }
     base_step = {
         "sha256": hashlib.sha256(b"pixels").hexdigest(),
+        "ticks": 10,
+        "presents": 10,
         "selectionDrawValidation": {"pending": 0, "failures": 0},
         "selectionContinuation": {
             "active": 0, "queuedEvents": 0, "gpuFailures": 0, "replayedEvents": 0,
         },
-        "nativeState": {"location": [0.0, 0.0, 0.0], "view_rotation": [1.0, 0.0, 0.0, 0.0]},
+        "view3dRotate": {
+            "invokes": 0, "confirms": 0, "cancels": 0, "terminals": 0, "active": 0,
+        },
+        "nativeState": {
+            "active_object": "Cube", "selected_count": 1,
+            "location": [0.0, 0.0, 0.0], "view_rotation": [1.0, 0.0, 0.0, 0.0],
+        },
+        "inputRedraw": {
+            "terminal": 0, "admitted": 0, "dispatched": 0,
+            "presented": 0, "contentPresented": 0, "episode": 1,
+        },
         "ghostInput": {
             "leftPresses": 0, "leftReleases": 0, "middlePresses": 0,
             "middleReleases": 0, "keyPresses": 0, "keyReleases": 0,
@@ -324,9 +400,15 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
     )
     final = by_name["isolated-selection-drain"]
     final["selectionContinuation"]["replayedEvents"] = 5
+    final["view3dRotate"].update({"invokes": 2, "confirms": 2, "terminals": 2})
     final["nativeState"] = {
+        "active_object": "Cube", "selected_count": 1,
         "location": [1.0, 0.0, 0.0], "view_rotation": [0.9, 0.1, 0.0, 0.0],
     }
+    final["inputRedraw"].update({
+        "terminal": 10, "admitted": 10, "dispatched": 10,
+        "presented": 10, "contentPresented": 10,
+    })
     final["ghostInput"].update({
         "leftPresses": 2, "leftReleases": 2, "middlePresses": 1,
         "middleReleases": 1, "keyPresses": 1, "keyReleases": 1,
@@ -334,6 +416,27 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
     final["wmInput"].update({
         "wmLeftPresses": 2, "wmLeftReleases": 2, "wmMiddlePresses": 1,
         "wmMiddleReleases": 1, "wmKeyPresses": 1, "wmKeyReleases": 1,
+    })
+    recovery = by_name["isolated-post-drain-recovery-orbit"]
+    recovery["ticks"] = 11
+    recovery["presents"] = 11
+    recovery["selectionContinuation"]["replayedEvents"] = 5
+    recovery["view3dRotate"].update({"invokes": 3, "confirms": 3, "terminals": 3})
+    recovery["nativeState"] = {
+        "active_object": "Cube", "selected_count": 1,
+        "location": [1.0, 0.0, 0.0], "view_rotation": [0.8, 0.2, 0.0, 0.0],
+    }
+    recovery["inputRedraw"].update({
+        "terminal": 11, "admitted": 11, "dispatched": 11,
+        "presented": 11, "contentPresented": 11,
+    })
+    recovery["ghostInput"].update({
+        "leftPresses": 2, "leftReleases": 2, "middlePresses": 2,
+        "middleReleases": 2, "keyPresses": 1, "keyReleases": 1,
+    })
+    recovery["wmInput"].update({
+        "wmLeftPresses": 2, "wmLeftReleases": 2, "wmMiddlePresses": 2,
+        "wmMiddleReleases": 2, "wmKeyPresses": 1, "wmKeyReleases": 1,
     })
     timestamp = datetime(2026, 8, 29, tzinfo=timezone.utc) + timedelta(seconds=index)
     return {
@@ -372,6 +475,7 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
             "isolated-orbit-drain": [{"elapsedMs": 250}],
             "isolated-selection-navigation-passthrough": [{"elapsedMs": 250}],
             "isolated-selection-drain": [{"elapsedMs": 250}],
+            "isolated-post-drain-recovery-orbit": [{"elapsedMs": 250}],
         },
         "pageErrors": [], "lifecycle": [], "selectionReadbackFailureLines": [],
     }
@@ -427,9 +531,46 @@ def self_check() -> None:
                           if step["name"] == "isolated-selection-drain").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
                                              if step["name"] == "isolated-orbit-drain")["sha256"]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit").__setitem__(
+                              "sha256", next(step for step in docs[0]["steps"]
+                                             if step["name"] == "isolated-selection-drain")["sha256"]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "nativeState"].__setitem__(
+                                  "view_rotation", next(step for step in docs[0]["steps"]
+                                                        if step["name"] ==
+                                                        "isolated-selection-drain")[
+                                                            "nativeState"]["view_rotation"]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "nativeState"].__setitem__("location", [2.0, 0.0, 0.0]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "nativeState"].__setitem__("selected_count", 0),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "view3dRotate"].__setitem__("terminals", 2),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "selectionContinuation"].__setitem__("active", 1),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "ghostInput"].__setitem__("middleReleases", 1),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "wmInput"].__setitem__("wmMiddlePresses", 1),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit")[
+                              "inputRedraw"].__setitem__("contentPresented", 10),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-post-drain-recovery-orbit").__setitem__(
+                              "ticks", 10),
         lambda docs: docs[0].__setitem__("selectionReadbackFailureLines", ["failed"]),
         lambda docs: docs[0]["drainTimelines"].__setitem__(
             "isolated-selection-navigation-passthrough", []),
+        lambda docs: docs[0]["drainTimelines"].__setitem__(
+            "isolated-post-drain-recovery-orbit", []),
     ]
     rejected = 0
     accepted_mutations = []

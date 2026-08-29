@@ -876,13 +876,39 @@ try {
       true,
     );
     steps.push(selectionDrain);
-    recoveryOrbit = selectionNavigationWindow;
+
+    /* A clean replay is not proof that ordinary input remains live after the continuation
+     * retires. The filed failure preserved one good frame and then ignored every later action,
+     * so send one independent orbit from the fully drained state and bind it to new native,
+     * GHOST, WM, presentation, strict-content, and pixel evidence. */
+    await page.waitForTimeout(Math.max(sampleCadenceMs, 650));
+    const postDrainBaseline = selectionDrain;
+    const postDrainInputBaseline = postDrainBaseline.ghostInput;
+    const postDrainWmInputBaseline = postDrainBaseline.wmInput;
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down({button: "middle"});
+    await page.mouse.move(center.x + 24, center.y - 18, {steps: 8});
+    await page.mouse.up({button: "middle"});
+    recoveryOrbit = await waitForActionDrain(
+      "isolated-post-drain-recovery-orbit",
+      postDrainBaseline.sha256,
+      postDrainBaseline,
+      postDrainBaseline,
+      1,
+      (current) => ghostInputDeliveryComplete(
+        current, postDrainInputBaseline, {left: 0, middle: 1, keys: 0}) &&
+        wmInputDeliveryComplete(
+          current, postDrainWmInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareRecoveryStateComplete(current, postDrainBaseline),
+      drainTimeoutMs,
+    );
+    steps.push(recoveryOrbit);
     nativeStateContract = {
       enforced: hardwareDiagnostic,
       selectionEnforced: true,
       actionComplete: hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline),
       selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline),
-      recoveryComplete: nativeSelectionReplayComplete(selectionDrain, selectionBaseline),
+      recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, postDrainBaseline),
       navigationPassedThrough: selectionNavigationPassedThrough,
     };
   }

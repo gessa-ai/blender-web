@@ -57,7 +57,12 @@ retained transform key and confirmation. A later rotate modal may consume the MM
 the selection continuation observes it, so the first subsequent ordinary event also closes stale
 navigation ownership before its following motion is classified. The combined drain requires both input stages, a retired
 selection continuation, exactly Cube selected, changed view rotation, strict content pixels, and
-a changed Cube location. The click point is Blender's own projection of the Cube origin into the
+a changed Cube location. After that continuation is fully retired, the producer waits one more
+real 650 ms interval and sends a third, independent MMB orbit. That post-drain gesture must advance
+GHOST and WM delivery, retire a new `VIEW3D_OT_rotate`, present strict same-episode VIEW_3D
+content, change pixels and native view rotation, and preserve the transformed Cube location. This
+prevents a single good replay frame from masquerading as recovery when every later user action is
+still frozen. The click point is Blender's own projection of the Cube origin into the
 live `VIEW_3D` window, converted from Blender's bottom-left window coordinates to the browser
 canvas; the producer does not guess a stale screen coordinate after the first orbit. A bounded
 per-poll timeline preserves every generation, pixel hash, held-button mask, native state, and modal

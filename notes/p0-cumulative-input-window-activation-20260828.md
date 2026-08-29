@@ -1136,3 +1136,57 @@ CAPTURE-versus-APPLY/public-product boundaries
 `61d81e10c406`: a nonzero worker grab/focus mismatch localizes the freeze to callback retirement;
 settled worker ownership with a later failed stage localizes it downstream without another policy
 guess.
+
+## Bind actual input events to Blender's WM queue
+
+The worker delivery counters still ended before one important boundary. They advanced in the
+proxied HTML5 callback immediately before `pushEvent()`, while the existing `dispatched` generation
+belonged to a later synthetic `GHOST_kEventWindowUpdate`. Neither proved that the real MMB press,
+cursor motion, and release passed through GHOST into Blender's own WM event queue. A lost release at
+that boundary can leave the first navigation frame visible while every later click, key, and orbit
+is consumed by the retained modal operator—the exact shape of the filed Apple failure.
+
+Commit `1fcd7ba` extends the already-post-Blender GHOST consumer to count real button, key, and
+cursor events separately from callback delivery. Both stages expose independent press/release
+counters and held masks through shared read-only exports. The slow/sparse producer now requires
+middle-button press, at least one motion, and release through both stages before it may evaluate
+redraw admission, strict VIEW_3D content, native view rotation, modal retirement, or pixels. It also
+samples a fresh post-recenter baseline so recenter motion cannot satisfy the next orbit's motion
+predicate. Input, redraw, resize, surface, and present policy are unchanged.
+
+The source contract failed first on the absent callback-to-WM boundary
+(`ledger/buildlogs/20260829T043343-3788290.log`). The final source/self-check rejects 30 delivery
+mutations, JavaScript syntax is green, and the integrated native/wasm32 model is byte-identical at
+104 cases (`ledger/buildlogs/20260829T044122-3794703.log`,
+`ledger/buildlogs/20260829T044126-3794733.log`, and
+`ledger/buildlogs/20260829T044243-3797125.log`). All three real shipping GHOST Wasm objects compile
+(`ledger/buildlogs/20260829T043735-3790997.log`). Final REUSE 6.2.0 is green
+(`ledger/buildlogs/20260829T045124-3805630.log`).
+
+The committed-state CAPTURE relink and locked no-work proof are
+`ledger/buildlogs/20260829T044450-3799388.log` and
+`ledger/buildlogs/20260829T044622-3800735.log`; strict CAPTURE inventory preflight is green
+(`ledger/buildlogs/20260829T044617-3800684.log`). Exact product identities are:
+
+- `blender_browser.js`: `0d986fcc8e06` (711,576 bytes)
+- `blender_browser.wasm`: `523758bcd2e5` (120,342,157 bytes)
+- `blender_browser.wasm.orig`: `838e6312ef3d` (118,993,252 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `70b27f04d7a6` (14,250 bytes)
+
+One WSLg invocation closed externally during the prelude with zero page errors and binds no product
+verdict (`ledger/buildlogs/20260829T044650-3800933.log`). The fresh isolated-X software control then
+passes both sparse drains: callback and WM-queue MMB counts reach `1/1` and then `2/2`, cursor counts
+reach `10/10` and then `20/20`, both held masks are zero, worker focus/grab state is settled, and
+only the pass-through probe remains modal. The first drain takes 421 ms and the second 1,291 ms
+(`ledger/buildlogs/20260829T044801-3802277.log`). Hardware-gauntlet and pinned profile self-checks
+are green (`ledger/buildlogs/20260829T044837-3802880.log` and
+`ledger/buildlogs/20260829T044855-3803025.log`). These software pixels bind no hardware verdict.
+
+Direct M4 remains RED at the unsupported Apple binding. Container-backed regression restores M0
+6/6 while M1-M8 retain their named strict/APPLY/browser/product boundaries
+(`ledger/buildlogs/20260829T044933-3804167.log`). P0-I/J remain open for the driver-operated Apple
+slow/sparse run and same-generation gauntlet. On timeout, callback counters ahead of WM counters
+localize loss before Blender's queue; balanced WM edges plus a retained navigation modal localize
+operator completion; balanced/clean WM and worker ownership with stale native state or pixels moves
+the loss downstream without another policy guess.

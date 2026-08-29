@@ -3614,7 +3614,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `29` and `40`; CAPTURE `.wasm.orig` is `61d81e10c406` (118,992,442 bytes). This is read-only
   diagnosis, not an input/redraw fix or hardware closure. Apple must run this generation: stale
   focus/grab state isolates worker callback retirement, while settled ownership with later stale
-  native state/pixels moves the defect downstream. P0-I/J remain open. See
+  native state/pixels moves the defect downstream. **WM-queue input discriminator implemented/
+  relinked (`1fcd7ba`):** callback delivery still did not prove that the real MMB press, motion, and
+  release entered Blender's WM queue; the prior `dispatched` edge covered only the synthetic redraw
+  event. A GHOST consumer registered after Blender's consumer now publishes separate WM-queue
+  button/key/motion counters and held mask, and both sparse orbits require callback and WM stages to
+  balance before any later surface/native/pixel stage may pass. The 30-mutation source contract,
+  104-case native/wasm32 behavior model, real Wasm objects, and exact isolated-X control are green;
+  the control reaches MMB `1/1` then `2/2`, motion `10` then `20`, both masks zero, and drains in
+  421/1,291 ms. CAPTURE `.wasm.orig` is `838e6312ef3d` (118,993,252 bytes). This changes diagnosis
+  only. Apple must run this exact generation: callback > WM localizes loss before Blender's queue;
+  balanced WM with a retained navigation modal localizes operator completion; balanced/clean WM
+  plus stale native state or pixels moves the loss downstream. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

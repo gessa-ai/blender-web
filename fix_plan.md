@@ -3497,7 +3497,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   byte-identical rapid frames, then drains after 5,725 ms with balanced GHOST edges and repaints a
   fresh orbit after 1,744 ms with zero page/lifecycle errors. This is diagnostic software evidence,
   not a hardware closure; Apple retains the strict 12-second bound and must run this exact
-  generation plus the composed gauntlet. See
+  generation plus the composed gauntlet. **Native-state drain gate implemented (`f27df7e`):** the
+  terminal-edge predicate could still false-pass on a tooltip or unrelated redraw after every
+  callback arrived. Apple action drain now additionally requires Blender-native Cube selection, a
+  second-orbit view-rotation transition, and a confirmed `G` location change; the independent
+  recovery orbit must change rotation again without moving Cube. The hardware-only semantic gate
+  leaves SwiftShader's known failed GPU-pick lane explicitly diagnostic. The exact fallback control,
+  33-mutation source contract, and integrated native/Wasm suite are green without changing or
+  relinking the current product. Apple must run this strengthened discriminator against exact
+  `.wasm.orig` `b326a3be5331` before P0-I/J can close. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

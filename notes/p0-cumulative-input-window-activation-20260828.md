@@ -617,3 +617,39 @@ run this terminal-edge discriminator on Apple and the existing same-generation h
 must still pass. A hardware timeout will now say whether the loss is before GHOST delivery, in a
 stuck modal, or below a fully drained WM/present path instead of inviting another speculative
 runtime change.
+
+## Bind rapid drain to Blender-native action state
+
+The terminal GHOST-edge discriminator still had one false-pass path: after every queued callback
+arrived, any unrelated pixel change could satisfy the canvas predicate even if Blender ignored the
+Cube click and `G` transform. The previous SwiftShader control demonstrated the gap directly: the
+second orbit eventually changed the view, but GPU picking selected nothing and Cube stayed at the
+origin while the old predicate reported drain.
+
+Commit `f27df7e` keeps the worker-edge, modal-stack, WM-tick, present, retry, and pixel conditions,
+then adds a hardware-only semantic boundary. Apple action drain now requires one selected active
+Cube, a view rotation different from the first-orbit baseline, and a Cube location different from
+that baseline. The independent recovery orbit must advance native state and rotation again while
+retaining the confirmed Cube location. Thus neither a tooltip redraw nor a delivered-but-ignored
+input tail can produce a hardware PASS. SwiftShader remains explicitly diagnostic because its
+asynchronous GPU pick can fail; its output records `nativeStateContract.enforced=false` rather than
+claiming the hardware predicate.
+
+The contract failed first on the absent semantic boundary
+(`ledger/buildlogs/20260828T235921-3550739.log`) and passes 33 mutations, including four delivery
+mutations (`ledger/buildlogs/20260828T235953-3550986.log`). Node syntax and the focused source
+contract pass (`ledger/buildlogs/20260829T000005-3551068.log`,
+`ledger/buildlogs/20260829T000005-3551069.log`), as does the integrated native/Wasm suite
+(`ledger/buildlogs/20260829T000149-3552840.log`). The exact fallback product again retains all five
+rapid samples, drains after 5,845 ms, and repaints the independent orbit after 2,384 ms with zero
+page/lifecycle errors (`ledger/buildlogs/20260829T000031-3551393.log`). That run correctly records
+both hardware-only semantic checks false and unenforced; it binds no Apple verdict.
+
+REUSE 6.2.0 is green (`ledger/buildlogs/20260829T000351-3556722.log`). Direct M4 remains RED at the
+unsupported Apple-pixel binding (`ledger/buildlogs/20260829T000236-3554459.log`), while the
+authoritative container regression restores M0 6/6 and preserves the named M1-M8 strict/APPLY/
+product boundaries (`ledger/buildlogs/20260829T000332-3555249.log`). No runtime source or artifact
+changed and no relink occurred: the current CAPTURE generation remains JS `cae158a06338`, Wasm
+`8d6928a6545d`, `.wasm.orig` `b326a3be5331` (118,986,006 bytes), data `095d0ba748c3`, and manifest
+`ddf56d15022d`. P0-I/J remain open for this strengthened Apple run and the same-generation composed
+hardware gauntlet.

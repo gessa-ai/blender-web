@@ -161,6 +161,44 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_mask(void)
   return double(ghost_web::input_buttons_held_mask());
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_cursor_count(void)
+{
+  return double(ghost_web::input_cursor_count());
+}
+
+/* WM-queue admission evidence sampled after Blender's GHOST consumer. This is deliberately
+ * separate from callback delivery: the deterministic Apple freeze can now identify a lost
+ * middle-button release or motion between the worker callback and Blender's event queue. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_wm_press_count(const uint32_t button)
+{
+  return double(ghost_web::input_button_wm_press_count(button));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_wm_release_count(const uint32_t button)
+{
+  return double(ghost_web::input_button_wm_release_count(button));
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_key_wm_press_count(void)
+{
+  return double(ghost_web::input_key_wm_press_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_key_wm_release_count(void)
+{
+  return double(ghost_web::input_key_wm_release_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_button_wm_mask(void)
+{
+  return double(ghost_web::input_buttons_wm_held_mask());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_cursor_wm_count(void)
+{
+  return double(ghost_web::input_cursor_wm_count());
+}
+
 /* --- M4.T11 (ADR-007) worker-side device delivery ---------------------------- */
 /* The WebGPU device cannot be acquired synchronously here (emdawnwebgpu needs an
  * event-loop turn or asyncify) and cannot cross realms, so it is acquired

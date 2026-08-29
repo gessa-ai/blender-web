@@ -243,6 +243,17 @@ try {
           keyPresses: read("_bw_input_key_press_count"),
           keyReleases: read("_bw_input_key_release_count"),
           heldMask: read("_bw_input_button_mask"),
+          cursorMoves: read("_bw_input_cursor_count"),
+        },
+        wmInput: {
+          wmLeftPresses: readArg("_bw_input_button_wm_press_count", 0),
+          wmLeftReleases: readArg("_bw_input_button_wm_release_count", 0),
+          wmMiddlePresses: readArg("_bw_input_button_wm_press_count", 1),
+          wmMiddleReleases: readArg("_bw_input_button_wm_release_count", 1),
+          wmKeyPresses: read("_bw_input_key_wm_press_count"),
+          wmKeyReleases: read("_bw_input_key_wm_release_count"),
+          wmHeldMask: read("_bw_input_button_wm_mask"),
+          wmCursorMoves: read("_bw_input_cursor_wm_count"),
         },
         domInputSequence: domInputs.at(-1)?.sequence || 0,
         domInputTail: domInputs.slice(-16),
@@ -269,7 +280,17 @@ try {
     current.ghostInput.middleReleases >= baseline.middleReleases + expected.middle &&
     current.ghostInput.keyPresses >= baseline.keyPresses + expected.keys &&
     current.ghostInput.keyReleases >= baseline.keyReleases + expected.keys &&
+    current.ghostInput.cursorMoves > baseline.cursorMoves &&
     (current.ghostInput.heldMask & 0x3) === 0;
+  const wmInputDeliveryComplete = (current, baseline, expected) =>
+    current.wmInput.wmLeftPresses >= baseline.wmLeftPresses + expected.left &&
+    current.wmInput.wmLeftReleases >= baseline.wmLeftReleases + expected.left &&
+    current.wmInput.wmMiddlePresses >= baseline.wmMiddlePresses + expected.middle &&
+    current.wmInput.wmMiddleReleases >= baseline.wmMiddleReleases + expected.middle &&
+    current.wmInput.wmKeyPresses >= baseline.wmKeyPresses + expected.keys &&
+    current.wmInput.wmKeyReleases >= baseline.wmKeyReleases + expected.keys &&
+    current.wmInput.wmCursorMoves > baseline.wmCursorMoves &&
+    (current.wmInput.wmHeldMask & 0x3) === 0;
   const stateArraysEqual = (left, right) =>
     Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
     left.every((value, index) => Number.isFinite(value) && Number.isFinite(right[index]) &&
@@ -314,6 +335,7 @@ try {
         retries: current.retries,
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
+        wmInput: {...current.wmInput},
         ghostWindow: {...current.ghostWindow},
         nativeInputSequence: current.nativeInputSequence,
         nativeStateSequence: current.nativeStateSequence,
@@ -368,7 +390,9 @@ try {
 
   const isolatedOrbitBaseline = steps.at(-1);
   const isolatedOrbitInputBaseline = isolatedOrbitBaseline.ghostInput;
+  const isolatedOrbitWmInputBaseline = isolatedOrbitBaseline.wmInput;
   const rapidInputBaseline = steps.at(-1).ghostInput;
+  const rapidWmInputBaseline = steps.at(-1).wmInput;
   await page.mouse.down({button: "middle"});
   await page.mouse.move(center.x + 34, center.y + 20, {steps: 8});
   await page.mouse.up({button: "middle"});
@@ -386,30 +410,38 @@ try {
       isolatedOrbitBaseline.sha256,
       isolatedOrbitBaseline,
       (current) => ghostInputDeliveryComplete(
-        current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}),
+        current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}) &&
+        wmInputDeliveryComplete(
+          current, isolatedOrbitWmInputBaseline, {left: 0, middle: 1, keys: 0}),
       (current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline),
       drainTimeoutMs,
     );
     steps.push(actionDrain);
     await page.mouse.move(center.x, center.y);
-    const isolatedRecoveryInputBaseline = actionDrain.ghostInput;
+    await page.waitForTimeout(100);
+    const isolatedRecoveryBaseline = await sample("isolated-recovery-baseline");
+    const isolatedRecoveryInputBaseline = isolatedRecoveryBaseline.ghostInput;
+    const isolatedRecoveryWmInputBaseline = isolatedRecoveryBaseline.wmInput;
     await page.mouse.down({button: "middle"});
     await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
     await page.mouse.up({button: "middle"});
     recoveryOrbit = await waitForActionDrain(
       "isolated-recovery-orbit",
-      actionDrain.sha256,
-      actionDrain,
+      isolatedRecoveryBaseline.sha256,
+      isolatedRecoveryBaseline,
       (current) => ghostInputDeliveryComplete(
-        current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
-      (current) => hardwareIsolatedOrbitStateComplete(current, actionDrain),
+        current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}) &&
+        wmInputDeliveryComplete(
+          current, isolatedRecoveryWmInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareIsolatedOrbitStateComplete(current, isolatedRecoveryBaseline),
       drainTimeoutMs,
     );
     steps.push(recoveryOrbit);
     nativeStateContract = {
       enforced: hardwareDiagnostic,
       actionComplete: hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline),
-      recoveryComplete: hardwareIsolatedOrbitStateComplete(recoveryOrbit, actionDrain),
+      recoveryComplete: hardwareIsolatedOrbitStateComplete(
+        recoveryOrbit, isolatedRecoveryBaseline),
     };
   }
   else {
@@ -431,24 +463,31 @@ try {
       orbitBeforeClick.sha256,
       orbitBeforeClick,
       (current) => ghostInputDeliveryComplete(
-        current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}),
+        current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}) &&
+        wmInputDeliveryComplete(
+          current, rapidWmInputBaseline, {left: 2, middle: 2, keys: 1}),
       (current) => hardwareActionStateComplete(current, orbitBeforeClick),
       drainTimeoutMs,
     );
     steps.push(actionDrain);
     await page.keyboard.press("Escape");
     await page.mouse.move(center.x, center.y);
-    const recoveryInputBaseline = actionDrain.ghostInput;
+    await page.waitForTimeout(100);
+    const recoveryBaseline = await sample("recovery-baseline");
+    const recoveryInputBaseline = recoveryBaseline.ghostInput;
+    const recoveryWmInputBaseline = recoveryBaseline.wmInput;
     await page.mouse.down({button: "middle"});
     await page.mouse.move(center.x + 24, center.y - 18, {steps: 8});
     await page.mouse.up({button: "middle"});
     recoveryOrbit = await waitForActionDrain(
       "recovery-orbit",
-      actionDrain.sha256,
-      actionDrain,
+      recoveryBaseline.sha256,
+      recoveryBaseline,
       (current) => ghostInputDeliveryComplete(
-        current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
-      (current) => hardwareRecoveryStateComplete(current, actionDrain),
+        current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}) &&
+        wmInputDeliveryComplete(
+          current, recoveryWmInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareRecoveryStateComplete(current, recoveryBaseline),
       drainTimeoutMs,
     );
     steps.push(recoveryOrbit);
@@ -457,7 +496,7 @@ try {
     nativeStateContract = {
       enforced: hardwareDiagnostic,
       actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick),
-      recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, actionDrain),
+      recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, recoveryBaseline),
     };
   }
 

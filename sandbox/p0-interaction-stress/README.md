@@ -202,3 +202,11 @@ publish one coalescible redraw-readiness edge only when browser validation accep
 pending work, rejection, null publication, and cache hits publish none. This prevents an accepted
 first-use helper from remaining invisible after its original draw was dropped, but Apple pixels
 remain the authority for P0-I/J closure.
+
+The slow/sparse freeze discriminator retains two distinct input-delivery stages. `ghostInput`
+counts the proxied HTML5 callbacks after they reach the WM worker; `wmInput` counts the matching
+button, key, and cursor events from a GHOST consumer registered after Blender's own consumer. Each
+isolated orbit must deliver middle-button press, motion, and release through both stages with both
+held masks clear. A timeout can therefore distinguish a worker-callback success whose release or
+motion never entered Blender's WM queue from a later modal, redraw, or presentation failure. These
+are read-only diagnostics and bind no Apple pixel verdict by themselves.

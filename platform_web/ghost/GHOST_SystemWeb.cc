@@ -95,9 +95,42 @@ class GHOST_InputRedrawDispatchConsumer final : public GHOST_IEventConsumer {
  public:
   bool processEvent(const GHOST_IEvent *event) override
   {
-    if (event == nullptr || event->getType() != GHOST_kEventWindowUpdate ||
-        event->getData() == nullptr)
+    if (event == nullptr) {
+      return false;
+    }
+
+    const GHOST_TEventType type = event->getType();
+    if ((type == GHOST_kEventButtonDown || type == GHOST_kEventButtonUp) &&
+        event->getData() != nullptr)
     {
+      const auto *button_data = static_cast<const GHOST_TEventButtonData *>(event->getData());
+      const bool down = type == GHOST_kEventButtonDown;
+      ghost_web::note_input_button_wm_dispatch(uint32_t(button_data->button), down);
+      static uint32_t input_event_wm_log_count = 0;
+      if (button_data->button == GHOST_kButtonMaskMiddle && input_event_wm_log_count < 64) {
+        std::printf("[bw] GHOST-input-event WM-queued type=%d button=%d "
+                    "bridge=%llu/%llu wm=%llu/%llu\n",
+                    int(type),
+                    int(button_data->button),
+                    static_cast<unsigned long long>(
+                        ghost_web::input_button_press_count(uint32_t(button_data->button))),
+                    static_cast<unsigned long long>(
+                        ghost_web::input_button_release_count(uint32_t(button_data->button))),
+                    static_cast<unsigned long long>(
+                        ghost_web::input_button_wm_press_count(uint32_t(button_data->button))),
+                    static_cast<unsigned long long>(
+                        ghost_web::input_button_wm_release_count(uint32_t(button_data->button))));
+        input_event_wm_log_count++;
+      }
+    }
+    else if (type == GHOST_kEventKeyDown || type == GHOST_kEventKeyUp) {
+      ghost_web::note_input_key_wm_dispatch(type == GHOST_kEventKeyDown);
+    }
+    else if (type == GHOST_kEventCursorMove) {
+      ghost_web::note_input_cursor_wm_dispatch();
+    }
+
+    if (type != GHOST_kEventWindowUpdate || event->getData() == nullptr) {
       return false;
     }
 

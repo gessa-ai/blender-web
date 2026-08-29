@@ -74,8 +74,9 @@ def validate(source: str) -> None:
         'current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}',
         '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline)',
         '"isolated-recovery-orbit",',
+        'const isolatedRecoveryBaseline = await sample("isolated-recovery-baseline");',
         'current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
-        '(current) => hardwareIsolatedOrbitStateComplete(current, actionDrain)',
+        '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedRecoveryBaseline)',
         'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
         'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
         'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
@@ -100,10 +101,11 @@ def validate(source: str) -> None:
         'current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}',
         '(current) => hardwareActionStateComplete(current, orbitBeforeClick)',
         'current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
-        '(current) => hardwareRecoveryStateComplete(current, actionDrain)',
+        'const recoveryBaseline = await sample("recovery-baseline");',
+        '(current) => hardwareRecoveryStateComplete(current, recoveryBaseline)',
         'let actionDrain;',
         '"action-drain",\n      orbitBeforeClick.sha256,\n      orbitBeforeClick,',
-        '"recovery-orbit",\n      actionDrain.sha256,\n      actionDrain,',
+        '"recovery-orbit",\n      recoveryBaseline.sha256,\n      recoveryBaseline,',
         "retainedActionFramesEqual,",
         "failureContext.lastSample = result",
         "steps: failureContext?.steps || []",
@@ -119,14 +121,14 @@ def validate(source: str) -> None:
         "drainTimelines,",
         "nativeStateContract,",
         "actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick)",
-        "recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, actionDrain)",
+        "recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, recoveryBaseline)",
         "if (pageErrors.length !== 0 || lifecycle.length !== 0)",
     ):
         require_once(source, token)
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
         raise ValueError("pixel and counter liveness is checked after accepting the sample")
     if source.index('"action-drain",\n      orbitBeforeClick.sha256') > source.index(
-        '"recovery-orbit",\n      actionDrain.sha256'
+        '"recovery-orbit",\n      recoveryBaseline.sha256'
     ):
         raise ValueError("recovery orbit precedes queued-action drain")
     if "steps.slice(steps.indexOf(orbitBeforeClick) + 1).find" in source:
@@ -150,6 +152,14 @@ def validate_delivery_sources(
         "input_button_mask.fetch_and(~bit, std::memory_order_release);",
         "input_key_press_counter : input_key_release_counter",
         "input_button_mask.load(std::memory_order_acquire)",
+        "input_cursor_counter.fetch_add(1u, std::memory_order_relaxed);",
+        "input_button_wm_press_counters[button].fetch_add(1u, std::memory_order_relaxed);",
+        "input_button_wm_release_counters[button].fetch_add(1u, std::memory_order_relaxed);",
+        "input_button_wm_mask.fetch_or(bit, std::memory_order_release);",
+        "input_button_wm_mask.fetch_and(~bit, std::memory_order_release);",
+        "input_key_wm_press_counter : input_key_wm_release_counter",
+        "input_button_wm_mask.load(std::memory_order_acquire)",
+        "input_cursor_wm_counter.fetch_add(1u, std::memory_order_relaxed);",
         "inline std::atomic<uint64_t> input_redraw_terminal_generation{0};",
         "inline std::atomic<uint64_t> input_redraw_admitted_generation{0};",
         "inline std::atomic<uint64_t> input_redraw_dispatched_generation{0};",
@@ -223,6 +233,10 @@ def validate_delivery_sources(
         "class GHOST_EventWindowUpdateWeb final : public GHOST_Event",
         "class GHOST_InputRedrawDispatchConsumer final : public GHOST_IEventConsumer",
         "ghost_web::note_input_redraw_dispatched(payload->input_redraw_generation)",
+        "ghost_web::note_input_button_wm_dispatch(",
+        "ghost_web::note_input_key_wm_dispatch(",
+        "ghost_web::note_input_cursor_wm_dispatch();",
+        '"[bw] GHOST-input-event WM-queued type=%d button=%d "',
         '"[bw] GHOST-input-redraw dispatched input=%llu terminal=%llu "',
         "if (!input_redraw_dispatch_consumer_registration_attempted_)",
         "input_redraw_dispatch_consumer_registration_attempted_ = true;",
@@ -232,6 +246,7 @@ def validate_delivery_sources(
     ):
         require_once(system_source, token)
     require_once(event_bridge, "ghost_web::note_input_key(down);")
+    require_once(event_bridge, "ghost_web::note_input_cursor();")
     require_once(
         event_bridge,
         'sys.requestInputRedrawRetry(down ? nullptr : "button-up", uint32_t(button));',
@@ -246,6 +261,13 @@ def validate_delivery_sources(
         "bw_input_key_press_count(void)",
         "bw_input_key_release_count(void)",
         "bw_input_button_mask(void)",
+        "bw_input_cursor_count(void)",
+        "bw_input_button_wm_press_count(const uint32_t button)",
+        "bw_input_button_wm_release_count(const uint32_t button)",
+        "bw_input_key_wm_press_count(void)",
+        "bw_input_key_wm_release_count(void)",
+        "bw_input_button_wm_mask(void)",
+        "bw_input_cursor_wm_count(void)",
         "bw_input_redraw_retry_count(void)",
         "bw_input_redraw_terminal_count(void)",
         "bw_input_redraw_admitted_count(void)",
@@ -257,6 +279,13 @@ def validate_delivery_sources(
         "return double(ghost_web::input_key_press_count());",
         "return double(ghost_web::input_key_release_count());",
         "return double(ghost_web::input_buttons_held_mask());",
+        "return double(ghost_web::input_cursor_count());",
+        "return double(ghost_web::input_button_wm_press_count(button));",
+        "return double(ghost_web::input_button_wm_release_count(button));",
+        "return double(ghost_web::input_key_wm_press_count());",
+        "return double(ghost_web::input_key_wm_release_count());",
+        "return double(ghost_web::input_buttons_wm_held_mask());",
+        "return double(ghost_web::input_cursor_wm_count());",
         "return double(ghost_web::input_redraw_retry_generation());",
         "return double(ghost_web::input_redraw_terminal_count());",
         "return double(ghost_web::input_redraw_admitted_count());",
@@ -284,6 +313,8 @@ def validate_delivery_sources(
         raise ValueError("producer must sample left and middle GHOST press counters")
     if source.count('readArg("_bw_input_button_release_count"') != 2:
         raise ValueError("producer must sample left and middle GHOST release counters")
+    if source.count("wmInputDeliveryComplete(") != 4:
+        raise ValueError("producer must enforce WM-queue delivery for all four drains")
     for token in (
         'keyPresses: read("_bw_input_key_press_count")',
         'keyReleases: read("_bw_input_key_release_count")',
@@ -295,6 +326,17 @@ def validate_delivery_sources(
         'presented: read("_bw_input_redraw_presented_count")',
         'contentPresented: read("_bw_input_redraw_content_presented_count")',
         'episode: read("_bw_redraw_episode_count")',
+        'cursorMoves: read("_bw_input_cursor_count")',
+        'wmLeftPresses: readArg("_bw_input_button_wm_press_count", 0)',
+        'wmLeftReleases: readArg("_bw_input_button_wm_release_count", 0)',
+        'wmMiddlePresses: readArg("_bw_input_button_wm_press_count", 1)',
+        'wmMiddleReleases: readArg("_bw_input_button_wm_release_count", 1)',
+        'wmKeyPresses: read("_bw_input_key_wm_press_count")',
+        'wmKeyReleases: read("_bw_input_key_wm_release_count")',
+        'wmHeldMask: read("_bw_input_button_wm_mask")',
+        'wmCursorMoves: read("_bw_input_cursor_wm_count")',
+        'wmInput: {...current.wmInput}',
+        'const wmInputDeliveryComplete = (current, baseline, expected) =>',
     ):
         require_once(source, token)
 
@@ -504,7 +546,7 @@ def self_check(
         ),
         replace_once(
             source,
-            '"recovery-orbit",\n      actionDrain.sha256,\n      actionDrain,',
+            '"recovery-orbit",\n      recoveryBaseline.sha256,\n      recoveryBaseline,',
             '"recovery-orbit",\n      orbitBeforeClick.sha256,\n      orbitBeforeClick,',
         ),
         replace_once(
@@ -675,16 +717,50 @@ def self_check(
             '"[bw] GHOST-input-redraw content-miss input=%llu terminal=%llu "',
             '"[bw] GHOST-input-redraw content-unknown input=%llu terminal=%llu "',
         )),
+        (source, replace_once(
+            display,
+            "input_button_wm_mask.fetch_and(~bit, std::memory_order_release);",
+            "input_button_wm_mask.fetch_or(bit, std::memory_order_release);",
+        ), system_header, system_source, event_bridge, context_source),
+        (source, display, system_header, replace_once(
+            system_source,
+            "ghost_web::note_input_button_wm_dispatch(",
+            "ghost_web::note_input_button(",
+        ), event_bridge, context_source),
+        (source, display, system_header, system_source, replace_once(
+            event_bridge,
+            "ghost_web::note_input_cursor();",
+            "",
+        ), context_source),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            "return double(ghost_web::input_button_wm_release_count(button));",
+            "return double(ghost_web::input_button_release_count(button));",
+        )),
+        (replace_once(
+            source,
+            'wmMiddleReleases: readArg("_bw_input_button_wm_release_count", 1)',
+            'wmMiddleReleases: readArg("_bw_input_button_wm_press_count", 1)',
+        ), display, system_header, system_source, event_bridge, context_source),
+        (replace_once(
+            source,
+            "const wmInputDeliveryComplete = (current, baseline, expected) =>",
+            "const wmInputDeliveryIgnored = (current, baseline, expected) =>",
+        ), display, system_header, system_source, event_bridge, context_source),
     )
     delivery_rejected = 0
-    for mutation in delivery_mutations:
+    delivery_survivors = []
+    for index, mutation in enumerate(delivery_mutations):
         try:
             validate_delivery_sources(*mutation)
         except ValueError:
             delivery_rejected += 1
+        else:
+            delivery_survivors.append(index)
     if delivery_rejected != len(delivery_mutations):
         raise ValueError(
-            f"delivery mutation self-check rejected {delivery_rejected}/{len(delivery_mutations)}"
+            f"delivery mutation self-check rejected {delivery_rejected}/{len(delivery_mutations)} "
+            f"survivors={delivery_survivors}"
         )
 
     worker_state_mutations = (

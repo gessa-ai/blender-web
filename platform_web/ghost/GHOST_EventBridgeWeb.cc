@@ -220,6 +220,7 @@ void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)
     }
   }
   sys.noteCursor(x, y);
+  ghost_web::note_input_cursor();
   sys.requestInputRedrawRetry();
   sys.pushEvent(std::make_unique<GHOST_EventCursor>(
       sys.getMilliSeconds(), GHOST_kEventCursorMove, win, x, y, GHOST_TABLET_DATA_NONE));

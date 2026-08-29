@@ -96,13 +96,16 @@ int main()
   const uint64_t middle_releases_before = ghost_web::input_button_release_count(1u);
   const uint64_t key_presses_before = ghost_web::input_key_press_count();
   const uint64_t key_releases_before = ghost_web::input_key_release_count();
+  const uint64_t cursor_moves_before = ghost_web::input_cursor_count();
   const uint32_t input_mask_before = ghost_web::input_buttons_held_mask();
   ghost_web::note_input_button(1u, true);
   ghost_web::note_input_key(true);
+  ghost_web::note_input_cursor();
   if (!require(ghost_web::input_button_press_count(1u) == middle_presses_before + 1u &&
                    ghost_web::input_key_press_count() == key_presses_before + 1u &&
+                   ghost_web::input_cursor_count() == cursor_moves_before + 1u &&
                    (ghost_web::input_buttons_held_mask() & (1u << 1u)) != 0u,
-               "GHOST input delivery records a proxied middle-button press and held mask"))
+               "GHOST input delivery records proxied middle-button, key, and motion edges"))
   {
     return 1;
   }
@@ -115,6 +118,37 @@ int main()
       !require(ghost_web::input_button_press_count(ghost_web::INPUT_BUTTON_COUNT) == 0u &&
                    ghost_web::input_button_release_count(ghost_web::INPUT_BUTTON_COUNT) == 0u,
                "GHOST input delivery rejects an out-of-range button ordinal"))
+  {
+    return 1;
+  }
+
+  const uint64_t wm_middle_presses_before = ghost_web::input_button_wm_press_count(1u);
+  const uint64_t wm_middle_releases_before = ghost_web::input_button_wm_release_count(1u);
+  const uint64_t wm_key_presses_before = ghost_web::input_key_wm_press_count();
+  const uint64_t wm_key_releases_before = ghost_web::input_key_wm_release_count();
+  const uint64_t wm_cursor_moves_before = ghost_web::input_cursor_wm_count();
+  const uint32_t wm_input_mask_before = ghost_web::input_buttons_wm_held_mask();
+  ghost_web::note_input_button_wm_dispatch(1u, true);
+  ghost_web::note_input_key_wm_dispatch(true);
+  ghost_web::note_input_cursor_wm_dispatch();
+  if (!require(ghost_web::input_button_wm_press_count(1u) == wm_middle_presses_before + 1u &&
+                   ghost_web::input_key_wm_press_count() == wm_key_presses_before + 1u &&
+                   ghost_web::input_cursor_wm_count() == wm_cursor_moves_before + 1u &&
+                   (ghost_web::input_buttons_wm_held_mask() & (1u << 1u)) != 0u,
+               "WM queue admission records middle-button, key, motion, and held state"))
+  {
+    return 1;
+  }
+  ghost_web::note_input_button_wm_dispatch(1u, false);
+  ghost_web::note_input_key_wm_dispatch(false);
+  if (!require(
+          ghost_web::input_button_wm_release_count(1u) == wm_middle_releases_before + 1u &&
+              ghost_web::input_key_wm_release_count() == wm_key_releases_before + 1u &&
+              ghost_web::input_buttons_wm_held_mask() == wm_input_mask_before,
+          "WM queue admission records terminal releases and clears its held mask") ||
+      !require(ghost_web::input_button_wm_press_count(ghost_web::INPUT_BUTTON_COUNT) == 0u &&
+                   ghost_web::input_button_wm_release_count(ghost_web::INPUT_BUTTON_COUNT) == 0u,
+               "WM queue admission rejects an out-of-range button ordinal"))
   {
     return 1;
   }
@@ -952,10 +986,10 @@ int main()
       "input=bounded-burst+content-retired-terminal-tail resize_commit=fresh "
       "present_settlement=coalesced-wm-retry "
       "present_telemetry=suppressed-wm-replayed "
-      "input_delivery=balanced-mask "
+      "input_delivery=callback+wm-queue-balanced-mask "
       "input_presentation=monotonic-frame-bound+view3d-content "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 101 ? 0 : 1;
+  return checks == 104 ? 0 : 1;
 }

@@ -115,6 +115,20 @@ inline std::atomic<uint64_t> input_button_release_counters[INPUT_BUTTON_COUNT]{}
 inline std::atomic<uint64_t> input_key_press_counter{0};
 inline std::atomic<uint64_t> input_key_release_counter{0};
 inline std::atomic<uint32_t> input_button_mask{0};
+inline std::atomic<uint64_t> input_cursor_counter{0};
+
+/**
+ * The callback counters above prove that an HTML5 event reached the WM worker. These sibling
+ * counters advance later, from a GHOST consumer registered after Blender's own consumer, and
+ * therefore prove that the same event was admitted to Blender's WM queue. Keeping both stages
+ * separate localizes an input freeze without changing event or redraw policy.
+ */
+inline std::atomic<uint64_t> input_button_wm_press_counters[INPUT_BUTTON_COUNT]{};
+inline std::atomic<uint64_t> input_button_wm_release_counters[INPUT_BUTTON_COUNT]{};
+inline std::atomic<uint64_t> input_key_wm_press_counter{0};
+inline std::atomic<uint64_t> input_key_wm_release_counter{0};
+inline std::atomic<uint32_t> input_button_wm_mask{0};
+inline std::atomic<uint64_t> input_cursor_wm_counter{0};
 
 inline void note_input_button(const uint32_t button, const bool down)
 {
@@ -136,6 +150,38 @@ inline void note_input_key(const bool down)
 {
   (down ? input_key_press_counter : input_key_release_counter)
       .fetch_add(1u, std::memory_order_relaxed);
+}
+
+inline void note_input_cursor()
+{
+  input_cursor_counter.fetch_add(1u, std::memory_order_relaxed);
+}
+
+inline void note_input_button_wm_dispatch(const uint32_t button, const bool down)
+{
+  if (button >= INPUT_BUTTON_COUNT) {
+    return;
+  }
+  const uint32_t bit = uint32_t(1u) << button;
+  if (down) {
+    input_button_wm_press_counters[button].fetch_add(1u, std::memory_order_relaxed);
+    input_button_wm_mask.fetch_or(bit, std::memory_order_release);
+  }
+  else {
+    input_button_wm_release_counters[button].fetch_add(1u, std::memory_order_relaxed);
+    input_button_wm_mask.fetch_and(~bit, std::memory_order_release);
+  }
+}
+
+inline void note_input_key_wm_dispatch(const bool down)
+{
+  (down ? input_key_wm_press_counter : input_key_wm_release_counter)
+      .fetch_add(1u, std::memory_order_relaxed);
+}
+
+inline void note_input_cursor_wm_dispatch()
+{
+  input_cursor_wm_counter.fetch_add(1u, std::memory_order_relaxed);
 }
 
 inline uint64_t input_button_press_count(const uint32_t button)
@@ -165,6 +211,45 @@ inline uint64_t input_key_release_count()
 inline uint32_t input_buttons_held_mask()
 {
   return input_button_mask.load(std::memory_order_acquire);
+}
+
+inline uint64_t input_cursor_count()
+{
+  return input_cursor_counter.load(std::memory_order_relaxed);
+}
+
+inline uint64_t input_button_wm_press_count(const uint32_t button)
+{
+  return button < INPUT_BUTTON_COUNT ?
+             input_button_wm_press_counters[button].load(std::memory_order_relaxed) :
+             0u;
+}
+
+inline uint64_t input_button_wm_release_count(const uint32_t button)
+{
+  return button < INPUT_BUTTON_COUNT ?
+             input_button_wm_release_counters[button].load(std::memory_order_relaxed) :
+             0u;
+}
+
+inline uint64_t input_key_wm_press_count()
+{
+  return input_key_wm_press_counter.load(std::memory_order_relaxed);
+}
+
+inline uint64_t input_key_wm_release_count()
+{
+  return input_key_wm_release_counter.load(std::memory_order_relaxed);
+}
+
+inline uint32_t input_buttons_wm_held_mask()
+{
+  return input_button_wm_mask.load(std::memory_order_acquire);
+}
+
+inline uint64_t input_cursor_wm_count()
+{
+  return input_cursor_wm_counter.load(std::memory_order_relaxed);
 }
 
 /**

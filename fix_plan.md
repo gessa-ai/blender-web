@@ -3820,7 +3820,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `40a21549d0f1` product identity check, and an unchanged-product software retained-tail control are
   green. This is evidence infrastructure only: no runtime byte was changed or relinked, and P0-I/J
   remain open for the driver-operated Apple 10/10 plus the same-generation P0-E/broader gauntlet.
-  See `notes/p0-sparse-hardware-series-20260829.md`.
+  See `notes/p0-sparse-hardware-series-20260829.md`. **Selection wall-timeout candidate
+  implemented/relinked/pending Apple (`af966ec`, patch 0314):** the asynchronous viewport-selection
+  modal previously treated 240 delivered 10 ms timer events as roughly 2.4 seconds. Browser/worker
+  scheduling can coalesce those events heavily, while a fast host can deliver them before a valid
+  first-use GPU pick settles, so the event count was not a portable timeout clock. The fail-close now
+  uses 30 seconds of `BLI_time_now_seconds()` elapsed time and preserves the tick counter strictly as
+  lifecycle telemetry. The exact slow/sparse software control exercised five attempts, replayed all
+  ten retained events, selected Cube, retired both orbits, and completed in 9,253 ms with nine timer
+  ticks and empty selection-readback/page-error censuses. The hardware producer keeps its stricter
+  12-second bar. RELINKED CAPTURE `.wasm.orig` is `fe1301f99fae` (119,029,274 bytes). Direct M4 stays
+  red at its hardware receipt boundary; P0-I/J remain open for exact Apple 10/10 plus the
+  same-generation P0-E/broader gauntlet. See `notes/p0-selection-wall-timeout-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

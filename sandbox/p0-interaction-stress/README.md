@@ -154,6 +154,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_draw_validation.py
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_readback_same_turn.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_select_wall_timeout.py --self-check
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir BW_P0_SPARSE=1 \
@@ -313,6 +315,12 @@ and mapping the selection staging buffer. The copy submit remains synchronous in
 JavaScript turn; `MapAsync` is registered immediately after that submit instead of waiting behind
 asynchronous error-scope settlement. Mapped bytes remain private until both mapping and command
 validation succeed, so the ordering fix cannot publish a rejected cleared selection result.
+
+`verify_select_wall_timeout.py` binds the asynchronous viewport-selection fail-close to monotonic
+elapsed time. The 10 ms modal timer is scheduler/coalescing dependent and its delivery count remains
+telemetry only; a 30-second runtime ceiling prevents an abandoned callback from retaining the modal
+operator indefinitely. Hardware evidence still uses the producer's stricter 12-second acceptance
+bar, so this runtime correction does not relax the Apple gate.
 
 `verify_select_readback_lifecycle.py` makes that seam observable without changing it. The exact
 buffer path publishes monotonic generations for command submission, map registration, map callback,

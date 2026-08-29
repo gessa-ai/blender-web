@@ -55,13 +55,13 @@ def validate_source(sources: dict[str, str]) -> None:
         "ghost_web::redraw_retry_generation() <= g_async.retry_generation",
         "ghost_web::redraw_drop_generation() != g_state.draw_drop_generation",
         "g_async.retry_generation = ghost_web::redraw_retry_generation();",
-        "g_async.retry_pending = true;",
         "g_async.retry_pending = false;",
     ):
         require(select_next, token)
+    require(select_next, "g_async.retry_pending = true;", 2)
     require(select_next, "GPU_readback_cancel(readback);", 2)
-    require(select_next, "g_async.select_id_map.clear();", 2)
-    require(select_next, "g_async.in_front_map.clear();", 2)
+    require(select_next, "g_async.select_id_map.clear();", 3)
+    require(select_next, "g_async.in_front_map.clear();", 3)
     if select_next.index("if (g_async.retry_pending) {") > select_next.index(
         "if (g_async.readback == nullptr) {"
     ):
@@ -92,7 +92,7 @@ def validate_source(sources: dict[str, str]) -> None:
     require(vertex, "buffer_.create_for_draw_scope(", 2)
     require(index, "buffer_.create_for_draw_scope(", 2)
     for source, expected_calls in (
-        (batch, 6),
+        (batch, 7),
         (immediate, 2),
         (backend, 2),
         (framebuffer, 2),

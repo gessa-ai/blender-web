@@ -651,10 +651,13 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         begin_body,
         (
             "if (!g_async.session_active)",
-            "if (readback == nullptr || g_async.readback != nullptr || g_async.failed)",
+            "if (g_async.readback != nullptr || g_async.failed)",
+            "ghost_web::redraw_drop_generation() != g_state.draw_drop_generation",
+            "if (readback == nullptr)",
             "g_async.pending_key = gpu_select_async_key_from_state();",
             "g_async.select_id_map.extend(select_id_map);",
             "g_async.in_front_map.extend(in_front_map);",
+            "g_async.readback_draw_validation_failure_generation",
             "g_async.readback = readback;",
         ),
         "select readback transfer",
@@ -665,6 +668,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     require_ordered(
         status_body,
         (
+            "ghost_web::selection_draw_validation_pending() != 0",
+            "ghost_web::selection_draw_validation_failure_generation()",
+            "if (g_async.retry_pending)",
             "if (status == GPU_READBACK_PENDING)",
             "if (status != GPU_READBACK_READY)",
             "byte_size % sizeof(uint) != 0",
@@ -2181,8 +2187,20 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         ),
         (
             "source/blender/editors/space_view3d/view3d_select.cc",
-            "constexpr int max_queued_events = 512;",
-            "constexpr int max_queued_events = 0;",
+            "static bool view3d_circle_select_async_event_push(EditSelectBuf_Cache *esel,\n"
+            "                                                  const wmEvent *event)\n"
+            "{\n"
+            "  if (event->type == TIMER) {\n"
+            "    return true;\n"
+            "  }\n"
+            "  constexpr int max_queued_events = 512;",
+            "static bool view3d_circle_select_async_event_push(EditSelectBuf_Cache *esel,\n"
+            "                                                  const wmEvent *event)\n"
+            "{\n"
+            "  if (event->type == TIMER) {\n"
+            "    return true;\n"
+            "  }\n"
+            "  constexpr int max_queued_events = 0;",
             "circle bounded event queue",
         ),
         (

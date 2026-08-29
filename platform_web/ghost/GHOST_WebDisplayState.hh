@@ -355,6 +355,8 @@ inline std::atomic<uint64_t> input_redraw_presented_generation{0};
 inline std::atomic<uint64_t> input_redraw_content_presented_generation{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
+inline std::atomic<uint64_t> selection_draw_validation_pending_counter{0};
+inline std::atomic<uint64_t> selection_draw_validation_failure_counter{0};
 
 /**
  * Bind input-redraw evidence to the WM frame that actually reached the GHOST swap boundary.
@@ -746,6 +748,33 @@ inline void note_redraw_drop()
 inline uint64_t redraw_drop_generation()
 {
   return redraw_drop_counter.load(std::memory_order_acquire);
+}
+
+/**
+ * Browser command scopes settle after draw encoding returns. A cleared selection output may not
+ * become a readable result while any command that was meant to populate it is still validating.
+ */
+inline void note_selection_draw_validation_begin()
+{
+  selection_draw_validation_pending_counter.fetch_add(1u, std::memory_order_relaxed);
+}
+
+inline void note_selection_draw_validation_complete(const bool valid)
+{
+  if (!valid) {
+    selection_draw_validation_failure_counter.fetch_add(1u, std::memory_order_relaxed);
+  }
+  selection_draw_validation_pending_counter.fetch_sub(1u, std::memory_order_release);
+}
+
+inline uint64_t selection_draw_validation_pending()
+{
+  return selection_draw_validation_pending_counter.load(std::memory_order_acquire);
+}
+
+inline uint64_t selection_draw_validation_failure_generation()
+{
+  return selection_draw_validation_failure_counter.load(std::memory_order_acquire);
 }
 
 /**

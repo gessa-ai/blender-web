@@ -2151,3 +2151,18 @@ rearming, and unchanged generic/resize ceilings in native and wasm32 behavior; h
 remain the closure authority. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `platform_web/ghost/GHOST_SystemWeb.cc`, and
 `sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.
+
+## Class 145 — draw encoding is not selection-result admission
+
+Signature: a selection output begins from a known clear, every required batch reaches a real
+`Draw*` command, and the frontend immediately starts its ordered readback. Browser command error
+scopes settle later; a rejected draw can therefore leave the clear readable even though the
+synchronous pre-encode guard was correctly disarmed. Give every selection command a balanced
+validation ticket, snapshot a selection-specific failure generation at attempt start, and keep the
+mapped bytes private until all tickets settle. A late rejection cancels only that attempt and
+retries after its settled validation edge; unrelated UI draw failures must not invalidate a valid
+pick. Exercise rejection after readback begins, multiple outstanding draws, and a clean genuine
+miss in native/wasm32 models. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
+`upstream/source/blender/gpu/intern/gpu_select_next.cc`,
+`upstream/source/blender/gpu/webgpu/wgpu_batch.cc`, and
+`sandbox/p0-interaction-stress/verify_select_draw_validation.py`.

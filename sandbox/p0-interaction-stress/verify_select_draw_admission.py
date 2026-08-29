@@ -25,7 +25,7 @@ def validate_source(batch: str, select_next: str, patch: str, series: str) -> No
     require(batch, '#include "BKE_global.hh"')
     require(batch, "class SelectionDrawAdmission")
     require(batch, "(G.f & G_FLAG_PICKSEL) != 0")
-    require(batch, "note_webgpu_draw_drop();", 6)
+    require(batch, "note_webgpu_draw_drop();", 7)
     require(batch, '"[bw] WGPUWeb-select-draw-drop shader=%s stage=%s\\n"')
     require(batch, "SelectionDrawAdmission selection_draw_admission(shader);", 2)
     require(batch, 'selection_draw_admission.stage("geometry");', 2)

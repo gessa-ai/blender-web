@@ -26205,7 +26205,7 @@ index 0000000000000000000000000000000000000000..697908fbd5f33fab28e5cb1c4eb27cb8
 +
 +}  // namespace blender
 diff --git a/source/blender/gpu/intern/gpu_select_next.cc b/source/blender/gpu/intern/gpu_select_next.cc
-index 18e22f356ac1bbf28c59c3695024cc8e7241c251..067c642d9ce62e02e727f0f1f245c8e0f340b1d6 100644
+index 18e22f356ac1bbf28c59c3695024cc8e7241c251..8419cea837f5a0db66c09c933d704ddd7e4e3ad2 100644
 --- a/source/blender/gpu/intern/gpu_select_next.cc
 +++ b/source/blender/gpu/intern/gpu_select_next.cc
 @@ -8,12 +8,21 @@
@@ -26230,13 +26230,15 @@ index 18e22f356ac1bbf28c59c3695024cc8e7241c251..067c642d9ce62e02e727f0f1f245c8e0
  namespace blender {
  
  struct GPUSelectNextState {
-@@ -27,10 +36,122 @@ struct GPUSelectNextState {
+@@ -27,10 +36,125 @@ struct GPUSelectNextState {
    uint hits = -1;
    /** Mode of operation. */
    GPUSelectMode mode = GPUSelectMode::GPU_SELECT_INVALID;
 +#ifdef __EMSCRIPTEN__
 +  /** Draw-drop generation immediately before this exact selection attempt. */
 +  uint64_t draw_drop_generation = 0;
++  /** Asynchronous command-validation failure generation before this exact attempt. */
++  uint64_t draw_validation_failure_generation = 0;
 +#endif
  };
  
@@ -26271,6 +26273,7 @@ index 18e22f356ac1bbf28c59c3695024cc8e7241c251..067c642d9ce62e02e727f0f1f245c8e0
 +  /** A dropped attempt has no valid result; wait for a later resource-readiness edge. */
 +  bool retry_pending = false;
 +  uint64_t retry_generation = 0;
++  uint64_t readback_draw_validation_failure_generation = 0;
 +#endif
 +};
 +
@@ -26353,18 +26356,20 @@ index 18e22f356ac1bbf28c59c3695024cc8e7241c251..067c642d9ce62e02e727f0f1f245c8e0
  void gpu_select_next_begin(GPUSelectBuffer *buffer,
                             const rcti *input,
                             const int radius,
-@@ -41,6 +162,10 @@ void gpu_select_next_begin(GPUSelectBuffer *buffer,
+@@ -41,6 +165,12 @@ void gpu_select_next_begin(GPUSelectBuffer *buffer,
    g_state.rect = *input;
    g_state.mode = mode;
    g_state.radius = radius;
 +  g_state.hits = uint(-1);
 +#ifdef __EMSCRIPTEN__
 +  g_state.draw_drop_generation = ghost_web::redraw_drop_generation();
++  g_state.draw_validation_failure_generation =
++      ghost_web::selection_draw_validation_failure_generation();
 +#endif
  }
  
  int2 gpu_select_next_get_pick_area_center()
-@@ -87,6 +212,145 @@ void gpu_select_next_set_result(GPUSelectResult *hit_buf, uint hit_len)
+@@ -87,6 +217,167 @@ void gpu_select_next_set_result(GPUSelectResult *hit_buf, uint hit_len)
    g_state.hits = hit_len;
  }
  
@@ -26394,6 +26399,24 @@ index 18e22f356ac1bbf28c59c3695024cc8e7241c251..067c642d9ce62e02e727f0f1f245c8e0
 +    return GPU_READBACK_FAILED;
 +  }
 +#ifdef __EMSCRIPTEN__
++  /* Encoding a selection draw is not its terminal browser verdict. Keep the mapped clear/result
++   * private until every command scope from this attempt settles, then discard it if any one of
++   * those scopes rejected after readback submission began. The rejecting completion publishes
++   * the redraw edge, so an exact retry is immediately eligible once the pending count reaches 0. */
++  if (ghost_web::selection_draw_validation_pending() != 0) {
++    return GPU_READBACK_PENDING;
++  }
++  if (g_async.readback != nullptr &&
++      ghost_web::selection_draw_validation_failure_generation() !=
++          g_async.readback_draw_validation_failure_generation)
++  {
++    GPU_readback_cancel(g_async.readback);
++    g_async.select_id_map.clear();
++    g_async.in_front_map.clear();
++    const uint64_t retry_generation = ghost_web::redraw_retry_generation();
++    g_async.retry_generation = retry_generation > 0 ? retry_generation - 1u : 0;
++    g_async.retry_pending = true;
++  }
 +  if (g_async.retry_pending) {
 +    return ghost_web::redraw_retry_generation() <= g_async.retry_generation ?
 +               GPU_READBACK_PENDING :
@@ -26504,6 +26527,10 @@ index 18e22f356ac1bbf28c59c3695024cc8e7241c251..067c642d9ce62e02e727f0f1f245c8e0
 +  g_async.pending_key = gpu_select_async_key_from_state();
 +  g_async.select_id_map.extend(select_id_map);
 +  g_async.in_front_map.extend(in_front_map);
++#ifdef __EMSCRIPTEN__
++  g_async.readback_draw_validation_failure_generation =
++      g_state.draw_validation_failure_generation;
++#endif
 +  g_async.readback = readback;
 +}
 +
@@ -32119,10 +32146,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200c10fc343
+index 0000000000000000000000000000000000000000..efc4b8019fbc1711a3ab0ab013e1084094ce78ab
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,1147 @@
+@@ -0,0 +1,1204 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32145,6 +32172,8 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +#include <atomic>
 +#include <cstdint>
 +#include <cstdio>
++#include <functional>
++#include <string>
 +#include <vector>
 +
 +#include "wgpu_buffer.hh"
@@ -32201,6 +32230,7 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +#ifdef __EMSCRIPTEN__
 +    shader_ = shader;
 +    armed_ = shader != nullptr && (G.f & G_FLAG_PICKSEL) != 0;
++    selection_ = armed_;
 +#else
 +    (void)shader;
 +#endif
@@ -32238,11 +32268,37 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +#endif
 +  }
 +
++  std::function<void(bool)> validation_completion() const
++  {
++#ifdef __EMSCRIPTEN__
++    if (!selection_) {
++      return {};
++    }
++    ghost_web::note_selection_draw_validation_begin();
++    const std::string shader_name = shader_->name_get();
++    return [shader_name](const bool valid) {
++      if (!valid) {
++        note_webgpu_draw_drop();
++        request_webgpu_redraw_retry();
++        static std::atomic<uint32_t> log_count{0};
++        if (log_count.fetch_add(1u, std::memory_order_relaxed) < 128u) {
++          std::printf("[bw] WGPUWeb-select-draw-drop shader=%s stage=validation\n",
++                      shader_name.c_str());
++        }
++      }
++      ghost_web::note_selection_draw_validation_complete(valid);
++    };
++#else
++    return {};
++#endif
++  }
++
 + private:
 +#ifdef __EMSCRIPTEN__
 +  WGPUShader *shader_ = nullptr;
 +  const char *stage_ = "module";
 +  bool armed_ = false;
++  bool selection_ = false;
 +#endif
 +};
 +
@@ -32731,6 +32787,8 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +        if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
 +          return;
 +        }
++        const std::function<void(bool)> selection_validation_completion =
++            selection_draw_admission.validation_completion();
 +        webgpu::command_encode_submit_scoped(
 +            ctx->instance_get(),
 +            device,
@@ -32797,7 +32855,12 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +              mv_pass.End();
 +              return true;
 +            },
-+            [load_action_completion](const bool valid) { load_action_completion(valid); });
++            [load_action_completion, selection_validation_completion](const bool valid) {
++              load_action_completion(valid);
++              if (selection_validation_completion) {
++                selection_validation_completion(valid);
++              }
++            });
 +      }
 +    }
 +    return;
@@ -32832,6 +32895,8 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +  if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
 +    return;
 +  }
++  const std::function<void(bool)> selection_validation_completion =
++      selection_draw_admission.validation_completion();
 +  webgpu::command_encode_submit_scoped(
 +      ctx->instance_get(),
 +      device,
@@ -32887,7 +32952,12 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +        pass.End();
 +        return true;
 +      },
-+      [load_action_completion](const bool valid) { load_action_completion(valid); });
++      [load_action_completion, selection_validation_completion](const bool valid) {
++        load_action_completion(valid);
++        if (selection_validation_completion) {
++          selection_validation_completion(valid);
++        }
++      });
 +}
 +
 +void WGPUBatch::draw_indirect(StorageBuf *indirect_buf, intptr_t offset)
@@ -33157,6 +33227,8 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +        if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
 +          return;
 +        }
++        const std::function<void(bool)> selection_validation_completion =
++            selection_draw_admission.validation_completion();
 +        webgpu::command_encode_submit_scoped(
 +            ctx->instance_get(),
 +            device,
@@ -33199,7 +33271,12 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +              mv_pass.End();
 +              return true;
 +            },
-+            [load_action_completion](const bool valid) { load_action_completion(valid); });
++            [load_action_completion, selection_validation_completion](const bool valid) {
++              load_action_completion(valid);
++              if (selection_validation_completion) {
++                selection_validation_completion(valid);
++              }
++            });
 +      }
 +    }
 +    return;
@@ -33233,6 +33310,8 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +  if (!fb->load_action_transaction_prepare(load_action, load_action_completion)) {
 +    return;
 +  }
++  const std::function<void(bool)> selection_validation_completion =
++      selection_draw_admission.validation_completion();
 +  webgpu::command_encode_submit_scoped(
 +      ctx->instance_get(),
 +      device,
@@ -33266,7 +33345,12 @@ index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200
 +        pass.End();
 +        return true;
 +      },
-+      [load_action_completion](const bool valid) { load_action_completion(valid); });
++      [load_action_completion, selection_validation_completion](const bool valid) {
++        load_action_completion(valid);
++        if (selection_validation_completion) {
++          selection_validation_completion(valid);
++        }
++      });
 +}
 +
 +}  // namespace blender::gpu

@@ -110,6 +110,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_stream_continuation.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_draw_admission.py
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_select_draw_validation.py
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir BW_P0_SPARSE=1 \
@@ -248,3 +250,9 @@ Shader-module and pipeline deferral now contribute to that generation just like 
 group, rather than silently returning from batch/immediate drawing. Buffers first allocated by the
 one-draw `G_FLAG_PICKSEL` context use its ordered transient resource gate, so a retry does not
 recreate persistent allocations whose owner disappears before browser validation can publish them.
+
+`verify_select_draw_validation.py` closes the next terminal-boundary gap. A browser batch that
+encoded `Draw*` can still reject asynchronously after the synchronous admission guard disarms.
+Each selection command now owns a balanced validation ticket; readback consumption waits for every
+ticket, and a late rejection cancels the exact cleared result before retry. The failure generation
+is selection-specific, so an unrelated UI draw drop cannot invalidate a genuine pick.

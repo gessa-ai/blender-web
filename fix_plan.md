@@ -3682,7 +3682,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   ms. Four separately rejected WSLg target-page closures had zero page errors; five clean runs used
   WSLg and five used fresh isolated Xvfb. No runtime byte changed. This binds software stability
   only; the exact Apple 10/10 pixel and same-generation P0-E gauntlet gates remain unchanged. See
-  `notes/p0-selection-draw-admission-20260829.md`.
+  `notes/p0-selection-draw-admission-20260829.md`. **Asynchronous draw-validation candidate
+  implemented/relinked/pending hardware (patch 0308):** the synchronous admission guard still
+  disarmed at `Draw*` encoding before browser command scopes produced their later terminal verdict.
+  Each selection command now owns a balanced validation ticket; select-next keeps mapped bytes
+  private until all tickets settle and cancels only the exact attempt when its dedicated failure
+  generation advances. The rejecting completion publishes the retry edge, while unrelated UI draw
+  drops cannot invalidate a genuine pick. Fail-first/final 8-mutation, native/wasm32 readback,
+  integrated WebGPU, adjacent selection, canonical replay, product preflight, relink/no-work, and
+  exact slow/sparse software controls are green. The control selects Cube and retires both isolated
+  orbits in 332/11,875/bounded milliseconds with zero selection/page/lifecycle errors. RELINKED
+  CAPTURE `.wasm.orig` is `fb5223a06ee9` (119,001,291 bytes). This remains device-free evidence:
+  P0-I/J require this exact inventory to pass Apple 10/10 plus the same-generation composed P0-E
+  gauntlet. See `notes/p0-selection-draw-validation-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

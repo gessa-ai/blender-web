@@ -25,6 +25,7 @@ target_include_directories(m5_async_readback_contract PRIVATE
   "${BW_UPSTREAM_DIR}/source/blender/blenlib"
   "${BW_UPSTREAM_DIR}/source/blender/makesdna"
   "${BW_UPSTREAM_DIR}/intern/guardedalloc"
+  "${CMAKE_CURRENT_LIST_DIR}/../../platform_web/ghost"
   "${BW_FMT_INCLUDE_DIR}"
 )
 

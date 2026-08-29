@@ -1227,3 +1227,6 @@
 # 0307: keep a selection draw fail-closed across every late synchronous pre-encode exit, so an
 # untouched cleared pick buffer cannot masquerade as a genuine empty result.
 0307-gpu-webgpu-select-draw-admission.patch
+# 0308: keep cleared selection readback private until every encoded browser draw validates, and
+# retry instead of publishing it when a late command-scope rejection invalidates the attempt.
+0308-gpu-webgpu-select-draw-validation.patch

@@ -12,6 +12,8 @@ const {chromium} = createRequire(resolve(moduleRoot, "package.json"))("playwrigh
 const port = Number(process.argv[2] || 8123);
 const hardwareDiagnostic = process.env.BW_P0_RAPID_HARDWARE === "1";
 const sparseDiagnostic = process.env.BW_P0_SPARSE === "1";
+const ozonePlatform = process.env.BW_P0_OZONE || "";
+const stateOnlyDiagnostic = process.env.BW_P0_STATE_ONLY === "1";
 const sampleCadenceMs = sparseDiagnostic ? 650 : 350;
 const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
   "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
@@ -76,6 +78,9 @@ bpy.app.timers.register(_bwp0r_start_probe,first_interval=0.0,persistent=True)
 if (hardwareDiagnostic && process.platform !== "darwin") {
   throw new Error(`BW_P0_RAPID_HARDWARE is Apple-only; got ${process.platform}`);
 }
+if (hardwareDiagnostic && stateOnlyDiagnostic) {
+  throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic");
+}
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const classifyAdapter = (raw) => {
@@ -114,6 +119,7 @@ const browser = await chromium.launch({
   headless: false,
   args: [
     "--enable-unsafe-webgpu",
+    ...(ozonePlatform ? [`--ozone-platform=${ozonePlatform}`] : []),
     ...(hardwareDiagnostic ? ["--use-angle=metal"] : [
       "--use-webgpu-adapter=swiftshader",
       "--use-gpu-in-tests",
@@ -255,6 +261,13 @@ try {
           wmHeldMask: read("_bw_input_button_wm_mask"),
           wmCursorMoves: read("_bw_input_cursor_wm_count"),
         },
+        view3dRotate: {
+          invokes: read("_bw_view3d_rotate_invoke_count"),
+          confirms: read("_bw_view3d_rotate_confirm_count"),
+          cancels: read("_bw_view3d_rotate_cancel_count"),
+          terminals: read("_bw_view3d_rotate_terminal_count"),
+          active: read("_bw_view3d_rotate_active_count"),
+        },
         domInputSequence: domInputs.at(-1)?.sequence || 0,
         domInputTail: domInputs.slice(-16),
       };
@@ -291,6 +304,11 @@ try {
     current.wmInput.wmKeyReleases >= baseline.wmKeyReleases + expected.keys &&
     current.wmInput.wmCursorMoves > baseline.wmCursorMoves &&
     (current.wmInput.wmHeldMask & 0x3) === 0;
+  const view3dRotateRetired = (current, baseline, expected) =>
+    current.view3dRotate.invokes >= baseline.view3dRotate.invokes + expected &&
+    current.view3dRotate.confirms >= baseline.view3dRotate.confirms + expected &&
+    current.view3dRotate.terminals >= baseline.view3dRotate.terminals + expected &&
+    current.view3dRotate.active === baseline.view3dRotate.active;
   const stateArraysEqual = (left, right) =>
     Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
     left.every((value, index) => Number.isFinite(value) && Number.isFinite(right[index]) &&
@@ -320,7 +338,8 @@ try {
     current.ghostWindow.pointerLockRequestedMode === 0 &&
     current.ghostWindow.cursorGrabMode === 0;
   const waitForActionDrain = async (
-    name, baseline, counterBaseline, nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
+    name, baseline, counterBaseline, rotateBaseline, expectedRotates,
+    nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
   ) => {
     const started = Date.now();
     drainTimelines[name] = [];
@@ -336,16 +355,16 @@ try {
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
         wmInput: {...current.wmInput},
+        view3dRotate: {...current.view3dRotate},
         ghostWindow: {...current.ghostWindow},
         nativeInputSequence: current.nativeInputSequence,
         nativeStateSequence: current.nativeStateSequence,
         nativeState: current.nativeState ? {...current.nativeState} : null,
         nativeModalOperators: [...current.nativeModalOperators],
       });
-      if (current.sha256 !== baseline &&
+      if ((stateOnlyDiagnostic || current.sha256 !== baseline) &&
           current.ticks > counterBaseline.ticks &&
           current.presents > counterBaseline.presents &&
-          current.retries > counterBaseline.retries &&
           current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal &&
           current.inputRedraw.admitted >= current.inputRedraw.terminal &&
           current.inputRedraw.dispatched >= current.inputRedraw.terminal &&
@@ -353,6 +372,7 @@ try {
           current.inputRedraw.contentPresented >= current.inputRedraw.terminal &&
           current.inputRedraw.episode === counterBaseline.inputRedraw.episode &&
           nativeDeliveryComplete(current) &&
+          view3dRotateRetired(current, rotateBaseline, expectedRotates) &&
           ghostWindowSettled(current) &&
           (!hardwareDiagnostic || nativeStateComplete(current)) &&
           current.nativeModalOperators.every((operator) =>
@@ -361,7 +381,7 @@ try {
       }
     }
     throw new Error(
-      `${name} did not drain terminal native input plus pixels/WM/present/retry within ${timeoutMs}ms`,
+      `${name} did not drain terminal native input plus ${stateOnlyDiagnostic ? "state" : "pixels"}/WM/present within ${timeoutMs}ms`,
     );
   };
   const steps = [];
@@ -409,6 +429,8 @@ try {
       "isolated-orbit-drain",
       isolatedOrbitBaseline.sha256,
       isolatedOrbitBaseline,
+      isolatedOrbitBaseline,
+      1,
       (current) => ghostInputDeliveryComplete(
         current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}) &&
         wmInputDeliveryComplete(
@@ -429,6 +451,8 @@ try {
       "isolated-recovery-orbit",
       isolatedRecoveryBaseline.sha256,
       isolatedRecoveryBaseline,
+      isolatedRecoveryBaseline,
+      1,
       (current) => ghostInputDeliveryComplete(
         current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}) &&
         wmInputDeliveryComplete(
@@ -462,6 +486,8 @@ try {
       "action-drain",
       orbitBeforeClick.sha256,
       orbitBeforeClick,
+      isolatedOrbitBaseline,
+      2,
       (current) => ghostInputDeliveryComplete(
         current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}) &&
         wmInputDeliveryComplete(
@@ -483,6 +509,8 @@ try {
       "recovery-orbit",
       recoveryBaseline.sha256,
       recoveryBaseline,
+      recoveryBaseline,
+      1,
       (current) => ghostInputDeliveryComplete(
         current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}) &&
         wmInputDeliveryComplete(
@@ -504,7 +532,9 @@ try {
     schema: 1,
     mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst",
     sampleCadenceMs,
-    evidenceClass: hardwareDiagnostic ? "diagnostic-apple" : "diagnostic-software-fallback",
+    evidenceClass: hardwareDiagnostic ? "diagnostic-apple" :
+      (stateOnlyDiagnostic ? "diagnostic-software-fallback-state-only" :
+        "diagnostic-software-fallback"),
     adapter,
     steps,
     retainedActionFramesEqual,
@@ -517,10 +547,14 @@ try {
     pageErrors,
     lifecycle,
     pointerLockLines: consoleLines.filter((line) => /Pointer Lock|pointerlock/i.test(line)),
+    selectionReadbackFailureLines: consoleLines.filter(
+      (line) => /WebGPU selection readback failed/.test(line)),
+    wmEventLines: consoleLines.filter((line) => /^wmEvent type:/.test(line)),
     inputRedrawLines: consoleLines.filter((line) => /GHOST-input-redraw/.test(line)),
     eventTail: consoleLines.filter((line) => /ghost_event_proc/.test(line)).slice(-80),
   };
-  if (pageErrors.length !== 0 || lifecycle.length !== 0) {
+  if (pageErrors.length !== 0 || lifecycle.length !== 0 ||
+      evidence.selectionReadbackFailureLines.length !== 0) {
     throw new Error(`rapid input diagnostic has page/lifecycle errors: ${JSON.stringify(evidence)}`);
   }
   process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
@@ -544,6 +578,10 @@ catch (error) {
     lifecycle: failureContext?.lifecycle || [],
     pointerLockLines: (failureContext?.consoleLines || [])
       .filter((line) => /Pointer Lock|pointerlock/i.test(line)),
+    selectionReadbackFailureLines: (failureContext?.consoleLines || [])
+      .filter((line) => /WebGPU selection readback failed/.test(line)),
+    wmEventLines: (failureContext?.consoleLines || [])
+      .filter((line) => /^wmEvent type:/.test(line)),
     inputRedrawLines: (failureContext?.consoleLines || [])
       .filter((line) => /GHOST-input-redraw/.test(line)),
     eventTail: (failureContext?.consoleLines || [])

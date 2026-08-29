@@ -55,7 +55,6 @@ def validate(source: str) -> None:
         "current.sha256 !== baseline",
         "current.ticks > counterBaseline.ticks",
         "current.presents > counterBaseline.presents",
-        "current.retries > counterBaseline.retries",
         "current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal",
         "current.inputRedraw.admitted >= current.inputRedraw.terminal",
         "current.inputRedraw.dispatched >= current.inputRedraw.terminal",
@@ -122,7 +121,8 @@ def validate(source: str) -> None:
         "nativeStateContract,",
         "actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick)",
         "recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, recoveryBaseline)",
-        "if (pageErrors.length !== 0 || lifecycle.length !== 0)",
+        "if (pageErrors.length !== 0 || lifecycle.length !== 0 ||",
+        "evidence.selectionReadbackFailureLines.length !== 0",
     ):
         require_once(source, token)
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
@@ -434,11 +434,6 @@ def self_check(
         ),
         replace_once(
             source,
-            "current.retries > counterBaseline.retries",
-            "current.retries >= counterBaseline.retries",
-        ),
-        replace_once(
-            source,
             "current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal",
             "current.inputRedraw.terminal >= counterBaseline.inputRedraw.terminal",
         ),
@@ -551,8 +546,8 @@ def self_check(
         ),
         replace_once(
             source,
-            "if (pageErrors.length !== 0 || lifecycle.length !== 0)",
-            "if (pageErrors.length !== 0 && lifecycle.length !== 0)",
+            "if (pageErrors.length !== 0 || lifecycle.length !== 0 ||",
+            "if (pageErrors.length !== 0 && lifecycle.length !== 0 ||",
         ),
         replace_once(
             source,

@@ -1215,3 +1215,9 @@
 # 0303: bind a terminal-input surface receipt to the exact WM frame that encoded the VIEW_3D
 # background, grid, and final display, distinguishing a stale valid copy from complete content.
 0303-gpu-webgpu-input-frame-content-trace.patch
+# 0304: publish the exact VIEW3D rotate invoke/confirm/terminal boundary so a retained modal
+# operator can be distinguished from a downstream stale frame in the slow sparse Apple repro.
+0304-view3d-web-rotate-retirement-diagnostic.patch
+# 0305: retain one-draw selection output as an ordered stream allocation and preserve ordinary
+# input FIFO while the browser readback continuation maps, instead of losing either at teardown.
+0305-gpu-webgpu-select-stream-continuation.patch

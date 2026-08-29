@@ -1,0 +1,276 @@
+diff --git a/source/blender/draw/intern/DRW_gpu_wrapper.hh b/source/blender/draw/intern/DRW_gpu_wrapper.hh
+--- a/source/blender/draw/intern/DRW_gpu_wrapper.hh
++++ b/source/blender/draw/intern/DRW_gpu_wrapper.hh
+@@ -211,6 +211,7 @@
+ class StorageCommon : public DataBuffer<T, len, false>, NonMovable, NonCopyable {
+  protected:
+   gpu::StorageBuf *ssbo_;
++  GPUUsageType usage_;
+ 
+ #ifndef NDEBUG
+   const char *name_ = typeid(T).name();
+@@ -219,14 +220,16 @@
+ #endif
+ 
+  public:
+-  StorageCommon(const char *name = nullptr)
++  StorageCommon(const char *name = nullptr,
++                const GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY :
++                                                         GPU_USAGE_DYNAMIC)
++      : usage_(usage)
+   {
+     if (name) {
+       name_ = name;
+     }
+     this->len_ = len;
+-    constexpr GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY : GPU_USAGE_DYNAMIC;
+-    ssbo_ = GPU_storagebuf_create_ex(sizeof(T) * this->len_, nullptr, usage, this->name_);
++    ssbo_ = GPU_storagebuf_create_ex(sizeof(T) * this->len_, nullptr, usage_, this->name_);
+   }
+ 
+   ~StorageCommon()
+@@ -337,7 +340,10 @@
+     bool device_only = false>
+ class StorageArrayBuffer : public detail::StorageCommon<T, len, device_only> {
+  public:
+-  StorageArrayBuffer(const char *name = nullptr) : detail::StorageCommon<T, len, device_only>(name)
++  StorageArrayBuffer(const char *name = nullptr,
++                     const GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY :
++                                                              GPU_USAGE_DYNAMIC)
++      : detail::StorageCommon<T, len, device_only>(name, usage)
+   {
+     /* TODO(@fclem): We should map memory instead. */
+     this->data_ = static_cast<T *>(
+@@ -364,8 +370,8 @@
+       GPU_storagebuf_free(this->ssbo_);
+ 
+       this->len_ = new_size;
+-      constexpr GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY : GPU_USAGE_DYNAMIC;
+-      this->ssbo_ = GPU_storagebuf_create_ex(sizeof(T) * this->len_, nullptr, usage, this->name_);
++      this->ssbo_ = GPU_storagebuf_create_ex(
++          sizeof(T) * this->len_, nullptr, this->usage_, this->name_);
+     }
+   }
+ 
+@@ -410,6 +416,7 @@
+     std::swap(a.ssbo_, b.ssbo_);
+     std::swap(a.len_, b.len_);
+     std::swap(a.name_, b.name_);
++    std::swap(a.usage_, b.usage_);
+   }
+ };
+ 
+diff --git a/source/blender/draw/engines/select/select_instance.hh b/source/blender/draw/engines/select/select_instance.hh
+--- a/source/blender/draw/engines/select/select_instance.hh
++++ b/source/blender/draw/engines/select/select_instance.hh
+@@ -97,7 +97,10 @@
+   Vector<std::string> map_names;
+ #endif
+   /** Stores the result of the whole selection drawing. Content depends on selection mode. */
+-  StorageArrayBuffer<uint> select_output_buf = {"select_output_buf"};
++  /* Selection contexts without a viewport own a one-draw engine instance. Mark this output as a
++   * stream resource so browser backends can validate, clear, draw, and read it in one ordered
++   * frame epoch instead of waiting to publish an allocation after the instance is destroyed. */
++  StorageArrayBuffer<uint> select_output_buf = {"select_output_buf", GPU_USAGE_STREAM};
+   /** Dummy buffer. Might be better to remove, but simplify the shader create info patching. */
+   StorageArrayBuffer<uint, 4, true> dummy_select_buf = {"dummy_select_buf"};
+   /** Uniform buffer to bind to all passes to pass information about the selection state. */
+diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
+@@ -127,10 +127,39 @@
+   if (ctx == nullptr) {
+     return false;
+   }
+-  const webgpu::UsageType usage = usage_ == GPU_USAGE_DEVICE_ONLY ?
+-                                       webgpu::UsageType::DeviceOnly :
+-                                       webgpu::UsageType::Dynamic;
++  webgpu::UsageType usage = webgpu::UsageType::Dynamic;
++  switch (usage_) {
++    case GPU_USAGE_STREAM:
++      usage = webgpu::UsageType::Stream;
++      break;
++    case GPU_USAGE_STATIC:
++      usage = webgpu::UsageType::Static;
++      break;
++    case GPU_USAGE_DYNAMIC:
++      usage = webgpu::UsageType::Dynamic;
++      break;
++    case GPU_USAGE_DEVICE_ONLY:
++      usage = webgpu::UsageType::DeviceOnly;
++      break;
++    default:
++      BLI_assert_unreachable();
++      return false;
++  }
+   /* readable=true: storage buffers can be read back (GPU_storagebuf_read). */
++  if (usage_ == GPU_USAGE_STREAM) {
++    /* Stream buffers can be owned by a one-draw context. Keep the provisional handle in the
++     * current ordered queue epoch so its clear/draw/readback work survives until the browser
++     * validates creation, even when the frontend wrapper is destroyed as the draw returns. */
++    return buffer_.create_transient(ctx->instance_get(),
++                                    ctx->device_get(),
++                                    ctx->queue_scheduler_get(),
++                                    webgpu::BufferKind::Storage,
++                                    usage,
++                                    size_in_bytes_,
++                                    nullptr,
++                                    true,
++                                    label_.c_str());
++  }
+   return buffer_.create_scoped(
+       ctx->instance_get(),
+       ctx->device_get(),
+diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
+--- a/source/blender/gpu/webgpu/wgpu_buffer.cc
++++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
+@@ -373,7 +373,10 @@
+     return false;
+   }
+ 
+-  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  /* A stream buffer exposes its provisional allocation inside the scheduler epoch that owns its
++   * validation dependency. Updates in that epoch must target the same handle; waiting for the
++   * persistent cache would strand one-draw resources before their first use. */
++  const Allocation allocation = allocation_get();
+   PendingUpdateContext context{instance, device, queue, scheduler};
+   if (allocation != nullptr && !pending_updates_->begin(allocation.size)) {
+     return false;
+@@ -389,7 +392,7 @@
+ 
+ size_t Buffer::retry_pending_updates()
+ {
+-  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  const Allocation allocation = allocation_get();
+   if (allocation == nullptr) {
+     return 0;
+   }
+@@ -417,7 +420,7 @@
+     *r_pending = false;
+   }
+   std::vector<uint8_t> out;
+-  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  const Allocation allocation = allocation_get();
+   if (allocation == nullptr || !allocation.readable || size == 0) {
+     return out;
+   }
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -4051,8 +4051,43 @@
+   wmWindow *window = nullptr;
+   int tick_count = 0;
+   ParticleEditDepthCacheSession *particle_depth_session = nullptr;
++#ifdef __EMSCRIPTEN__
++  Vector<wmEvent> queued_events;
++#endif
+ };
+ 
++#ifdef __EMSCRIPTEN__
++static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
++{
++  constexpr int max_queued_events = 512;
++  if (data->queued_events.size() >= max_queued_events) {
++    return false;
++  }
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata_free = 0;
++  queued.customdata = nullptr;
++  data->queued_events.append(queued);
++  return true;
++}
++
++static void view3d_select_async_events_requeue(bContext *C, View3DSelectAsyncData *data)
++{
++  if (CTX_wm_manager(C) != data->manager || CTX_wm_window(C) != data->window) {
++    return;
++  }
++  /* These inputs originally preceded anything still in the WM queue. Add each copy normally,
++   * then move it to the head in reverse order so the exact captured FIFO is restored. */
++  for (int64_t index = data->queued_events.size() - 1; index >= 0; index--) {
++    wmEvent *queued = WM_event_add(data->window, &data->queued_events[index]);
++    BLI_remlink(&data->window->runtime->event_queue, queued);
++    BLI_addhead(&data->window->runtime->event_queue, queued);
++  }
++}
++#endif
++
+ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+ {
+   Scene *scene = CTX_data_scene(C);
+@@ -4284,6 +4319,11 @@
+ {
+   View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);
+   if (event->type == EVT_ESCKEY && event->val == KM_PRESS) {
++#ifdef __EMSCRIPTEN__
++    if (data != nullptr) {
++      view3d_select_async_events_requeue(C, data);
++    }
++#endif
+     view3d_select_async_finish(C, op);
+     return OPERATOR_CANCELLED;
+   }
+@@ -4291,6 +4331,20 @@
+     if (data == nullptr) {
+       return OPERATOR_CANCELLED;
+     }
++#ifdef __EMSCRIPTEN__
++    /* Browser selection is a continuation, not a blocking UI mode. Retain ordinary key/pointer
++     * input in order while its owned GPU snapshot maps; let unrelated custom/timer events keep
++     * flowing to their owners. */
++    if (ISTIMER(event->type) || event->customdata != nullptr) {
++      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    }
++    if (!view3d_select_async_event_push(data, event)) {
++      BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");
++      view3d_select_async_events_requeue(C, data);
++      view3d_select_async_finish(C, op);
++      return OPERATOR_CANCELLED;
++    }
++#endif
+     return OPERATOR_RUNNING_MODAL;
+   }
+ 
+@@ -4299,6 +4353,9 @@
+   constexpr int max_tick_count = 240;
+   if (++data->tick_count > max_tick_count) {
+     BKE_report(op->reports, RPT_ERROR, "Timed out waiting for WebGPU selection readback");
++#ifdef __EMSCRIPTEN__
++    view3d_select_async_events_requeue(C, data);
++#endif
+     view3d_select_async_finish(C, op);
+     return OPERATOR_CANCELLED;
+   }
+@@ -4311,6 +4368,9 @@
+     }
+     if (state == ParticleEditDepthCacheState::Failed) {
+       BKE_report(op->reports, RPT_ERROR, "Particle pick depth context changed");
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_events_requeue(C, data);
++#endif
+       view3d_select_async_finish(C, op);
+       return OPERATOR_CANCELLED;
+     }
+@@ -4325,6 +4385,9 @@
+                   RPT_ERROR,
+                   "WebGPU selection readback failed (error %d)",
+                   int(view3d_select_async_error()));
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_events_requeue(C, data);
++#endif
+       view3d_select_async_finish(C, op);
+       return OPERATOR_CANCELLED;
+     }
+@@ -4334,6 +4397,9 @@
+   if (retval == OPERATOR_RUNNING_MODAL) {
+     return retval;
+   }
++#ifdef __EMSCRIPTEN__
++  view3d_select_async_events_requeue(C, data);
++#endif
+   view3d_select_async_finish(C, op);
+   return retval;
+ }

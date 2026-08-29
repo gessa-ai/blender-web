@@ -1,0 +1,130 @@
+diff --git a/source/blender/editors/space_view3d/view3d_navigate.cc b/source/blender/editors/space_view3d/view3d_navigate.cc
+index 00f2ca8..81325bb 100644
+--- a/source/blender/editors/space_view3d/view3d_navigate.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate.cc
+@@ -40,8 +40,64 @@
+ 
+ #include "view3d_navigate.hh" /* own include */
+ 
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <cstdint>
++
++#  include <emscripten/emscripten.h>
++#endif
++
+ namespace blender {
+ 
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint64_t> web_view3d_rotate_invoke_count{0};
++std::atomic<uint64_t> web_view3d_rotate_confirm_count{0};
++std::atomic<uint64_t> web_view3d_rotate_cancel_count{0};
++std::atomic<uint64_t> web_view3d_rotate_terminal_count{0};
++std::atomic<uint64_t> web_view3d_rotate_active_count{0};
++
++void web_view3d_rotate_note_terminal(const eV3D_OpEvent event_code)
++{
++  if (event_code == VIEW_CONFIRM) {
++    web_view3d_rotate_confirm_count.fetch_add(1u, std::memory_order_relaxed);
++  }
++  else if (event_code == VIEW_CANCEL) {
++    web_view3d_rotate_cancel_count.fetch_add(1u, std::memory_order_relaxed);
++  }
++  web_view3d_rotate_terminal_count.fetch_add(1u, std::memory_order_release);
++  web_view3d_rotate_active_count.fetch_sub(1u, std::memory_order_release);
++}
++
++}  // namespace
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_invoke_count(void)
++{
++  return double(web_view3d_rotate_invoke_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_confirm_count(void)
++{
++  return double(web_view3d_rotate_confirm_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_cancel_count(void)
++{
++  return double(web_view3d_rotate_cancel_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_terminal_count(void)
++{
++  return double(web_view3d_rotate_terminal_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_active_count(void)
++{
++  return double(web_view3d_rotate_active_count.load(std::memory_order_acquire));
++}
++#endif
++
+ /* Prototypes. */
+ static const ViewOpsType *view3d_navigation_type_from_idname(const char *idname);
+ 
+@@ -716,6 +772,12 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
+   op->customdata = static_cast<void *>(vod);
+ 
+   if (ret == OPERATOR_RUNNING_MODAL) {
++#ifdef __EMSCRIPTEN__
++    if (nav_type == &ViewOpsType_rotate) {
++      web_view3d_rotate_invoke_count.fetch_add(1u, std::memory_order_relaxed);
++      web_view3d_rotate_active_count.fetch_add(1u, std::memory_order_release);
++    }
++#endif
+     WM_event_add_modal_handler(C, op);
+     return OPERATOR_RUNNING_MODAL;
+   }
+@@ -739,6 +801,11 @@ static wmOperatorStatus view3d_navigation_depth_cancel(bContext *C,
+                                                        wmOperator *op,
+                                                        ViewOpsData *vod)
+ {
++#ifdef __EMSCRIPTEN__
++  if (vod->nav_type == &ViewOpsType_rotate) {
++    web_view3d_rotate_note_terminal(VIEW_CANCEL);
++  }
++#endif
+   vod->state_restore();
+   viewops_data_free(C, vod);
+   op->customdata = nullptr;
+@@ -821,6 +888,11 @@ static wmOperatorStatus view3d_navigation_depth_modal(bContext *C,
+ 
+   wmOperatorStatus ret = nav_type->init_fn(C, vod, &invoke_event, op->ptr);
+   if (ret != OPERATOR_RUNNING_MODAL) {
++#ifdef __EMSCRIPTEN__
++    if (nav_type == &ViewOpsType_rotate) {
++      web_view3d_rotate_note_terminal(VIEW_PASS);
++    }
++#endif
+     viewops_data_free(C, vod);
+     op->customdata = nullptr;
+     return ret;
+@@ -884,6 +956,11 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+   wmOperatorStatus ret = vod->nav_type->apply_fn(C, vod, event_code, event->xy);
+ 
+   if ((ret & OPERATOR_RUNNING_MODAL) == 0) {
++#ifdef __EMSCRIPTEN__
++    if (vod->nav_type == &ViewOpsType_rotate) {
++      web_view3d_rotate_note_terminal(event_code);
++    }
++#endif
+     if (ret & OPERATOR_FINISHED) {
+       ED_view3d_camera_lock_undo_push(op->type->name, vod->v3d, vod->rv3d, C);
+     }
+@@ -897,6 +974,11 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+ void view3d_navigate_cancel_fn(bContext *C, wmOperator *op)
+ {
+   ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++#ifdef __EMSCRIPTEN__
++  if (vod != nullptr && vod->nav_type == &ViewOpsType_rotate) {
++    web_view3d_rotate_note_terminal(VIEW_CANCEL);
++  }
++#endif
+   bool pending_depth = vod != nullptr && vod->depth_read != nullptr;
+ #ifdef WITH_INPUT_NDOF
+   if (view3d_ndof_depth_is_pending(vod)) {

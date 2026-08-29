@@ -3625,8 +3625,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   421/1,291 ms. CAPTURE `.wasm.orig` is `838e6312ef3d` (118,993,252 bytes). This changes diagnosis
   only. Apple must run this exact generation: callback > WM localizes loss before Blender's queue;
   balanced WM with a retained navigation modal localizes operator completion; balanced/clean WM
-  plus stale native state or pixels moves the loss downstream. P0-I/J remain open. See
-  `notes/p0-cumulative-input-window-activation-20260828.md`.
+  plus stale native state or pixels moves the loss downstream. **Selection stream continuation
+  implemented/relinked/pending hardware (patches 0304/0305):** the next exact trace found that the
+  orbit retired normally, but the following click's `VIEW3D_OT_select` opened a modal error popup
+  after `GPU_READBACK_ERROR_SOURCE_UNAVAILABLE`; that popup captured every later action and created
+  the apparent total freeze. The one-draw selection output now preserves `GPU_USAGE_STREAM`, uses
+  its same-epoch provisional allocation through update/readback, and retains ordinary input in a
+  bounded FIFO until the valid asynchronous map completes. The focused producer rejects any
+  selection-readback report and requires exact rotate retirement. Rapid and slow/sparse software
+  controls now have zero selection/page/lifecycle errors and retire the queued recovery orbits;
+  canonical replay, mutation checks, real Wasm relink, CAPTURE/profile/gauntlet self-checks, and
+  REUSE are green. CAPTURE `.wasm.orig` is `cccb4f50e28a` (118,995,705 bytes). This is the first
+  candidate aimed at the observed error source, not hardware closure: Apple must pass the exact
+  slow/sparse repro 10/10 and the same-generation composed gauntlet. P0-I/J remain open. See
+  `notes/p0-cumulative-input-window-activation-20260828.md` and
+  `notes/p0-selection-stream-continuation-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

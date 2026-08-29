@@ -41,8 +41,11 @@ receipt below.
 Set `BW_P0_SPARSE=1` to run the complementary slow/sparse discriminator. It leaves 650 ms between
 the view/select/deselect samples, sends exactly one middle-mouse orbit, and queues no later input
 until that orbit either reaches balanced GHOST delivery, WM admission/dispatch, validated surface
-presentation, strict VIEW_3D content presentation, changed native view state, and changed pixels,
-or exhausts the same 12-second Apple bound. Only then does it send a second isolated orbit and
+presentation, strict VIEW_3D content presentation, a confirmed and retired `VIEW3D_OT_rotate`,
+changed native view state, and changed pixels, or exhausts the same 12-second Apple bound. The
+rotate invoke/confirm/terminal/active counters sit after GHOST-to-WM delivery, so a failure now
+separates a retained modal operator from a normally retired operator whose frame went stale. Only
+then does it send a second isolated orbit and
 require the same end-to-end receipt again. A bounded per-poll timeline preserves every generation,
 pixel hash, held-button mask, native state, and modal stack, so a hardware failure identifies the
 first stalled boundary instead of treating an immediate identical screenshot as permanent freeze.
@@ -93,6 +96,10 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_immediate_dashed_trace.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_rapid_input_drain.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_view3d_rotate_retirement.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_select_stream_continuation.py --self-check
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir BW_P0_SPARSE=1 \
@@ -210,3 +217,12 @@ isolated orbit must deliver middle-button press, motion, and release through bot
 held masks clear. A timeout can therefore distinguish a worker-callback success whose release or
 motion never entered Blender's WM queue from a later modal, redraw, or presentation failure. These
 are read-only diagnostics and bind no Apple pixel verdict by themselves.
+
+The one-draw selection continuation contract in `verify_select_stream_continuation.py` binds the
+temporary selection output to an ordered `GPU_USAGE_STREAM` resource. Browser validation,
+clear/draw, and exact readback therefore remain in one queue epoch even though the temporary draw
+engine is destroyed on return. While that owned readback is pending, ordinary input is retained in
+a bounded FIFO and replayed in order. The rapid producer fails on any
+`WebGPU selection readback failed` report and requires queued and recovery orbits to reach the exact
+rotate retirement boundary. `BW_P0_STATE_ONLY=1` is a software-adapter diagnostic only; Apple
+hardware mode rejects it, so it cannot satisfy the pixel acceptance gate.

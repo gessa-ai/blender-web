@@ -8996,10 +8996,22 @@ index c73e9edcfc93f29d627e3882ce9a776ac6ee83f2..9e0529cb4d085516f370c27320079661
  SAMPLER(PREPASS_NORMAL_TEX_SLOT, sampler2D, prepass_normal_tx)
  GPU_SHADER_CREATE_END()
 diff --git a/source/blender/draw/engines/select/select_instance.hh b/source/blender/draw/engines/select/select_instance.hh
-index 8486a1609ca1bf1dd6aa3a05281872070231c814..7f2c53f1f2bda3e963540117240aff1c530d83d5 100644
+index 8486a1609ca1bf1dd6aa3a05281872070231c814..6a1536e04110ee2672774703e88e352ed3eea72d 100644
 --- a/source/blender/draw/engines/select/select_instance.hh
 +++ b/source/blender/draw/engines/select/select_instance.hh
-@@ -269,6 +269,14 @@ struct SelectMap {
+@@ -97,7 +97,10 @@ struct SelectMap {
+   Vector<std::string> map_names;
+ #endif
+   /** Stores the result of the whole selection drawing. Content depends on selection mode. */
+-  StorageArrayBuffer<uint> select_output_buf = {"select_output_buf"};
++  /* Selection contexts without a viewport own a one-draw engine instance. Mark this output as a
++   * stream resource so browser backends can validate, clear, draw, and read it in one ordered
++   * frame epoch instead of waiting to publish an allocation after the instance is destroyed. */
++  StorageArrayBuffer<uint> select_output_buf = {"select_output_buf", GPU_USAGE_STREAM};
+   /** Dummy buffer. Might be better to remove, but simplify the shader create info patching. */
+   StorageArrayBuffer<uint, 4, true> dummy_select_buf = {"dummy_select_buf"};
+   /** Uniform buffer to bind to all passes to pass information about the selection state. */
+@@ -269,6 +272,14 @@ struct SelectMap {
       * So it should eventually be transformed into a backend
       * workaround instead of being fixed in user code. */
      select_output_buf.async_flush_to_host();
@@ -9014,7 +9026,7 @@ index 8486a1609ca1bf1dd6aa3a05281872070231c814..7f2c53f1f2bda3e963540117240aff1c
      select_output_buf.read();
  
      Vector<GPUSelectResult> hit_results;
-@@ -335,6 +343,7 @@ struct SelectMap {
+@@ -335,6 +346,7 @@ struct SelectMap {
  #endif
  
      gpu_select_next_set_result(hit_results.data(), hit_results.size());
@@ -9474,10 +9486,38 @@ index 9c3786e00c09f866b3ff87a68b0228c9bb8795ee..5b00914a871c650a2c00f27f64cd4595
  
  /** \} */
 diff --git a/source/blender/draw/intern/DRW_gpu_wrapper.hh b/source/blender/draw/intern/DRW_gpu_wrapper.hh
-index 4eea49ae572bcd26d3342c00d91e0120adb9a003..2ef031a0cdc2daf2ed07fcd1d5354efeb518eb8d 100644
+index 4eea49ae572bcd26d3342c00d91e0120adb9a003..b01f52575cea1212cce360544863eb7ee66946fd 100644
 --- a/source/blender/draw/intern/DRW_gpu_wrapper.hh
 +++ b/source/blender/draw/intern/DRW_gpu_wrapper.hh
-@@ -255,6 +255,11 @@ class StorageCommon : public DataBuffer<T, len, false>, NonMovable, NonCopyable
+@@ -211,6 +211,7 @@ template<typename T, int64_t len, bool device_only>
+ class StorageCommon : public DataBuffer<T, len, false>, NonMovable, NonCopyable {
+  protected:
+   gpu::StorageBuf *ssbo_;
++  GPUUsageType usage_;
+ 
+ #ifndef NDEBUG
+   const char *name_ = typeid(T).name();
+@@ -219,14 +220,16 @@ class StorageCommon : public DataBuffer<T, len, false>, NonMovable, NonCopyable
+ #endif
+ 
+  public:
+-  StorageCommon(const char *name = nullptr)
++  StorageCommon(const char *name = nullptr,
++                const GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY :
++                                                         GPU_USAGE_DYNAMIC)
++      : usage_(usage)
+   {
+     if (name) {
+       name_ = name;
+     }
+     this->len_ = len;
+-    constexpr GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY : GPU_USAGE_DYNAMIC;
+-    ssbo_ = GPU_storagebuf_create_ex(sizeof(T) * this->len_, nullptr, usage, this->name_);
++    ssbo_ = GPU_storagebuf_create_ex(sizeof(T) * this->len_, nullptr, usage_, this->name_);
+   }
+ 
+   ~StorageCommon()
+@@ -255,6 +258,11 @@ class StorageCommon : public DataBuffer<T, len, false>, NonMovable, NonCopyable
      GPU_storagebuf_read(ssbo_, this->data_);
    }
  
@@ -9489,6 +9529,37 @@ index 4eea49ae572bcd26d3342c00d91e0120adb9a003..2ef031a0cdc2daf2ed07fcd1d5354efe
    operator gpu::StorageBuf *() const
    {
      return ssbo_;
+@@ -332,7 +340,10 @@ template<
+     bool device_only = false>
+ class StorageArrayBuffer : public detail::StorageCommon<T, len, device_only> {
+  public:
+-  StorageArrayBuffer(const char *name = nullptr) : detail::StorageCommon<T, len, device_only>(name)
++  StorageArrayBuffer(const char *name = nullptr,
++                     const GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY :
++                                                              GPU_USAGE_DYNAMIC)
++      : detail::StorageCommon<T, len, device_only>(name, usage)
+   {
+     /* TODO(@fclem): We should map memory instead. */
+     this->data_ = static_cast<T *>(
+@@ -359,8 +370,8 @@ class StorageArrayBuffer : public detail::StorageCommon<T, len, device_only> {
+       GPU_storagebuf_free(this->ssbo_);
+ 
+       this->len_ = new_size;
+-      constexpr GPUUsageType usage = device_only ? GPU_USAGE_DEVICE_ONLY : GPU_USAGE_DYNAMIC;
+-      this->ssbo_ = GPU_storagebuf_create_ex(sizeof(T) * this->len_, nullptr, usage, this->name_);
++      this->ssbo_ = GPU_storagebuf_create_ex(
++          sizeof(T) * this->len_, nullptr, this->usage_, this->name_);
+     }
+   }
+ 
+@@ -405,6 +416,7 @@ class StorageArrayBuffer : public detail::StorageCommon<T, len, device_only> {
+     std::swap(a.ssbo_, b.ssbo_);
+     std::swap(a.len_, b.len_);
+     std::swap(a.name_, b.name_);
++    std::swap(a.usage_, b.usage_);
+   }
+ };
+ 
 diff --git a/source/blender/draw/intern/DRW_render.hh b/source/blender/draw/intern/DRW_render.hh
 index 372d473b9cceb60c7a64de0454eacce5035177de..aa69be441fb2ad984124849e819b8d8b9aded77a 100644
 --- a/source/blender/draw/intern/DRW_render.hh
@@ -20933,7 +21004,7 @@ index e99b15152010953073bbda1f1d2dfa179561aebe..7186312b40995d497742f52fb23b4624
    ot->poll = ED_operator_region_view3d_active;
  
 diff --git a/source/blender/editors/space_view3d/view3d_navigate.cc b/source/blender/editors/space_view3d/view3d_navigate.cc
-index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045acfa3a29e 100644
+index 23da52752d01e22d8de3c318da37fc44385bde11..81325bb73d749832c7768b4af1c93543115348f7 100644
 --- a/source/blender/editors/space_view3d/view3d_navigate.cc
 +++ b/source/blender/editors/space_view3d/view3d_navigate.cc
 @@ -1,9 +1,12 @@
@@ -20957,7 +21028,68 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  #include "BKE_vfont.hh"
  
  #include "DEG_depsgraph_query.hh"
-@@ -41,6 +45,22 @@ namespace blender {
+@@ -36,11 +40,83 @@
+ 
+ #include "view3d_navigate.hh" /* own include */
+ 
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <cstdint>
++
++#  include <emscripten/emscripten.h>
++#endif
++
+ namespace blender {
+ 
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint64_t> web_view3d_rotate_invoke_count{0};
++std::atomic<uint64_t> web_view3d_rotate_confirm_count{0};
++std::atomic<uint64_t> web_view3d_rotate_cancel_count{0};
++std::atomic<uint64_t> web_view3d_rotate_terminal_count{0};
++std::atomic<uint64_t> web_view3d_rotate_active_count{0};
++
++void web_view3d_rotate_note_terminal(const eV3D_OpEvent event_code)
++{
++  if (event_code == VIEW_CONFIRM) {
++    web_view3d_rotate_confirm_count.fetch_add(1u, std::memory_order_relaxed);
++  }
++  else if (event_code == VIEW_CANCEL) {
++    web_view3d_rotate_cancel_count.fetch_add(1u, std::memory_order_relaxed);
++  }
++  web_view3d_rotate_terminal_count.fetch_add(1u, std::memory_order_release);
++  web_view3d_rotate_active_count.fetch_sub(1u, std::memory_order_release);
++}
++
++}  // namespace
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_invoke_count(void)
++{
++  return double(web_view3d_rotate_invoke_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_confirm_count(void)
++{
++  return double(web_view3d_rotate_confirm_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_cancel_count(void)
++{
++  return double(web_view3d_rotate_cancel_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_terminal_count(void)
++{
++  return double(web_view3d_rotate_terminal_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_rotate_active_count(void)
++{
++  return double(web_view3d_rotate_active_count.load(std::memory_order_acquire));
++}
++#endif
++
  /* Prototypes. */
  static const ViewOpsType *view3d_navigation_type_from_idname(const char *idname);
  
@@ -20980,7 +21112,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  static eViewOpsFlag viewops_flag_from_prefs()
  {
    const bool use_select = (U.uiflag & USER_ORBIT_SELECTION) != 0;
-@@ -173,15 +193,48 @@ void ViewOpsData::state_restore()
+@@ -173,15 +249,48 @@ void ViewOpsData::state_restore()
    ED_view3d_camera_lock_sync(this->depsgraph, this->v3d, this->rv3d);
  }
  
@@ -21030,7 +21162,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
    if ((viewops_flag & VIEWOPS_FLAG_ORBIT_SELECT) && view3d_orbit_calc_center(C, r_pivot)) {
      return VIEWOPS_FLAG_ORBIT_SELECT;
    }
-@@ -219,7 +272,42 @@ static eViewOpsFlag navigate_pivot_get(bContext *C,
+@@ -219,7 +328,42 @@ static eViewOpsFlag navigate_pivot_get(bContext *C,
            depsgraph, region, v3d, nullptr, V3D_DEPTH_NO_GPENCIL, true, nullptr);
      }
  
@@ -21074,7 +21206,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  
      ED_view3d_autodist_last_set(win, event, r_pivot, is_set);
    }
-@@ -227,59 +315,83 @@ static eViewOpsFlag navigate_pivot_get(bContext *C,
+@@ -227,59 +371,83 @@ static eViewOpsFlag navigate_pivot_get(bContext *C,
    return VIEWOPS_FLAG_DEPTH_NAVIGATE;
  }
  
@@ -21190,7 +21322,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  
      viewops_flag &= ~viewops_flag_dynamic_ofs;
      viewops_flag |= pivot_type;
-@@ -387,10 +499,15 @@ void ViewOpsData::init_navigation(bContext *C,
+@@ -387,10 +555,15 @@ void ViewOpsData::init_navigation(bContext *C,
    this->use_dyn_ofs_ortho_correction = false;
  
    rv3d->rflag |= RV3D_NAVIGATING;
@@ -21206,7 +21338,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
    this->rv3d->rflag &= ~RV3D_NAVIGATING;
  
    if (this->timer) {
-@@ -560,7 +677,8 @@ static wmOperatorStatus view3d_navigation_invoke_generic(bContext *C,
+@@ -560,7 +733,8 @@ static wmOperatorStatus view3d_navigation_invoke_generic(bContext *C,
                                                           const wmEvent *event,
                                                           PointerRNA *ptr,
                                                           const ViewOpsType *nav_type,
@@ -21216,7 +21348,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  {
    if (!nav_type->init_fn) {
      return OPERATOR_CANCELLED;
-@@ -571,7 +689,16 @@ static wmOperatorStatus view3d_navigation_invoke_generic(bContext *C,
+@@ -571,7 +745,16 @@ static wmOperatorStatus view3d_navigation_invoke_generic(bContext *C,
      use_cursor_init = RNA_property_boolean_get(ptr, prop);
    }
  
@@ -21234,7 +21366,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
    ED_view3d_smooth_view_force_finish(C, vod->v3d, vod->region);
  
    return nav_type->init_fn(C, vod, event, ptr);
-@@ -585,7 +712,7 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
+@@ -585,10 +768,16 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
    ViewOpsData *vod = new ViewOpsData();
    vod->init_context(C);
    wmOperatorStatus ret = view3d_navigation_invoke_generic(
@@ -21243,7 +21375,16 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
    op->customdata = static_cast<void *>(vod);
  
    if (ret == OPERATOR_RUNNING_MODAL) {
-@@ -598,6 +725,112 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
++#ifdef __EMSCRIPTEN__
++    if (nav_type == &ViewOpsType_rotate) {
++      web_view3d_rotate_invoke_count.fetch_add(1u, std::memory_order_relaxed);
++      web_view3d_rotate_active_count.fetch_add(1u, std::memory_order_release);
++    }
++#endif
+     WM_event_add_modal_handler(C, op);
+     return OPERATOR_RUNNING_MODAL;
+   }
+@@ -598,6 +787,122 @@ wmOperatorStatus view3d_navigate_invoke_impl(bContext *C,
    return ret;
  }
  
@@ -21261,6 +21402,11 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
 +                                                       wmOperator *op,
 +                                                       ViewOpsData *vod)
 +{
++#ifdef __EMSCRIPTEN__
++  if (vod->nav_type == &ViewOpsType_rotate) {
++    web_view3d_rotate_note_terminal(VIEW_CANCEL);
++  }
++#endif
 +  vod->state_restore();
 +  viewops_data_free(C, vod);
 +  op->customdata = nullptr;
@@ -21343,6 +21489,11 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
 +
 +  wmOperatorStatus ret = nav_type->init_fn(C, vod, &invoke_event, op->ptr);
 +  if (ret != OPERATOR_RUNNING_MODAL) {
++#ifdef __EMSCRIPTEN__
++    if (nav_type == &ViewOpsType_rotate) {
++      web_view3d_rotate_note_terminal(VIEW_PASS);
++    }
++#endif
 +    viewops_data_free(C, vod);
 +    op->customdata = nullptr;
 +    return ret;
@@ -21356,7 +21507,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  /** \} */
  
  /* -------------------------------------------------------------------- */
-@@ -629,6 +862,14 @@ bool view3d_zoom_or_dolly_or_rotation_poll(bContext *C)
+@@ -629,6 +934,14 @@ bool view3d_zoom_or_dolly_or_rotation_poll(bContext *C)
  wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmEvent *event)
  {
    ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
@@ -21371,7 +21522,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
  
    const ViewOpsType *nav_type_prev = vod->nav_type;
    const eV3D_OpEvent event_code = view3d_navigate_event(vod, event);
-@@ -636,7 +877,8 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+@@ -636,12 +949,18 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
      wmOperatorType *ot_new = WM_operatortype_find(vod->nav_type->idname, false);
      WM_operator_type_set(op, ot_new);
      vod->end_navigation(C);
@@ -21381,12 +21532,27 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
    }
  
    wmOperatorStatus ret = vod->nav_type->apply_fn(C, vod, event_code, event->xy);
-@@ -654,7 +896,17 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
+ 
+   if ((ret & OPERATOR_RUNNING_MODAL) == 0) {
++#ifdef __EMSCRIPTEN__
++    if (vod->nav_type == &ViewOpsType_rotate) {
++      web_view3d_rotate_note_terminal(event_code);
++    }
++#endif
+     if (ret & OPERATOR_FINISHED) {
+       ED_view3d_camera_lock_undo_push(op->type->name, vod->v3d, vod->rv3d, C);
+     }
+@@ -654,7 +973,22 @@ wmOperatorStatus view3d_navigate_modal_fn(bContext *C, wmOperator *op, const wmE
  
  void view3d_navigate_cancel_fn(bContext *C, wmOperator *op)
  {
 -  viewops_data_free(C, static_cast<ViewOpsData *>(op->customdata));
 +  ViewOpsData *vod = static_cast<ViewOpsData *>(op->customdata);
++#ifdef __EMSCRIPTEN__
++  if (vod != nullptr && vod->nav_type == &ViewOpsType_rotate) {
++    web_view3d_rotate_note_terminal(VIEW_CANCEL);
++  }
++#endif
 +  bool pending_depth = vod != nullptr && vod->depth_read != nullptr;
 +#ifdef WITH_INPUT_NDOF
 +  if (view3d_ndof_depth_is_pending(vod)) {
@@ -21400,7 +21566,7 @@ index 23da52752d01e22d8de3c318da37fc44385bde11..00f2ca87a70a87ee3500742fd660045a
    op->customdata = nullptr;
  }
  
-@@ -1159,7 +1411,7 @@ bool ED_view3d_navigation_do(bContext *C,
+@@ -1159,7 +1493,7 @@ bool ED_view3d_navigation_do(bContext *C,
        }
  
        op_return = view3d_navigation_invoke_generic(
@@ -23353,7 +23519,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df19d097aa 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454cc1707fa2 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
 @@ -197,7 +197,17 @@ static bool object_deselect_all_except(const Main &bmain,
@@ -24022,7 +24188,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
      gpu->has_bones = (object_only && gpu->hits > 0) ?
                           false :
                           selectbuffer_has_bones(gpu->buffer.storage.as_span().slice(0, gpu->hits));
-@@ -3512,6 +4020,39 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+@@ -3512,6 +4020,74 @@ static bool ed_grease_pencil_select_pick(bContext *C,
    return true;
  }
  
@@ -24057,12 +24223,47 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
 +  wmWindow *window = nullptr;
 +  int tick_count = 0;
 +  ParticleEditDepthCacheSession *particle_depth_session = nullptr;
++#ifdef __EMSCRIPTEN__
++  Vector<wmEvent> queued_events;
++#endif
 +};
++
++#ifdef __EMSCRIPTEN__
++static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
++{
++  constexpr int max_queued_events = 512;
++  if (data->queued_events.size() >= max_queued_events) {
++    return false;
++  }
++  wmEvent queued = *event;
++  queued.next = nullptr;
++  queued.prev = nullptr;
++  queued.custom = 0;
++  queued.customdata_free = 0;
++  queued.customdata = nullptr;
++  data->queued_events.append(queued);
++  return true;
++}
++
++static void view3d_select_async_events_requeue(bContext *C, View3DSelectAsyncData *data)
++{
++  if (CTX_wm_manager(C) != data->manager || CTX_wm_window(C) != data->window) {
++    return;
++  }
++  /* These inputs originally preceded anything still in the WM queue. Add each copy normally,
++   * then move it to the head in reverse order so the exact captured FIFO is restored. */
++  for (int64_t index = data->queued_events.size() - 1; index >= 0; index--) {
++    wmEvent *queued = WM_event_add(data->window, &data->queued_events[index]);
++    BLI_remlink(&data->window->runtime->event_queue, queued);
++    BLI_addhead(&data->window->runtime->event_queue, queued);
++  }
++}
++#endif
 +
  static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
  {
    Scene *scene = CTX_data_scene(C);
-@@ -3572,8 +4113,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3572,8 +4148,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
          GPUSelectBuffer buffer;
          const int hits = mixed_bones_object_selectbuffer(
              &vc, &buffer, mval, VIEW3D_SELECT_FILTER_NOP, false, true, false);
@@ -24075,7 +24276,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
        }
        if (!changed) {
          changed = ED_armature_edit_select_pick(C, mval, params);
-@@ -3602,7 +4145,50 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3602,7 +4180,50 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      }
    }
    else if (obact && obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24127,7 +24328,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    }
    else if (obact && BKE_paint_select_face_test(obact)) {
      changed = paintface_mouse_select(C, mval, params, obact);
-@@ -3617,6 +4203,22 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3617,6 +4238,22 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      changed = ed_object_select_pick(C, mval, params, center, enumerate, object_only);
    }
  
@@ -24150,7 +24351,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    /* Pass-through flag may be cleared, see #WM_operator_flag_only_pass_through_on_press. */
  
    /* Pass-through allows tweaks
-@@ -3629,15 +4231,115 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3629,15 +4266,149 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
    return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
  }
  
@@ -24207,11 +24408,33 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
 +{
 +  View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);
 +  if (event->type == EVT_ESCKEY && event->val == KM_PRESS) {
++#ifdef __EMSCRIPTEN__
++    if (data != nullptr) {
++      view3d_select_async_events_requeue(C, data);
++    }
++#endif
 +    view3d_select_async_finish(C, op);
 +    return OPERATOR_CANCELLED;
 +  }
 +  if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    if (data == nullptr) {
++      return OPERATOR_CANCELLED;
++    }
++#ifdef __EMSCRIPTEN__
++    /* Browser selection is a continuation, not a blocking UI mode. Retain ordinary key/pointer
++     * input in order while its owned GPU snapshot maps; let unrelated custom/timer events keep
++     * flowing to their owners. */
++    if (ISTIMER(event->type) || event->customdata != nullptr) {
++      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    }
++    if (!view3d_select_async_event_push(data, event)) {
++      BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");
++      view3d_select_async_events_requeue(C, data);
++      view3d_select_async_finish(C, op);
++      return OPERATOR_CANCELLED;
++    }
++#endif
++    return OPERATOR_RUNNING_MODAL;
 +  }
 +
 +  /* Fail closed instead of retaining a modal operator forever after device
@@ -24219,6 +24442,9 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
 +  constexpr int max_tick_count = 240;
 +  if (++data->tick_count > max_tick_count) {
 +    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for WebGPU selection readback");
++#ifdef __EMSCRIPTEN__
++    view3d_select_async_events_requeue(C, data);
++#endif
 +    view3d_select_async_finish(C, op);
 +    return OPERATOR_CANCELLED;
 +  }
@@ -24231,6 +24457,9 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
 +    }
 +    if (state == ParticleEditDepthCacheState::Failed) {
 +      BKE_report(op->reports, RPT_ERROR, "Particle pick depth context changed");
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_events_requeue(C, data);
++#endif
 +      view3d_select_async_finish(C, op);
 +      return OPERATOR_CANCELLED;
 +    }
@@ -24245,6 +24474,9 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
 +                  RPT_ERROR,
 +                  "WebGPU selection readback failed (error %d)",
 +                  int(view3d_select_async_error()));
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_events_requeue(C, data);
++#endif
 +      view3d_select_async_finish(C, op);
 +      return OPERATOR_CANCELLED;
 +    }
@@ -24254,6 +24486,9 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
 +  if (retval == OPERATOR_RUNNING_MODAL) {
 +    return retval;
 +  }
++#ifdef __EMSCRIPTEN__
++  view3d_select_async_events_requeue(C, data);
++#endif
 +  view3d_select_async_finish(C, op);
 +  return retval;
 +}
@@ -24266,7 +24501,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
  void VIEW3D_OT_select(wmOperatorType *ot)
  {
    PropertyRNA *prop;
-@@ -3650,6 +4352,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
+@@ -3650,6 +4421,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
    /* API callbacks. */
    ot->invoke = view3d_select_invoke;
    ot->exec = view3d_select_exec;
@@ -24275,7 +24510,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    ot->poll = ED_operator_view3d_active;
    ot->get_name = ED_select_pick_get_name;
  
-@@ -4071,6 +4775,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4071,6 +4844,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    view3d_userdata_boxselect_init(&data, vc, rect, sel_op);
  
@@ -24296,7 +24531,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
        EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
-@@ -4087,18 +4805,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4087,18 +4874,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    GPU_matrix_set(vc->rv3d->viewmat);
  
@@ -24315,7 +24550,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -4535,6 +5241,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
+@@ -4535,6 +5310,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
    return do_curves_select_box(vc, object, rect, sel_op);
  }
  
@@ -24331,7 +24566,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
  static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-@@ -4553,6 +5268,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4553,6 +5337,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
    eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
    WM_operator_properties_border_to_rcti(op, &rect);
  
@@ -24362,7 +24597,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    if (vc.obedit) {
      FOREACH_OBJECT_IN_MODE_BEGIN (
          vc.bmain, vc.scene, vc.view_layer, vc.v3d, vc.obedit->type, vc.obedit->mode, ob_iter)
-@@ -4650,7 +5389,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4650,7 +5458,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
        }
      }
      else if (vc.obact && vc.obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24371,7 +24606,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
      }
      else if (vc.obact && ((vc.obact->mode & OB_MODE_POSE) ||
                            ((vc.obact->mode & OB_MODE_WEIGHT_PAINT) &&
-@@ -4671,10 +5410,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4671,10 +5479,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  
    WM_generic_user_data_free(wm_userdata);
  
@@ -24452,7 +24687,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
  }
  
  void VIEW3D_OT_select_box(wmOperatorType *ot)
-@@ -4685,11 +5491,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
+@@ -4685,11 +5560,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
    ot->idname = "VIEW3D_OT_select_box";
  
    /* API callbacks. */
@@ -24467,7 +24702,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
  
    /* flags */
    ot->flag = OPTYPE_UNDO;
-@@ -4803,6 +5609,20 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4803,6 +5678,20 @@ static bool mesh_circle_select(const ViewContext *vc,
    CircleSelectUserData data;
    BLI_assert(vc->em == BKE_editmesh_from_object(vc->obedit));
  
@@ -24488,7 +24723,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    bool changed = false;
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
-@@ -4824,22 +5644,6 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4824,22 +5713,6 @@ static bool mesh_circle_select(const ViewContext *vc,
  
    view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
  
@@ -24511,7 +24746,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        if (esel->select_bitmap != nullptr) {
-@@ -5544,19 +6348,331 @@ static void view3d_circle_select_recalc(void *user_data)
+@@ -5544,19 +6417,331 @@ static void view3d_circle_select_recalc(void *user_data)
    }
  }
  
@@ -24843,7 +25078,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    WM_gesture_circle_cancel(C, op);
    view3d_circle_select_recalc(C);
  }
-@@ -5564,17 +6680,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+@@ -5564,17 +6749,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
  static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
@@ -24886,7 +25121,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
  
    Object *obact = vc.obact;
-@@ -5631,10 +6767,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5631,10 +6836,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
      FOREACH_OBJECT_IN_MODE_END;
    }
    else if (obact && (obact->mode & OB_MODE_PARTICLE_EDIT)) {
@@ -24920,7 +25155,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
    }
    else if (obact && obact->mode & OB_MODE_SCULPT) {
      return OPERATOR_CANCELLED;
-@@ -5662,13 +6818,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5662,13 +6887,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
    }
    else {
      EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
@@ -24969,7 +25204,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..979cd15e26247f9573e6d33de7baf6df
  }
  
  void VIEW3D_OT_select_circle(wmOperatorType *ot)
-@@ -5677,7 +6864,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+@@ -5677,7 +6933,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
    ot->description = "Select items using circle selection";
    ot->idname = "VIEW3D_OT_select_circle";
  
@@ -32931,10 +33166,10 @@ index 0000000000000000000000000000000000000000..5eb68678db5a7215e04869a19780da4a
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc b/source/blender/gpu/webgpu/wgpu_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..d19f4ae4e647e6577b2c3d5628e1c8895b6f01e7
+index 0000000000000000000000000000000000000000..fd838fdc3448e1185c9708fe40f27312854ae4ce
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_buffer.cc
-@@ -0,0 +1,506 @@
+@@ -0,0 +1,509 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -33310,7 +33545,10 @@ index 0000000000000000000000000000000000000000..d19f4ae4e647e6577b2c3d5628e1c889
 +    return false;
 +  }
 +
-+  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  /* A stream buffer exposes its provisional allocation inside the scheduler epoch that owns its
++   * validation dependency. Updates in that epoch must target the same handle; waiting for the
++   * persistent cache would strand one-draw resources before their first use. */
++  const Allocation allocation = allocation_get();
 +  PendingUpdateContext context{instance, device, queue, scheduler};
 +  if (allocation != nullptr && !pending_updates_->begin(allocation.size)) {
 +    return false;
@@ -33326,7 +33564,7 @@ index 0000000000000000000000000000000000000000..d19f4ae4e647e6577b2c3d5628e1c889
 +
 +size_t Buffer::retry_pending_updates()
 +{
-+  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  const Allocation allocation = allocation_get();
 +  if (allocation == nullptr) {
 +    return 0;
 +  }
@@ -33354,7 +33592,7 @@ index 0000000000000000000000000000000000000000..d19f4ae4e647e6577b2c3d5628e1c889
 +    *r_pending = false;
 +  }
 +  std::vector<uint8_t> out;
-+  const Allocation allocation = allocation_cache_.lookup(kAllocationKey);
++  const Allocation allocation = allocation_get();
 +  if (allocation == nullptr || !allocation.readable || size == 0) {
 +    return out;
 +  }
@@ -49603,10 +49841,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..55aae5d0ac2e9042d1ede985414a4683754cae31
+index 0000000000000000000000000000000000000000..d1e30e7ffb3ef5e143534e01516028a454cb67d3
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,332 @@
+@@ -0,0 +1,361 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -49736,10 +49974,39 @@ index 0000000000000000000000000000000000000000..55aae5d0ac2e9042d1ede985414a4683
 +  if (ctx == nullptr) {
 +    return false;
 +  }
-+  const webgpu::UsageType usage = (usage_ == GPU_USAGE_DEVICE_ONLY) ?
-+                                      webgpu::UsageType::DeviceOnly :
-+                                      webgpu::UsageType::Dynamic;
++  webgpu::UsageType usage = webgpu::UsageType::Dynamic;
++  switch (usage_) {
++    case GPU_USAGE_STREAM:
++      usage = webgpu::UsageType::Stream;
++      break;
++    case GPU_USAGE_STATIC:
++      usage = webgpu::UsageType::Static;
++      break;
++    case GPU_USAGE_DYNAMIC:
++      usage = webgpu::UsageType::Dynamic;
++      break;
++    case GPU_USAGE_DEVICE_ONLY:
++      usage = webgpu::UsageType::DeviceOnly;
++      break;
++    default:
++      BLI_assert_unreachable();
++      return false;
++  }
 +  /* readable=true: storage buffers can be read back (GPU_storagebuf_read). */
++  if (usage_ == GPU_USAGE_STREAM) {
++    /* Stream buffers can be owned by a one-draw context. Keep the provisional handle in the
++     * current ordered queue epoch so its clear/draw/readback work survives until the browser
++     * validates creation, even when the frontend wrapper is destroyed as the draw returns. */
++    return buffer_.create_transient(ctx->instance_get(),
++                                    ctx->device_get(),
++                                    ctx->queue_scheduler_get(),
++                                    webgpu::BufferKind::Storage,
++                                    usage,
++                                    size_in_bytes_,
++                                    nullptr,
++                                    true,
++                                    label_.c_str());
++  }
 +  return buffer_.create_scoped(
 +      ctx->instance_get(),
 +      ctx->device_get(),

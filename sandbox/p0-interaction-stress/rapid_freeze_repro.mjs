@@ -237,6 +237,7 @@ try {
       ...counters,
       nativeInputSequence: nativeInputs.at(-1)?.sequence || 0,
       nativeStateSequence: nativeState?.sequence || 0,
+      nativeState: nativeState ? {...nativeState} : null,
       nativeModalOperators: nativeState?.modal_operators || [],
       nativeViewRotation: nativeState?.view_rotation || null,
     };
@@ -251,8 +252,26 @@ try {
     current.ghostInput.keyPresses >= baseline.keyPresses + expected.keys &&
     current.ghostInput.keyReleases >= baseline.keyReleases + expected.keys &&
     (current.ghostInput.heldMask & 0x3) === 0;
+  const stateArraysEqual = (left, right) =>
+    Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+    left.every((value, index) => Number.isFinite(value) && Number.isFinite(right[index]) &&
+      Math.abs(value - right[index]) <= 0.00001);
+  const stateArrayChanged = (left, right) => !stateArraysEqual(left, right);
+  const nativeCubeSelected = (current) =>
+    current.nativeState?.active_object === "Cube" &&
+    current.nativeState?.selected_count === 1;
+  const nativeViewChanged = (current, baseline) =>
+    stateArrayChanged(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation);
+  const hardwareActionStateComplete = (current, baseline) =>
+    current.nativeStateSequence > baseline.nativeStateSequence &&
+    nativeCubeSelected(current) && nativeViewChanged(current, baseline) &&
+    stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location);
+  const hardwareRecoveryStateComplete = (current, baseline) =>
+    current.nativeStateSequence > baseline.nativeStateSequence &&
+    nativeCubeSelected(current) && nativeViewChanged(current, baseline) &&
+    stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location);
   const waitForActionDrain = async (
-    name, baseline, counterBaseline, nativeDeliveryComplete, timeoutMs = 12000,
+    name, baseline, counterBaseline, nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
   ) => {
     const started = Date.now();
     while (Date.now() - started <= timeoutMs) {
@@ -263,6 +282,7 @@ try {
           current.presents > counterBaseline.presents &&
           current.retries > counterBaseline.retries &&
           nativeDeliveryComplete(current) &&
+          (!hardwareDiagnostic || nativeStateComplete(current)) &&
           current.nativeModalOperators.every((operator) =>
             operator === "WM_OT_bwp0r_input_probe")) {
         return {...current, settleMs: Date.now() - started};
@@ -323,6 +343,7 @@ try {
     orbitBeforeClick,
     (current) => ghostInputDeliveryComplete(
       current, rapidInputBaseline, {left: 2, middle: 2, keys: 1}),
+    (current) => hardwareActionStateComplete(current, orbitBeforeClick),
     drainTimeoutMs,
   );
   steps.push(actionDrain);
@@ -338,6 +359,7 @@ try {
     actionDrain,
     (current) => ghostInputDeliveryComplete(
       current, recoveryInputBaseline, {left: 0, middle: 1, keys: 0}),
+    (current) => hardwareRecoveryStateComplete(current, actionDrain),
     drainTimeoutMs,
   ));
 
@@ -350,6 +372,11 @@ try {
     retainedActionFramesEqual: new Set(retained).size === 1,
     actionDrainMs: actionDrain.settleMs,
     recoveryOrbitMs: steps.at(-1).settleMs,
+    nativeStateContract: {
+      enforced: hardwareDiagnostic,
+      actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick),
+      recoveryComplete: hardwareRecoveryStateComplete(steps.at(-1), actionDrain),
+    },
     nativeInputs,
     nativeStates,
     pageErrors,

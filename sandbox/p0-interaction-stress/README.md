@@ -21,8 +21,11 @@ queued actions behind an unchanged canvas. The producer therefore records truste
 worker-side GHOST press/release counters, plus a held-button mask that must return to zero. Within
 12 seconds on hardware, the complete terminal MMB/G/click edge sequence must reach GHOST, Blender's
 modal stack must drain, pixels must change, and WM-tick, presentation, and input-retry counters must
-advance. One independent recovery orbit must satisfy the same predicate again. (The software-only
-fallback allows 30 seconds because SwiftShader validation is substantially slower.) It reports
+advance. The hardware verdict also requires native state proving that the click selected Cube, the
+second orbit changed the view rotation, and the confirmed `G` changed Cube location. One independent
+recovery orbit must then change rotation again without moving Cube. (The software-only fallback
+allows 30 seconds because SwiftShader validation is substantially slower and does not bind the
+hardware-only GPU-pick/state predicate.) It reports
 whether the rapid action frames were identical without treating identity alone as failure. Page or
 browser lifecycle errors always fail. The default lane is SwiftShader and binds no pixels; on the sanctioned
 Apple diagnostic host set `BW_P0_RAPID_HARDWARE=1` to omit the software-adapter flags and record the

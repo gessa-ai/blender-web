@@ -148,10 +148,11 @@ def validate(sources: dict[str, str]) -> None:
         "const nativeCubePagePoint = (current, canvasBox) =>",
         "selectionPoint = nativeCubePagePoint(selectionBaseline, box);",
         "await page.mouse.click(selectionPoint.x, selectionPoint.y);",
-        'const selectionPendingWindow = await sample("isolated-selection-pending");',
-        'const selectionNavigationWindow = await waitForActionDrain(',
+        'const selectionPendingWindow = await sampleSparseCadence(',
+        'const selectionNavigationWindow = await sampleSparseCadence(',
         '"isolated-selection-navigation-passthrough"',
-        '"isolated-selection-drain"',
+        'selectionDrain = await waitForActionDrain(',
+        '"isolated-selection-drain",\n      selectionNavigationWindow.sha256,',
         "current, selectionInputBaseline, {left: 2, middle: 1, keys: 1}",
         "current, selectionWmInputBaseline, {left: 2, middle: 1, keys: 1}",
         "(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&",
@@ -177,8 +178,12 @@ def validate(sources: dict[str, str]) -> None:
         "(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&\n"
         "        selectionContinuationRetired(current, selectionBaseline) &&",
     )
+    sparse_start = producer.index("if (sparseDiagnostic) {")
+    sparse_drain = producer.index("selectionDrain = await waitForActionDrain(", sparse_start)
+    if "waitForActionDrain(" in producer[sparse_start:sparse_drain]:
+        raise ValueError("fixed-cadence sparse input still waits for an intermediate drain")
     if not (
-        producer.index('"isolated-orbit-drain"')
+        producer.index('"orbit-before-click"')
         < producer.index('"isolated-selection-pending"')
         < producer.index('"isolated-selection-navigation-passthrough"')
         < producer.index('"isolated-selection-drain"')
@@ -295,6 +300,11 @@ def self_check(sources: dict[str, str]) -> None:
             "producer",
             '"isolated-selection-navigation-passthrough"',
             '"selection-navigation-bypassed"',
+        ),
+        (
+            "producer",
+            "const selectionNavigationWindow = await sampleSparseCadence(",
+            "const selectionNavigationWindow = await waitForActionDrain(",
         ),
         (
             "producer",

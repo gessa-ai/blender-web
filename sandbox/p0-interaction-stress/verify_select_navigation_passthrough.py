@@ -236,8 +236,11 @@ def validate(sources: dict[str, str]) -> int:
         raise ValueError("navigation is not routed before the retained-input FIFO")
 
     for token in (
-        'const selectionNavigationWindow = await waitForActionDrain(',
+        'const selectionPendingWindow = await sampleSparseCadence(',
+        'const selectionNavigationWindow = await sampleSparseCadence(',
         '"isolated-selection-navigation-passthrough"',
+        'selectionDrain = await waitForActionDrain(',
+        '"isolated-selection-drain",\n      selectionNavigationWindow.sha256,',
         "\n    selectionNavigationPassedThrough =\n",
         "navigationPassedThrough: selectionNavigationPassedThrough",
         "selectionNavigationPassthroughRequired,",
@@ -264,6 +267,10 @@ def validate(sources: dict[str, str]) -> int:
         "    stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location);",
     )
     require(producer, "\n    selectionNavigationPassthroughRequired =\n", 2)
+    sparse_start = producer.index("if (sparseDiagnostic) {")
+    sparse_drain = producer.index("selectionDrain = await waitForActionDrain(", sparse_start)
+    if "waitForActionDrain(" in producer[sparse_start:sparse_drain]:
+        raise ValueError("fixed-cadence sparse input still waits for an intermediate drain")
     if "retainedReplayExercised" in producer:
         raise ValueError("hardware producer still requires the navigation gesture to be replayed")
     if not (
@@ -461,6 +468,11 @@ def self_check(sources: dict[str, str]) -> None:
             "producer",
             '"isolated-selection-navigation-passthrough"',
             '"isolated-selection-navigation-skipped"',
+        ),
+        (
+            "producer",
+            "const selectionNavigationWindow = await sampleSparseCadence(",
+            "const selectionNavigationWindow = await waitForActionDrain(",
         ),
         (
             "producer",

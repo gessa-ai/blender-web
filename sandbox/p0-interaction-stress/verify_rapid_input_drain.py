@@ -126,9 +126,13 @@ def validate(source: str) -> None:
         'const transformConfirmCompletedAt = Date.now();',
         '"transform-confirm", "isolated-transform-confirmed", transformConfirmCompletedAt',
         'selectionNavigationPassedThrough =\n',
+        'selectionNavigationWindow.sha256 !== selectionPendingWindow.sha256',
+        'view3dRotateRetired(selectionNavigationWindow, selectionPendingWindow, 1)',
+        'nativeViewChanged(selectionNavigationWindow, selectionPendingWindow)',
         '(!hardwareDiagnostic || !selectionNavigationPassthroughRequired ||\n'
         '         selectionNavigationPassedThrough)',
         '"isolated-selection-drain",',
+        '"isolated-selection-drain",\n      selectionNavigationWindow.sha256,',
         'current, selectionInputBaseline, {left: 2, middle: 1, keys: 1}',
         '(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&',
         'selectionContinuationRetired(current, selectionBaseline)',
@@ -570,6 +574,16 @@ def self_check(
     mutations = (
         replace_once(source, 'timeoutMs = 12000', 'timeoutMs = 120000'),
         replace_once(source, "current.sha256 !== baseline", "current.sha256 === baseline"),
+        replace_once(
+            source,
+            "selectionNavigationWindow.sha256 !== selectionPendingWindow.sha256",
+            "selectionNavigationWindow.sha256 !== selectionBaseline.sha256",
+        ),
+        replace_once(
+            source,
+            '"isolated-selection-drain",\n      selectionNavigationWindow.sha256,',
+            '"isolated-selection-drain",\n      selectionBaseline.sha256,',
+        ),
         replace_once(
             source,
             "current.ticks > counterBaseline.ticks",

@@ -853,15 +853,15 @@ try {
          selectionBaseline.selectionContinuation.modalFinishes &&
        selectionNavigationWindow.selectionContinuation.active === 1);
     selectionNavigationPassedThrough =
-      selectionNavigationWindow.sha256 !== selectionBaseline.sha256 &&
+      selectionNavigationWindow.sha256 !== selectionPendingWindow.sha256 &&
       ghostInputDeliveryComplete(
         selectionNavigationWindow, navigationInputBaseline, {left: 0, middle: 1, keys: 0}) &&
       wmInputDeliveryComplete(
         selectionNavigationWindow, navigationWmInputBaseline, {left: 0, middle: 1, keys: 0}) &&
-      view3dRotateRetired(selectionNavigationWindow, selectionBaseline, 1) &&
-      nativeViewChanged(selectionNavigationWindow, selectionBaseline) &&
+      view3dRotateRetired(selectionNavigationWindow, selectionPendingWindow, 1) &&
+      nativeViewChanged(selectionNavigationWindow, selectionPendingWindow) &&
       selectionNavigationWindow.selectionContinuation.replayedEvents ===
-        selectionBaseline.selectionContinuation.replayedEvents;
+        selectionPendingWindow.selectionContinuation.replayedEvents;
 
     /* Match the driver's complete slow/sparse tail. While the selection continuation is still
      * live, G, its pointer motion, and confirmation must retain their original order. Passing all
@@ -878,7 +878,7 @@ try {
       "transform-confirm", "isolated-transform-confirmed", transformConfirmCompletedAt);
     selectionDrain = await waitForActionDrain(
       "isolated-selection-drain",
-      selectionBaseline.sha256,
+      selectionNavigationWindow.sha256,
       selectionBaseline,
       selectionPendingWindow,
       1,

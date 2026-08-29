@@ -248,14 +248,15 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     by_name = {step["name"]: step for step in steps}
     deselected = by_name["deselect-all"]
     baseline = by_name["orbit-before-click"]
+    selection_pending = by_name["isolated-selection-pending"]
     navigation = by_name["isolated-selection-navigation-passthrough"]
     final = by_name["isolated-selection-drain"]
     recovery = by_name["isolated-post-drain-recovery-orbit"]
     require(baseline["sha256"] != deselected["sha256"],
             "first isolated orbit did not change pixels")
-    require(navigation["sha256"] != baseline["sha256"],
+    require(navigation["sha256"] != selection_pending["sha256"],
             "pending-selection navigation did not change pixels")
-    require(final["sha256"] != baseline["sha256"],
+    require(final["sha256"] != navigation["sha256"],
             "replayed transform tail did not change pixels")
     require(recovery["sha256"] != final["sha256"],
             "independent post-drain orbit did not change pixels")
@@ -271,6 +272,9 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     require(vector_changed(final.get("nativeState", {}).get("view_rotation"),
                            baseline.get("nativeState", {}).get("view_rotation"), 4),
             "pending-selection navigation did not change the native view")
+    require(vector_changed(navigation.get("nativeState", {}).get("view_rotation"),
+                           selection_pending.get("nativeState", {}).get("view_rotation"), 4),
+            "pending-selection navigation did not independently change the native view")
     require(vector_changed(recovery.get("nativeState", {}).get("view_rotation"),
                            final.get("nativeState", {}).get("view_rotation"), 4),
             "independent post-drain orbit did not change the native view")
@@ -430,6 +434,9 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
     by_name["isolated-selection-navigation-passthrough"]["selectionContinuation"].update(
         {"active": 1, "replayedEvents": 0}
     )
+    by_name["isolated-selection-navigation-passthrough"]["nativeState"]["view_rotation"] = [
+        0.95, 0.05, 0.0, 0.0,
+    ]
     final = by_name["isolated-selection-drain"]
     final["selectionContinuation"]["replayedEvents"] = 5
     final["view3dRotate"].update({"invokes": 2, "confirms": 2, "terminals": 2})
@@ -567,11 +574,20 @@ def self_check() -> None:
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-selection-navigation-passthrough").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
-                                             if step["name"] == "orbit-before-click")["sha256"]),
+                                             if step["name"] ==
+                                             "isolated-selection-pending")["sha256"]),
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-selection-drain").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
-                                             if step["name"] == "orbit-before-click")["sha256"]),
+                                             if step["name"] ==
+                                             "isolated-selection-navigation-passthrough")["sha256"]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-navigation-passthrough")[
+                              "nativeState"].__setitem__(
+                                  "view_rotation", next(step for step in docs[0]["steps"]
+                                                        if step["name"] ==
+                                                        "isolated-selection-pending")[
+                                                            "nativeState"]["view_rotation"]),
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-post-drain-recovery-orbit").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]

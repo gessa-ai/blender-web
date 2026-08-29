@@ -93,6 +93,19 @@ M1-M8 retain their named strict, hardware, APPLY, and product boundaries
 (`ledger/buildlogs/20260829T193838-279454.log`). CAPTURE `.wasm.orig` remains `6b0ac5366aef`; no
 relink, hardware receipt, result promotion, or P0-I/J closure occurred.
 
+### R14 adjacent-action correction
+
+The assertions above were still insufficient: navigation and the final transform were compared
+to the older first-orbit baseline, so one intervening click redraw could mask two later stale
+frames. Audit R14 now requires selection-pending -> navigation and navigation -> completed
+transform pixel transitions, plus selection-pending -> navigation native-view change. The producer
+uses the navigation screenshot as the final drain baseline, and the independent consumer repeats
+the same adjacency. The predecessor accepted a deliberately stale pair at
+`ledger/buildlogs/20260829T212327-353791.log`; the repaired negative, consumer, producer/source,
+and composed-gauntlet checks pass at `20260829T212644-355816.log`,
+`20260829T212623-355591.log`, `20260829T212644-355815.log`, and
+`20260829T212644-355841.log`. Product bytes and the Apple/zero-artifact boundary are unchanged.
+
 ## Failed-attempt evidence retention
 
 The pass-only producer previously printed a failed Apple run's complete boundary timeline only to

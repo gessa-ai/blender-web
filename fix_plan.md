@@ -4436,6 +4436,27 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   limits, retained buffers, exact peaks, JS heap, and browser RSS. The canonical largest file is
   11,425,316 bytes; the real APPLY browser receipt remains required. See
   `notes/m8-stage1-peak-memory-20260826.md`.
+- [x] **AUDIT-20260829-R14 [driver] (`ec8418a`; range `af966ec..05a47a4`):** the mandatory pass-50
+  adversarial review found two high, two medium, and four low findings. It repaired the Apple
+  sparse receipt's non-adjacent pixel/native comparisons and brought two stale sibling source
+  contracts forward to the fixed-cadence producer. It promoted no hardware, result, or launch
+  claim; P0-I/J remains pending exact Apple 10/10 plus the same-generation zero-artifact gauntlet.
+  See `reports/audit-20260829-r14.md`.
+- [ ] **AUDIT-R14-M4-SELECTION-TIMEOUT-RECOVERY [ghost-web, claimed_by: none]:** the shipping
+  asynchronous selection fail-close now retains ordinary input for up to 30 seconds. Derive a
+  hardware-informed bound and prove cancellation, retained-input disposition, redraw recovery,
+  and a subsequent independent pixel/native action; a source model of the literal timeout is not
+  sufficient.
+- [ ] **AUDIT-R14-M4-SPARSE-ZERO-ARTIFACT-COMPOSITION [driver, claimed_by: none,
+  blocked-by: driver-operated Apple evidence]:** never accept sparse 10/10 as P0-I/J closure by
+  itself. Compose it with the same-generation structural zero-artifact gauntlet and explicitly
+  bind the recorded draw-drop/validation/GPU diagnostic census.
+- [ ] **AUDIT-R14-M8-SEED-PROVENANCE [driver, claimed_by: none]:** make the 136-entry shader seed
+  reproducible or fail closed in a clean checkout, including exact source-Wasm and input-entry
+  identity rather than conditional regeneration from ignored local artifacts.
+- [ ] **AUDIT-R14-M4-SELECTION-TELEMETRY-HOT-PATH [gpu-backend, claimed_by: none]:** measure and
+  then scope or compile-gate patch 0316's release-atomic stage telemetry so generic draws cannot
+  overwrite selection diagnosis or pay permanent shipping hot-path cost.
 - [ ] **AUDIT-R11-M4-TRUSTED-IME-DEAD-KEY-EVIDENCE [driver -> HUMAN, claimed_by: none,
   blocked-by: AUDIT-R12-M4-IME-NONCOMPOSING-KEY-BRIDGE then trusted physical input session]:** on
   a supported headed browser/OS, exercise a browser-generated OS IME composition and a physical
@@ -4445,8 +4466,9 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   repair for the eight `Hivemind Agent` commits in the audit range; three also need the required
   `Assisted-by:` trailer. R11 additionally found human-authored commits `0aa45be` and `62ca5fb`
   missing that trailer. R13 adds human-authored commits `11a4afd` and `61258e3`, whose literal
-  `\\n\\nAssisted-by` text is not a parseable trailer. **blocked-by external-mirror/history-rewrite
-  coordination.**
+  `\\n\\nAssisted-by` text is not a parseable trailer. R14 adds `8e5df79`, `507fb6a`, `f164c7c`,
+  `06e2634`, and `9a281f4` with the same literal escape defect. **blocked-by external-mirror/
+  history-rewrite coordination.**
 
 ## M6 — RENDER PARITY: pre-work COMPLETE (2026-08-06, both driver-verified)
 

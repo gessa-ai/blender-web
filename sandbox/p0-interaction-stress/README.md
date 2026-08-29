@@ -83,7 +83,10 @@ The deterministic-freeze acceptance bar is ten independent slow/sparse Apple run
 exact CAPTURE generation. Hardware mode requires an immutable run label, the expected
 `wasm.orig` SHA-256, and a new output path. It hashes all five local product files, matches the
 local and served split manifests, pins the browser stack and accepted adapter, and creates the JSON
-only after the run passes. Produce and validate the series with:
+only after the run passes. Within every run, pixel and native-view liveness are bound to adjacent
+actions: selection-pending -> navigation, navigation -> completed transform, and completed
+transform -> independent recovery orbit. A redraw from an older action cannot satisfy a later
+action's gate. Produce and validate the series with:
 
 ```sh
 orig_sha=$(sha256sum build-wasm-windowed-opt/bin/blender_browser.wasm.orig | awk '{print $1}')

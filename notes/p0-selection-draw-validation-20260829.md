@@ -68,6 +68,7 @@ the output buffer's clear value and publish a false miss.
 
 ## Candidate identity and closure bar
 
+- source commit: `ad1877b`
 - `blender_browser.js`: `3a9cddbe853a` (712,328 bytes)
 - `blender_browser.wasm`: `d3742ff34bd2` (120,350,356 bytes)
 - `blender_browser.wasm.orig`: `fb5223a06ee9` (119,001,291 bytes)

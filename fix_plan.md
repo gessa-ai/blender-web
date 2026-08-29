@@ -3683,7 +3683,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   WSLg and five used fresh isolated Xvfb. No runtime byte changed. This binds software stability
   only; the exact Apple 10/10 pixel and same-generation P0-E gauntlet gates remain unchanged. See
   `notes/p0-selection-draw-admission-20260829.md`. **Asynchronous draw-validation candidate
-  implemented/relinked/pending hardware (patch 0308):** the synchronous admission guard still
+  implemented/relinked/pending hardware (`ad1877b`, patch 0308):** the synchronous admission guard still
   disarmed at `Draw*` encoding before browser command scopes produced their later terminal verdict.
   Each selection command now owns a balanced validation ticket; select-next keeps mapped bytes
   private until all tickets settle and cancels only the exact attempt when its dedicated failure

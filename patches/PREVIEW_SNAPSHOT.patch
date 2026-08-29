@@ -43592,10 +43592,10 @@ index 0000000000000000000000000000000000000000..9e38e923b56b90c771a3b28ce9d83adc
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b44211175559c18
+index 0000000000000000000000000000000000000000..0c3b8e39c41126b74e6b72f1702d996722cbb715
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_readback.cc
-@@ -0,0 +1,1146 @@
+@@ -0,0 +1,1225 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later
@@ -43627,12 +43627,25 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +#include <vector>
 +
 +#ifdef __EMSCRIPTEN__
++#  include <emscripten/emscripten.h>
++
 +#  include "GHOST_WebDisplayState.hh"
 +#endif
 +
 +namespace blender::gpu::webgpu::readback {
 +
 +namespace {
++
++#ifdef __EMSCRIPTEN__
++/* Read-only exact-buffer lifecycle generations for the hardware selection discriminator. These
++ * counters do not own or advance a ticket; they only identify the last boundary crossed. */
++std::atomic<uint64_t> exact_buffer_readback_submit_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_map_start_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_map_complete_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_validation_complete_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_join_complete_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_ready_generation{0};
++#endif
 +
 +static void request_webgpu_redraw_retry()
 +{
@@ -44129,6 +44142,11 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +      record.bytes = std::make_shared<const std::vector<uint8_t>>(std::move(tight));
 +      record.status = TicketStatus::Ready;
 +      record.error = TicketError::None;
++#ifdef __EMSCRIPTEN__
++      if (pending->mode == RequestMode::Exact && pending->is_buffer) {
++        exact_buffer_readback_ready_generation.fetch_add(1u, std::memory_order_relaxed);
++      }
++#endif
 +      if (pending->mode == RequestMode::Cache) {
 +        erase_cache_payload_locked(reg, pending->key);
 +        make_cache_payload_room_locked(reg, record.bytes->size());
@@ -44277,6 +44295,12 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +    map_status = state->map_status;
 +  }
 +
++#ifdef __EMSCRIPTEN__
++  if (pending->mode == RequestMode::Exact && pending->is_buffer) {
++    exact_buffer_readback_join_complete_generation.fetch_add(1u, std::memory_order_relaxed);
++  }
++#endif
++
 +  if (!submitted) {
 +    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
 +    release_backend_handles(*pending);
@@ -44290,6 +44314,11 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +void pending_command_map_submitted(const std::shared_ptr<PendingCommandMapState> &state,
 +                                   const bool submitted)
 +{
++#ifdef __EMSCRIPTEN__
++  if (submitted && state->pending->mode == RequestMode::Exact && state->pending->is_buffer) {
++    exact_buffer_readback_submit_generation.fetch_add(1u, std::memory_order_relaxed);
++  }
++#endif
 +  {
 +    std::lock_guard lock(state->mutex);
 +    state->submission_known = true;
@@ -44297,12 +44326,23 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +  }
 +  if (submitted) {
 +    const std::shared_ptr<Pending> pending = state->pending;
++#ifdef __EMSCRIPTEN__
++    if (pending->mode == RequestMode::Exact && pending->is_buffer) {
++      exact_buffer_readback_map_start_generation.fetch_add(1u, std::memory_order_relaxed);
++    }
++#endif
 +    pending->staging.MapAsync(
 +        wgpu::MapMode::Read,
 +        0,
 +        pending->staging_size,
 +        wgpu::CallbackMode::AllowSpontaneous,
 +        [state](wgpu::MapAsyncStatus status, wgpu::StringView) {
++#ifdef __EMSCRIPTEN__
++          if (state->pending->mode == RequestMode::Exact && state->pending->is_buffer) {
++            exact_buffer_readback_map_complete_generation.fetch_add(1u,
++                                                                    std::memory_order_relaxed);
++          }
++#endif
 +          {
 +            std::lock_guard lock(state->mutex);
 +            state->map_status = status;
@@ -44317,6 +44357,12 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +void pending_command_map_validated(const std::shared_ptr<PendingCommandMapState> &state,
 +                                   const bool valid)
 +{
++#ifdef __EMSCRIPTEN__
++  if (state->pending->mode == RequestMode::Exact && state->pending->is_buffer) {
++    exact_buffer_readback_validation_complete_generation.fetch_add(
++        1u, std::memory_order_relaxed);
++  }
++#endif
 +  {
 +    std::lock_guard lock(state->mutex);
 +    state->command_valid = valid;
@@ -44326,6 +44372,39 @@ index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b442111
 +}
 +
 +}  // namespace
++
++#ifdef __EMSCRIPTEN__
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_submit_count(void)
++{
++  return double(exact_buffer_readback_submit_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_map_start_count(void)
++{
++  return double(exact_buffer_readback_map_start_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_map_complete_count(void)
++{
++  return double(exact_buffer_readback_map_complete_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_validation_complete_count(void)
++{
++  return double(
++      exact_buffer_readback_validation_complete_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_join_complete_count(void)
++{
++  return double(exact_buffer_readback_join_complete_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_ready_count(void)
++{
++  return double(exact_buffer_readback_ready_generation.load(std::memory_order_acquire));
++}
++#endif
 +
 +Ticket kick_texture(const wgpu::Instance &instance,
 +                    const wgpu::Device &device,

@@ -231,6 +231,14 @@ try {
           pending: read("_bw_selection_draw_validation_pending_count"),
           failures: read("_bw_selection_draw_validation_failure_count"),
         },
+        selectionReadback: {
+          submits: read("_bw_exact_buffer_readback_submit_count"),
+          mapStarts: read("_bw_exact_buffer_readback_map_start_count"),
+          mapCompletes: read("_bw_exact_buffer_readback_map_complete_count"),
+          validationCompletes: read("_bw_exact_buffer_readback_validation_complete_count"),
+          joinCompletes: read("_bw_exact_buffer_readback_join_complete_count"),
+          ready: read("_bw_exact_buffer_readback_ready_count"),
+        },
         selectionContinuation: {
           gpuPhase: read("_bw_gpu_select_async_phase"),
           gpuSessions: read("_bw_gpu_select_async_session_count"),
@@ -402,6 +410,7 @@ try {
         retries: current.retries,
         drawDrops: current.drawDrops,
         selectionDrawValidation: {...current.selectionDrawValidation},
+        selectionReadback: {...current.selectionReadback},
         selectionContinuation: {...current.selectionContinuation},
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
@@ -441,6 +450,7 @@ try {
   if (![splashDismissed.drawDrops,
         splashDismissed.selectionDrawValidation.pending,
         splashDismissed.selectionDrawValidation.failures].every(Number.isFinite) ||
+      !Object.values(splashDismissed.selectionReadback).every(Number.isFinite) ||
       !Object.values(splashDismissed.selectionContinuation).every(Number.isFinite)) {
     throw new Error("selection draw/drop diagnostics are unavailable in the served product");
   }

@@ -1242,3 +1242,6 @@
 # 0312: register selection-buffer MapAsync in the browser submission turn, but publish bytes only
 # after both mapping and asynchronous command validation settle successfully.
 0312-gpu-webgpu-select-readback-same-turn-map.patch
+# 0313: expose each exact-buffer submit/map/validation/join/ready boundary so one sparse Apple
+# selection timeout identifies the stalled browser-readback stage without changing runtime policy.
+0313-gpu-webgpu-select-readback-lifecycle-telemetry.patch

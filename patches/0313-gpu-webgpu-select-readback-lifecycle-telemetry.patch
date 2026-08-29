@@ -1,0 +1,145 @@
+diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
+index 6c670fe3e17c..0c3b8e39c411 100644
+--- a/source/blender/gpu/webgpu/wgpu_readback.cc
++++ b/source/blender/gpu/webgpu/wgpu_readback.cc
+@@ -29,6 +29,8 @@
+ #include <vector>
+
+ #ifdef __EMSCRIPTEN__
++#  include <emscripten/emscripten.h>
++
+ #  include "GHOST_WebDisplayState.hh"
+ #endif
+
+@@ -36,6 +38,17 @@ namespace blender::gpu::webgpu::readback {
+
+ namespace {
+
++#ifdef __EMSCRIPTEN__
++/* Read-only exact-buffer lifecycle generations for the hardware selection discriminator. These
++ * counters do not own or advance a ticket; they only identify the last boundary crossed. */
++std::atomic<uint64_t> exact_buffer_readback_submit_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_map_start_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_map_complete_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_validation_complete_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_join_complete_generation{0};
++std::atomic<uint64_t> exact_buffer_readback_ready_generation{0};
++#endif
++
+ static void request_webgpu_redraw_retry()
+ {
+ #ifdef __EMSCRIPTEN__
+@@ -531,6 +544,11 @@ void complete_pending(const std::shared_ptr<Pending> &pending,
+       record.bytes = std::make_shared<const std::vector<uint8_t>>(std::move(tight));
+       record.status = TicketStatus::Ready;
+       record.error = TicketError::None;
++#ifdef __EMSCRIPTEN__
++      if (pending->mode == RequestMode::Exact && pending->is_buffer) {
++        exact_buffer_readback_ready_generation.fetch_add(1u, std::memory_order_relaxed);
++      }
++#endif
+       if (pending->mode == RequestMode::Cache) {
+         erase_cache_payload_locked(reg, pending->key);
+         make_cache_payload_room_locked(reg, record.bytes->size());
+@@ -679,6 +697,12 @@ void pending_command_map_maybe_complete(const std::shared_ptr<PendingCommandMapS
+     map_status = state->map_status;
+   }
+
++#ifdef __EMSCRIPTEN__
++  if (pending->mode == RequestMode::Exact && pending->is_buffer) {
++    exact_buffer_readback_join_complete_generation.fetch_add(1u, std::memory_order_relaxed);
++  }
++#endif
++
+   if (!submitted) {
+     fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
+     release_backend_handles(*pending);
+@@ -692,6 +716,11 @@ void pending_command_map_submitted(const std::shared_ptr<PendingCommandMapState>
+                                    const bool submitted)
+ {
++#ifdef __EMSCRIPTEN__
++  if (submitted && state->pending->mode == RequestMode::Exact && state->pending->is_buffer) {
++    exact_buffer_readback_submit_generation.fetch_add(1u, std::memory_order_relaxed);
++  }
++#endif
+   {
+     std::lock_guard lock(state->mutex);
+     state->submission_known = true;
+     state->submitted = submitted;
+@@ -699,12 +728,23 @@ void pending_command_map_submitted(const std::shared_ptr<PendingCommandMapState>
+   }
+   if (submitted) {
+     const std::shared_ptr<Pending> pending = state->pending;
++#ifdef __EMSCRIPTEN__
++    if (pending->mode == RequestMode::Exact && pending->is_buffer) {
++      exact_buffer_readback_map_start_generation.fetch_add(1u, std::memory_order_relaxed);
++    }
++#endif
+     pending->staging.MapAsync(
+         wgpu::MapMode::Read,
+         0,
+         pending->staging_size,
+         wgpu::CallbackMode::AllowSpontaneous,
+         [state](wgpu::MapAsyncStatus status, wgpu::StringView) {
++#ifdef __EMSCRIPTEN__
++          if (state->pending->mode == RequestMode::Exact && state->pending->is_buffer) {
++            exact_buffer_readback_map_complete_generation.fetch_add(1u,
++                                                                    std::memory_order_relaxed);
++          }
++#endif
+           {
+             std::lock_guard lock(state->mutex);
+             state->map_status = status;
+@@ -719,6 +759,12 @@ void pending_command_map_validated(const std::shared_ptr<PendingCommandMapState>
+                                    const bool valid)
+ {
++#ifdef __EMSCRIPTEN__
++  if (state->pending->mode == RequestMode::Exact && state->pending->is_buffer) {
++    exact_buffer_readback_validation_complete_generation.fetch_add(
++        1u, std::memory_order_relaxed);
++  }
++#endif
+   {
+     std::lock_guard lock(state->mutex);
+     state->command_valid = valid;
+     state->command_done = true;
+@@ -729,6 +775,39 @@ void pending_command_map_validated(const std::shared_ptr<PendingCommandMapState>
+
+ }  // namespace
+
++#ifdef __EMSCRIPTEN__
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_submit_count(void)
++{
++  return double(exact_buffer_readback_submit_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_map_start_count(void)
++{
++  return double(exact_buffer_readback_map_start_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_map_complete_count(void)
++{
++  return double(exact_buffer_readback_map_complete_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_validation_complete_count(void)
++{
++  return double(
++      exact_buffer_readback_validation_complete_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_join_complete_count(void)
++{
++  return double(exact_buffer_readback_join_complete_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_exact_buffer_readback_ready_count(void)
++{
++  return double(exact_buffer_readback_ready_generation.load(std::memory_order_acquire));
++}
++#endif
++
+ Ticket kick_texture(const wgpu::Instance &instance,
+                     const wgpu::Device &device,
+                     const wgpu::Queue &queue,

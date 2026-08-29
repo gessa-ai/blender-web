@@ -278,3 +278,10 @@ and mapping the selection staging buffer. The copy submit remains synchronous in
 JavaScript turn; `MapAsync` is registered immediately after that submit instead of waiting behind
 asynchronous error-scope settlement. Mapped bytes remain private until both mapping and command
 validation succeed, so the ordering fix cannot publish a rejected cleared selection result.
+
+`verify_select_readback_lifecycle.py` makes that seam observable without changing it. The exact
+buffer path publishes monotonic generations for command submission, map registration, map callback,
+validation callback, the two-leg join, and final ready-ticket publication. The slow/sparse producer
+samples all six on every bounded poll and rejects a product missing any export. A hardware timeout
+can therefore identify one stalled readback boundary instead of collapsing every case into the
+same `Pending` ticket status; only Apple pixels can close the underlying freeze.

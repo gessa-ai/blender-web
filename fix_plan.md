@@ -3653,7 +3653,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `5b95408deafe` (artifact SHA-256 prefix), canonical replay and REUSE are green. This software lane
   binds no pixel verdict: P0-I/J remain open until the driver passes the unchanged Apple 10/10 and
   same-generation composed P0-E interaction gauntlet. See
-  `notes/p0-selection-draw-retry-20260829.md`.
+  `notes/p0-selection-draw-retry-20260829.md`. **Ten-run software stability verified/pending
+  hardware:** the exact `5b95408deafe` candidate completed 10/10 fresh slow/sparse SwiftShader
+  runs after four separately rejected WSLg target-page closures. Every completed run selected
+  exactly Cube through the projected viewport click, retired both isolated orbits, converged the
+  terminal/admitted/dispatched/presented/content generations, and had zero page, lifecycle, or
+  selection-readback errors. Selection took 9,944-15,164 ms on cold software and exercised 36
+  selectable shader-cache misses each time. This binds software retry stability only: the Apple
+  10/10 pixel and same-generation gauntlet gates are unchanged. See
+  `notes/p0-selection-draw-retry-software-stability-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

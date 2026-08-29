@@ -1236,3 +1236,6 @@
 # 0310: preserve the browser selection continuation's retained input when the WM cancels it
 # externally, using the same live-manager/window guard as ordinary completion and failure.
 0310-view3d-web-selection-cancel-replay.patch
+# 0311: expose read-only GPU/readback/modal/replay stages for the sparse selection continuation,
+# so one hardware timeout identifies the retained-input boundary without another policy guess.
+0311-view3d-web-selection-continuation-telemetry.patch

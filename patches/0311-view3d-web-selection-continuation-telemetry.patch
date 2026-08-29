@@ -1,0 +1,395 @@
+diff --git a/source/blender/gpu/intern/gpu_select_next.cc b/source/blender/gpu/intern/gpu_select_next.cc
+--- a/source/blender/gpu/intern/gpu_select_next.cc
++++ b/source/blender/gpu/intern/gpu_select_next.cc
+@@ -8,8 +8,12 @@
+  */
+ #include <cfloat>
+ #include <cstdint>
+ #include <cstring>
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <emscripten/emscripten.h>
++#endif
+
+ #include "BLI_rect.h"
+ #include "BLI_span.hh"
+ #include "BLI_vector.hh"
+@@ -25,6 +29,65 @@
+
+ namespace blender {
+
++#ifdef __EMSCRIPTEN__
++namespace {
++
++enum class WebSelectAsyncPhase : uint32_t {
++  Inactive = 0,
++  Session,
++  ValidationPending,
++  RetryPending,
++  RetryReady,
++  ReadbackPending,
++  ResultReady,
++  Failed,
++};
++
++std::atomic<uint32_t> web_select_async_phase{uint32_t(WebSelectAsyncPhase::Inactive)};
++std::atomic<uint64_t> web_select_async_session_generation{0};
++std::atomic<uint64_t> web_select_async_attempt_generation{0};
++std::atomic<uint64_t> web_select_async_result_generation{0};
++std::atomic<uint64_t> web_select_async_replay_generation{0};
++std::atomic<uint64_t> web_select_async_failure_generation{0};
++
++void web_select_async_phase_store(const WebSelectAsyncPhase phase)
++{
++  web_select_async_phase.store(uint32_t(phase), std::memory_order_release);
++}
++
++}  // namespace
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_gpu_select_async_phase(void)
++{
++  return double(web_select_async_phase.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_gpu_select_async_session_count(void)
++{
++  return double(web_select_async_session_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_gpu_select_async_attempt_count(void)
++{
++  return double(web_select_async_attempt_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_gpu_select_async_result_count(void)
++{
++  return double(web_select_async_result_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_gpu_select_async_replay_count(void)
++{
++  return double(web_select_async_replay_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_gpu_select_async_failure_count(void)
++{
++  return double(web_select_async_failure_generation.load(std::memory_order_acquire));
++}
++#endif
++
+ struct GPUSelectNextState {
+   /** Result buffer set on initialization. */
+   GPUSelectBuffer *buffer = nullptr;
+@@ -94,6 +174,10 @@ static void gpu_select_async_fail(const eGPUReadbackError error)
+   GPU_readback_cancel(g_async.readback);
+   g_async.failed = true;
+   g_async.error = error == GPU_READBACK_ERROR_NONE ? GPU_READBACK_ERROR_BACKEND_FAILURE : error;
++#ifdef __EMSCRIPTEN__
++  web_select_async_failure_generation.fetch_add(1u, std::memory_order_relaxed);
++  web_select_async_phase_store(WebSelectAsyncPhase::Failed);
++#endif
+ }
+
+ static void gpu_select_async_convert(const Span<uint> raw,
+@@ -221,6 +305,10 @@ void GPU_select_async_session_begin()
+ {
+   GPU_select_async_session_end();
+   g_async.session_active = true;
++#ifdef __EMSCRIPTEN__
++  web_select_async_session_generation.fetch_add(1u, std::memory_order_relaxed);
++  web_select_async_phase_store(WebSelectAsyncPhase::Session);
++#endif
+ }
+
+ bool GPU_select_async_session_is_active()
+@@ -232,22 +320,32 @@ void GPU_select_async_session_end()
+ {
+   GPU_readback_cancel(g_async.readback);
+   g_async = {};
++#ifdef __EMSCRIPTEN__
++  web_select_async_phase_store(WebSelectAsyncPhase::Inactive);
++#endif
+ }
+
+ eGPUReadbackStatus GPU_select_async_status()
+ {
+   if (!g_async.session_active) {
++#ifdef __EMSCRIPTEN__
++    web_select_async_phase_store(WebSelectAsyncPhase::Inactive);
++#endif
+     return GPU_READBACK_INVALID;
+   }
+   if (g_async.failed) {
++#ifdef __EMSCRIPTEN__
++    web_select_async_phase_store(WebSelectAsyncPhase::Failed);
++#endif
+     return GPU_READBACK_FAILED;
+   }
+ #ifdef __EMSCRIPTEN__
+   /* Encoding a selection draw is not its terminal browser verdict. Keep the mapped clear/result
+    * private until every command scope from this attempt settles, then discard it if any one of
+    * those scopes rejected after readback submission began. The rejecting completion publishes
+    * the redraw edge, so an exact retry is immediately eligible once the pending count reaches 0. */
+   if (ghost_web::selection_draw_validation_pending() != 0) {
++    web_select_async_phase_store(WebSelectAsyncPhase::ValidationPending);
+     return GPU_READBACK_PENDING;
+   }
+   if (g_async.readback != nullptr &&
+@@ -259,19 +358,29 @@ eGPUReadbackStatus GPU_select_async_status()
+     const uint64_t retry_generation = ghost_web::redraw_retry_generation();
+     g_async.retry_generation = retry_generation > 0 ? retry_generation - 1u : 0;
+     g_async.retry_pending = true;
++    web_select_async_phase_store(WebSelectAsyncPhase::RetryPending);
+   }
+   if (g_async.retry_pending) {
+-    return ghost_web::redraw_retry_generation() <= g_async.retry_generation ?
+-               GPU_READBACK_PENDING :
+-               GPU_READBACK_READY;
++    const bool retry_pending =
++        ghost_web::redraw_retry_generation() <= g_async.retry_generation;
++    web_select_async_phase_store(retry_pending ? WebSelectAsyncPhase::RetryPending :
++                                                 WebSelectAsyncPhase::RetryReady);
++    return retry_pending ? GPU_READBACK_PENDING : GPU_READBACK_READY;
+   }
+ #endif
+   if (g_async.readback == nullptr) {
++#ifdef __EMSCRIPTEN__
++    web_select_async_phase_store(g_async.results.is_empty() ? WebSelectAsyncPhase::Session :
++                                                              WebSelectAsyncPhase::ResultReady);
++#endif
+     return g_async.results.is_empty() ? GPU_READBACK_INVALID : GPU_READBACK_READY;
+   }
+
+   const eGPUReadbackStatus status = GPU_readback_status(g_async.readback);
+   if (status == GPU_READBACK_PENDING) {
++#ifdef __EMSCRIPTEN__
++    web_select_async_phase_store(WebSelectAsyncPhase::ReadbackPending);
++#endif
+     return status;
+   }
+   if (status != GPU_READBACK_READY) {
+@@ -296,6 +406,10 @@ eGPUReadbackStatus GPU_select_async_status()
+                            result.key.mode,
+                            result.hits);
+   g_async.results.append(std::move(result));
++#ifdef __EMSCRIPTEN__
++  web_select_async_result_generation.fetch_add(1u, std::memory_order_relaxed);
++  web_select_async_phase_store(WebSelectAsyncPhase::ResultReady);
++#endif
+   g_async.select_id_map.clear();
+   g_async.in_front_map.clear();
+   return GPU_READBACK_READY;
+@@ -325,6 +439,10 @@ bool GPU_select_async_result_replay(GPUSelectBuffer *buffer,
+     if (result.key == key) {
+       buffer->storage.extend(result.hits.as_span());
+       *r_hits = int(result.hits.size());
++#ifdef __EMSCRIPTEN__
++      web_select_async_replay_generation.fetch_add(1u, std::memory_order_relaxed);
++      web_select_async_phase_store(WebSelectAsyncPhase::ResultReady);
++#endif
+       return true;
+     }
+   }
+@@ -341,6 +459,9 @@ void gpu_select_next_async_readback_begin(GPUReadback *readback,
+   if (!g_async.session_active) {
+     GPU_select_async_session_begin();
+   }
++#ifdef __EMSCRIPTEN__
++  web_select_async_attempt_generation.fetch_add(1u, std::memory_order_relaxed);
++#endif
+   if (g_async.readback != nullptr || g_async.failed) {
+     GPU_readback_cancel(readback);
+     gpu_select_async_fail(GPU_READBACK_ERROR_BACKEND_FAILURE);
+@@ -357,6 +478,7 @@ void gpu_select_next_async_readback_begin(GPUReadback *readback,
+     g_async.in_front_map.clear();
+     g_async.retry_generation = ghost_web::redraw_retry_generation();
+     g_async.retry_pending = true;
++    web_select_async_phase_store(WebSelectAsyncPhase::RetryPending);
+     return;
+   }
+ #endif
+@@ -376,6 +498,9 @@ void gpu_select_next_async_readback_begin(GPUReadback *readback,
+       g_state.draw_validation_failure_generation;
+ #endif
+   g_async.readback = readback;
++#ifdef __EMSCRIPTEN__
++  web_select_async_phase_store(WebSelectAsyncPhase::ReadbackPending);
++#endif
+ }
+
+ uint gpu_select_next_end()
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -9,6 +9,11 @@
+ #include <cstdio>
+ #include <cstring>
+ #include <optional>
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <cstdint>
++#  include <emscripten/emscripten.h>
++#endif
+
+ #include "DNA_action_types.h"
+ #include "DNA_armature_types.h"
+@@ -4021,20 +4026,88 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+   return true;
+ }
+
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint64_t> web_view3d_select_continuation_begin_count{0};
++std::atomic<uint64_t> web_view3d_select_continuation_finish_count{0};
++std::atomic<uint64_t> web_view3d_select_replayed_event_count{0};
++std::atomic<uint32_t> web_view3d_select_continuation_active{0};
++std::atomic<uint32_t> web_view3d_select_queued_event_count{0};
++std::atomic<uint32_t> web_view3d_select_modal_tick_count{0};
++std::atomic<uint32_t> web_view3d_select_gpu_status{uint32_t(GPU_READBACK_INVALID)};
++std::atomic<uint32_t> web_view3d_select_query_status{uint32_t(GPU_READBACK_INVALID)};
++std::atomic<uint32_t> web_view3d_select_combined_status{uint32_t(GPU_READBACK_INVALID)};
++
++}  // namespace
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_continuation_begin_count(void)
++{
++  return double(web_view3d_select_continuation_begin_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_continuation_finish_count(void)
++{
++  return double(web_view3d_select_continuation_finish_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_replayed_event_count(void)
++{
++  return double(web_view3d_select_replayed_event_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_continuation_active(void)
++{
++  return double(web_view3d_select_continuation_active.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_queued_event_count(void)
++{
++  return double(web_view3d_select_queued_event_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_modal_tick_count(void)
++{
++  return double(web_view3d_select_modal_tick_count.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_gpu_status(void)
++{
++  return double(web_view3d_select_gpu_status.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_query_status(void)
++{
++  return double(web_view3d_select_query_status.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_combined_status(void)
++{
++  return double(web_view3d_select_combined_status.load(std::memory_order_acquire));
++}
++#endif
++
+ static eGPUReadbackStatus view3d_select_async_status()
+ {
+   const eGPUReadbackStatus gpu_status = GPU_select_async_status();
+   const eGPUReadbackStatus query_status = DRW_select_buffer_query_session_status();
++  eGPUReadbackStatus combined_status = GPU_READBACK_INVALID;
+   if (gpu_status == GPU_READBACK_FAILED || query_status == GPU_READBACK_FAILED) {
+-    return GPU_READBACK_FAILED;
++    combined_status = GPU_READBACK_FAILED;
+   }
+-  if (gpu_status == GPU_READBACK_PENDING || query_status == GPU_READBACK_PENDING) {
+-    return GPU_READBACK_PENDING;
++  else if (gpu_status == GPU_READBACK_PENDING || query_status == GPU_READBACK_PENDING) {
++    combined_status = GPU_READBACK_PENDING;
+   }
+-  if (gpu_status == GPU_READBACK_READY || query_status == GPU_READBACK_READY) {
+-    return GPU_READBACK_READY;
++  else if (gpu_status == GPU_READBACK_READY || query_status == GPU_READBACK_READY) {
++    combined_status = GPU_READBACK_READY;
+   }
+-  return GPU_READBACK_INVALID;
++#ifdef __EMSCRIPTEN__
++  web_view3d_select_gpu_status.store(uint32_t(gpu_status), std::memory_order_relaxed);
++  web_view3d_select_query_status.store(uint32_t(query_status), std::memory_order_relaxed);
++  web_view3d_select_combined_status.store(uint32_t(combined_status),
++                                          std::memory_order_release);
++#endif
++  return combined_status;
+ }
+
+ static eGPUReadbackError view3d_select_async_error()
+@@ -4090,6 +4197,8 @@ static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wm
+   queued.customdata_free = 0;
+   queued.customdata = nullptr;
+   data->queued_events.append(queued);
++  web_view3d_select_queued_event_count.store(
++      uint32_t(data->queued_events.size()), std::memory_order_release);
+   return true;
+ }
+
+@@ -4097,13 +4208,17 @@ static void view3d_select_async_events_requeue(bContext *C, View3DSelectAsyncDat
+ {
+   if (CTX_wm_manager(C) != data->manager || CTX_wm_window(C) != data->window) {
++    web_view3d_select_queued_event_count.store(0u, std::memory_order_release);
+     return;
+   }
+   /* These inputs originally preceded anything still in the WM queue. Add each copy normally,
+    * then move it to the head in reverse order so the exact captured FIFO is restored. */
++  web_view3d_select_replayed_event_count.fetch_add(
++      uint64_t(data->queued_events.size()), std::memory_order_relaxed);
+   for (int64_t index = data->queued_events.size() - 1; index >= 0; index--) {
+     wmEvent *queued = WM_event_add(data->window, &data->queued_events[index]);
+     BLI_remlink(&data->window->runtime->event_queue, queued);
+     BLI_addhead(&data->window->runtime->event_queue, queued);
+   }
++  web_view3d_select_queued_event_count.store(0u, std::memory_order_release);
+ }
+ #endif
+@@ -4293,6 +4409,11 @@ static void view3d_select_async_finish(bContext *C, wmOperator *op)
+ {
+   View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);
+   if (data != nullptr) {
++#ifdef __EMSCRIPTEN__
++    web_view3d_select_continuation_active.store(0u, std::memory_order_relaxed);
++    web_view3d_select_queued_event_count.store(0u, std::memory_order_relaxed);
++    web_view3d_select_continuation_finish_count.fetch_add(1u, std::memory_order_release);
++#endif
+     if (data->timer != nullptr) {
+       WM_event_timer_remove(data->manager, data->window, data->timer);
+     }
+@@ -4329,6 +4451,10 @@ static wmOperatorStatus view3d_select_invoke(bContext *C, wmOperator *op, const
+       }
+       op->customdata = data;
+     }
++    web_view3d_select_modal_tick_count.store(0u, std::memory_order_relaxed);
++    web_view3d_select_queued_event_count.store(0u, std::memory_order_relaxed);
++    web_view3d_select_continuation_begin_count.fetch_add(1u, std::memory_order_relaxed);
++    web_view3d_select_continuation_active.store(1u, std::memory_order_release);
+     WM_event_add_modal_handler(C, op);
+     return OPERATOR_RUNNING_MODAL;
+   }
+@@ -4370,8 +4497,13 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const wm
+
+   /* Fail closed instead of retaining a modal operator forever after device
+    * loss or an undelivered browser callback (roughly 2.4 seconds at 10 ms). */
+   constexpr int max_tick_count = 240;
+-  if (++data->tick_count > max_tick_count) {
++  data->tick_count++;
++#ifdef __EMSCRIPTEN__
++  web_view3d_select_modal_tick_count.store(
++      uint32_t(data->tick_count), std::memory_order_release);
++#endif
++  if (data->tick_count > max_tick_count) {
+ #ifdef __EMSCRIPTEN__
+     view3d_select_async_web_failure_log("readback timeout");
+ #else

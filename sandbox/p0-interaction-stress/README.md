@@ -59,7 +59,12 @@ load-bearing: the click, not the already-retired first orbit, triggered the sele
 error popup in the diagnosed candidate. Every sample also carries the global draw-drop generation
 and the browser selection-validation pending/failure counters, distinguishing a synchronous draw
 deferral, a validation callback that never settles, and an asynchronously rejected selection draw
-without changing selection or redraw policy.
+without changing selection or redraw policy. The continuation telemetry additionally binds GPU
+session/attempt/result/replay/failure generations, the current GPU phase (`0` inactive, `1`
+session, `2` validation pending, `3` retry pending, `4` retry ready, `5` readback pending, `6`
+result ready, `7` failed), separate GPU/query/combined readback status, modal timer progress,
+queued input, and replay/finish edges. These are read-only discriminators; they do not alter the
+selection timeout, input ordering, redraw policy, or hardware acceptance bar.
 
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a

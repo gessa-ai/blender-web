@@ -231,6 +231,23 @@ try {
           pending: read("_bw_selection_draw_validation_pending_count"),
           failures: read("_bw_selection_draw_validation_failure_count"),
         },
+        selectionContinuation: {
+          gpuPhase: read("_bw_gpu_select_async_phase"),
+          gpuSessions: read("_bw_gpu_select_async_session_count"),
+          gpuAttempts: read("_bw_gpu_select_async_attempt_count"),
+          gpuResults: read("_bw_gpu_select_async_result_count"),
+          gpuReplays: read("_bw_gpu_select_async_replay_count"),
+          gpuFailures: read("_bw_gpu_select_async_failure_count"),
+          modalBegins: read("_bw_view3d_select_continuation_begin_count"),
+          modalFinishes: read("_bw_view3d_select_continuation_finish_count"),
+          replayedEvents: read("_bw_view3d_select_replayed_event_count"),
+          active: read("_bw_view3d_select_continuation_active"),
+          queuedEvents: read("_bw_view3d_select_queued_event_count"),
+          timerTicks: read("_bw_view3d_select_modal_tick_count"),
+          gpuStatus: read("_bw_view3d_select_gpu_status"),
+          queryStatus: read("_bw_view3d_select_query_status"),
+          combinedStatus: read("_bw_view3d_select_combined_status"),
+        },
         inputRedraw: {
           published: read("_bw_input_redraw_retry_count"),
           terminal: read("_bw_input_redraw_terminal_count"),
@@ -385,6 +402,7 @@ try {
         retries: current.retries,
         drawDrops: current.drawDrops,
         selectionDrawValidation: {...current.selectionDrawValidation},
+        selectionContinuation: {...current.selectionContinuation},
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
         wmInput: {...current.wmInput},
@@ -422,7 +440,8 @@ try {
   const splashDismissed = await sample("splash-dismissed");
   if (![splashDismissed.drawDrops,
         splashDismissed.selectionDrawValidation.pending,
-        splashDismissed.selectionDrawValidation.failures].every(Number.isFinite)) {
+        splashDismissed.selectionDrawValidation.failures].every(Number.isFinite) ||
+      !Object.values(splashDismissed.selectionContinuation).every(Number.isFinite)) {
     throw new Error("selection draw/drop diagnostics are unavailable in the served product");
   }
   steps.push(splashDismissed);

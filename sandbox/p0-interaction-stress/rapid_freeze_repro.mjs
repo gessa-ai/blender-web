@@ -504,10 +504,16 @@ try {
   };
   const nativeViewChanged = (current, baseline) =>
     stateArrayChanged(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation);
-  const nativeSelectionComplete = (current, baseline) =>
+  const selectionContinuationRetired = (current, baseline) =>
+    current.selectionContinuation.modalBegins > baseline.selectionContinuation.modalBegins &&
+    current.selectionContinuation.modalFinishes > baseline.selectionContinuation.modalFinishes &&
+    current.selectionContinuation.active === 0 &&
+    current.selectionContinuation.queuedEvents === 0 &&
+    current.selectionContinuation.gpuFailures === baseline.selectionContinuation.gpuFailures;
+  const nativeSelectionReplayComplete = (current, baseline) =>
     current.nativeStateSequence > baseline.nativeStateSequence &&
     baseline.nativeState?.selected_count === 0 && nativeCubeSelected(current) &&
-    stateArraysEqual(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation) &&
+    nativeViewChanged(current, baseline) &&
     stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location);
   const hardwareActionStateComplete = (current, baseline) =>
     current.nativeStateSequence > baseline.nativeStateSequence &&
@@ -627,6 +633,8 @@ try {
   let actionDrain;
   let selectionDrain = null;
   let selectionPoint = null;
+  let selectionReplayRequired = null;
+  let selectionInputWasRetained = null;
   let recoveryOrbit;
   let nativeStateContract;
   let retainedActionFramesEqual = null;
@@ -647,58 +655,57 @@ try {
     steps.push(actionDrain);
 
     /* The filed freeze changes the first orbit, then becomes permanent when the following click
-     * starts VIEW3D_OT_select and its asynchronous readback fails. Keep that click isolated too:
-     * no recovery orbit is sent until the click has reached both input stages, presented strict
-     * VIEW_3D content, retired its modal continuation, and selected exactly Cube. */
+     * starts VIEW3D_OT_select. Reproduce its sparse tail instead of avoiding it: after one real
+     * 650 ms pause, send exactly one orbit while the asynchronous selection continuation still
+     * owns the modal stack. The completion gate below requires that retained orbit to be replayed
+     * after selection, not a clean orbit sent only after the modal has ended. */
     const selectionBaseline = actionDrain;
     const selectionInputBaseline = selectionBaseline.ghostInput;
     const selectionWmInputBaseline = selectionBaseline.wmInput;
     selectionPoint = nativeCubePagePoint(selectionBaseline, box);
     await page.mouse.move(selectionPoint.x, selectionPoint.y);
     await page.mouse.click(selectionPoint.x, selectionPoint.y);
+    await page.waitForTimeout(Math.max(sampleCadenceMs, 650));
+    const selectionReplayWindow = await sample("isolated-selection-replay-window");
+    steps.push(selectionReplayWindow);
+    selectionReplayRequired =
+      selectionReplayWindow.selectionContinuation.gpuSessions >
+        selectionBaseline.selectionContinuation.gpuSessions &&
+      selectionReplayWindow.selectionContinuation.modalFinishes ===
+        selectionBaseline.selectionContinuation.modalFinishes;
+    await page.mouse.down({button: "middle"});
+    await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
+    await page.mouse.up({button: "middle"});
     selectionDrain = await waitForActionDrain(
-      "isolated-selection-drain",
+      "isolated-selection-replay-drain",
       selectionBaseline.sha256,
       selectionBaseline,
-      selectionBaseline,
-      0,
+      selectionReplayWindow,
+      1,
       (current) => ghostInputDeliveryComplete(
-        current, selectionInputBaseline, {left: 1, middle: 0, keys: 0}) &&
+        current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}) &&
         wmInputDeliveryComplete(
-          current, selectionWmInputBaseline, {left: 1, middle: 0, keys: 0}),
-      (current) => nativeSelectionComplete(current, selectionBaseline),
+          current, selectionWmInputBaseline, {left: 1, middle: 1, keys: 0}),
+      (current) => nativeSelectionReplayComplete(current, selectionBaseline) &&
+        selectionContinuationRetired(current, selectionBaseline) &&
+        (!selectionReplayRequired ||
+          current.selectionContinuation.replayedEvents >
+            selectionBaseline.selectionContinuation.replayedEvents),
       drainTimeoutMs,
       true,
     );
     steps.push(selectionDrain);
-    await page.waitForTimeout(100);
-    const isolatedRecoveryBaseline = await sample("isolated-recovery-baseline");
-    const isolatedRecoveryInputBaseline = isolatedRecoveryBaseline.ghostInput;
-    const isolatedRecoveryWmInputBaseline = isolatedRecoveryBaseline.wmInput;
-    await page.mouse.down({button: "middle"});
-    await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
-    await page.mouse.up({button: "middle"});
-    recoveryOrbit = await waitForActionDrain(
-      "isolated-recovery-orbit",
-      isolatedRecoveryBaseline.sha256,
-      isolatedRecoveryBaseline,
-      isolatedRecoveryBaseline,
-      1,
-      (current) => ghostInputDeliveryComplete(
-        current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}) &&
-        wmInputDeliveryComplete(
-          current, isolatedRecoveryWmInputBaseline, {left: 0, middle: 1, keys: 0}),
-      (current) => hardwareIsolatedOrbitStateComplete(current, isolatedRecoveryBaseline),
-      drainTimeoutMs,
-    );
-    steps.push(recoveryOrbit);
+    selectionInputWasRetained =
+      selectionDrain.selectionContinuation.replayedEvents >
+        selectionBaseline.selectionContinuation.replayedEvents;
+    recoveryOrbit = selectionDrain;
     nativeStateContract = {
       enforced: hardwareDiagnostic,
       selectionEnforced: true,
       actionComplete: hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline),
-      selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline),
-      recoveryComplete: hardwareIsolatedOrbitStateComplete(
-        recoveryOrbit, isolatedRecoveryBaseline),
+      selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline),
+      recoveryComplete: nativeSelectionReplayComplete(selectionDrain, selectionBaseline),
+      retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained,
     };
   }
   else {
@@ -772,6 +779,8 @@ try {
     steps,
     retainedActionFramesEqual,
     selectionPoint,
+    selectionReplayRequired,
+    selectionInputWasRetained,
     actionDrainMs: actionDrain.settleMs,
     selectionDrainMs: selectionDrain?.settleMs ?? null,
     recoveryOrbitMs: recoveryOrbit.settleMs,

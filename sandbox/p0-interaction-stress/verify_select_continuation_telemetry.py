@@ -97,8 +97,7 @@ def validate(sources: dict[str, str]) -> None:
     )
 
     for token in (
-        "selectionContinuation: {\n",
-        'gpuPhase: read("_bw_gpu_select_async_phase")',
+        'selectionContinuation: {\n          gpuPhase: read("_bw_gpu_select_async_phase")',
         'gpuSessions: read("_bw_gpu_select_async_session_count")',
         'gpuAttempts: read("_bw_gpu_select_async_attempt_count")',
         'gpuResults: read("_bw_gpu_select_async_result_count")',

@@ -77,15 +77,30 @@ def validate(source: str) -> None:
         '"isolated-orbit-drain",',
         'current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}',
         '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline)',
-        '"isolated-selection-drain",',
-        'current, selectionInputBaseline, {left: 1, middle: 0, keys: 0}',
-        '(current) => nativeSelectionComplete(current, selectionBaseline)',
-        'selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)',
+        'const nativeSelectionReplayComplete = (current, baseline) =>',
+        'const selectionContinuationRetired = (current, baseline) =>',
+        'current.selectionContinuation.modalBegins > baseline.selectionContinuation.modalBegins',
+        'current.selectionContinuation.modalFinishes > baseline.selectionContinuation.modalFinishes',
+        'current.selectionContinuation.active === 0',
+        'current.selectionContinuation.queuedEvents === 0',
+        'current.selectionContinuation.gpuFailures === baseline.selectionContinuation.gpuFailures',
+        'const selectionReplayWindow = await sample("isolated-selection-replay-window");',
+        'await page.waitForTimeout(Math.max(sampleCadenceMs, 650));',
+        'selectionReplayRequired =\n      selectionReplayWindow.selectionContinuation.gpuSessions >',
+        'selectionReplayWindow.selectionContinuation.modalFinishes ===',
+        '(!selectionReplayRequired ||',
+        'selectionInputWasRetained =\n      selectionDrain.selectionContinuation.replayedEvents >',
+        '"isolated-selection-replay-drain",',
+        'current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}',
+        '(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&',
+        'selectionContinuationRetired(current, selectionBaseline)',
+        'current.selectionContinuation.replayedEvents >',
+        'selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)',
+        'retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained',
+        'selectionReplayRequired,',
+        '\n    selectionInputWasRetained,\n',
         'selectionDrainMs: selectionDrain?.settleMs ?? null',
-        '"isolated-recovery-orbit",',
-        'const isolatedRecoveryBaseline = await sample("isolated-recovery-baseline");',
-        'current, isolatedRecoveryInputBaseline, {left: 0, middle: 1, keys: 0}',
-        '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedRecoveryBaseline)',
+        'recoveryOrbit = selectionDrain;',
         'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
         'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
         'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
@@ -137,7 +152,7 @@ def validate(source: str) -> None:
     if source.count(
         "stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)"
     ) != 2:
-        raise ValueError("selection and recovery must both preserve Cube location")
+        raise ValueError("selection replay and recovery must preserve Cube location")
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
         raise ValueError("pixel and counter liveness is checked after accepting the sample")
     if source.index('"action-drain",\n      orbitBeforeClick.sha256') > source.index(
@@ -326,8 +341,8 @@ def validate_delivery_sources(
         raise ValueError("producer must sample left and middle GHOST press counters")
     if source.count('readArg("_bw_input_button_release_count"') != 2:
         raise ValueError("producer must sample left and middle GHOST release counters")
-    if source.count("wmInputDeliveryComplete(") != 5:
-        raise ValueError("producer must enforce WM-queue delivery for all five drains")
+    if source.count("wmInputDeliveryComplete(") != 4:
+        raise ValueError("producer must enforce WM-queue delivery for all four drains")
     for token in (
         'keyPresses: read("_bw_input_key_press_count")',
         'keyReleases: read("_bw_input_key_release_count")',
@@ -533,8 +548,8 @@ def self_check(
         ),
         replace_once(
             source,
-            '"isolated-selection-drain",',
-            '"isolated-selection-skipped",',
+            '"isolated-selection-replay-drain",',
+            '"isolated-selection-replay-skipped",',
         ),
         replace_once(
             source,
@@ -543,8 +558,13 @@ def self_check(
         ),
         replace_once(
             source,
-            'selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)',
+            'selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)',
             'selectionComplete: true',
+        ),
+        replace_once(
+            source,
+            'retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained',
+            'retainedReplayExercised: true',
         ),
         replace_once(
             source,

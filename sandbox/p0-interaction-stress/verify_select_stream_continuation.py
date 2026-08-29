@@ -141,17 +141,27 @@ def validate(sources: dict[str, str]) -> None:
     for token in (
         'const stateOnlyDiagnostic = process.env.BW_P0_STATE_ONLY === "1";',
         'throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic")',
-        "const nativeSelectionComplete = (current, baseline) =>",
+        "const nativeSelectionReplayComplete = (current, baseline) =>",
+        "const selectionContinuationRetired = (current, baseline) =>",
         "from bpy_extras import view3d_utils",
         '"cube_window_xy":[round(region.x+projection.x,3),round(region.y+projection.y,3)]',
         "const nativeCubePagePoint = (current, canvasBox) =>",
         "selectionPoint = nativeCubePagePoint(selectionBaseline, box);",
         "await page.mouse.click(selectionPoint.x, selectionPoint.y);",
-        '"isolated-selection-drain"',
-        "current, selectionInputBaseline, {left: 1, middle: 0, keys: 0}",
-        "current, selectionWmInputBaseline, {left: 1, middle: 0, keys: 0}",
-        "(current) => nativeSelectionComplete(current, selectionBaseline),",
-        "selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)",
+        'const selectionReplayWindow = await sample("isolated-selection-replay-window");',
+        '"isolated-selection-replay-drain"',
+        "current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}",
+        "current, selectionWmInputBaseline, {left: 1, middle: 1, keys: 0}",
+        "(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&",
+        "selectionContinuationRetired(current, selectionBaseline)",
+        "current.selectionContinuation.replayedEvents >",
+        "selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)",
+        "selectionReplayRequired =\n      selectionReplayWindow.selectionContinuation.gpuSessions >",
+        "(!selectionReplayRequired ||",
+        "selectionInputWasRetained =\n      selectionDrain.selectionContinuation.replayedEvents >",
+        "retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained",
+        "selectionReplayRequired,",
+        "\n    selectionInputWasRetained,\n",
         "view3dRotateRetired(current, rotateBaseline, expectedRotates)",
         "selectionReadbackFailureLines: consoleLines.filter(",
         "evidence.selectionReadbackFailureLines.length !== 0",
@@ -162,15 +172,15 @@ def validate(sources: dict[str, str]) -> None:
     require(producer, "/WebGPU selection (?:readback failed|continuation canceled)/.test(line)", 2)
     require(
         producer,
-        "(current) => nativeSelectionComplete(current, selectionBaseline),\n"
-        "      drainTimeoutMs,\n      true,",
+        "(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&\n"
+        "        selectionContinuationRetired(current, selectionBaseline) &&",
     )
     if not (
         producer.index('"isolated-orbit-drain"')
-        < producer.index('"isolated-selection-drain"')
-        < producer.index('"isolated-recovery-orbit"')
+        < producer.index('"isolated-selection-replay-window"')
+        < producer.index('"isolated-selection-replay-drain"')
     ):
-        raise ValueError("slow/sparse producer lost exact orbit -> selection -> orbit order")
+        raise ValueError("slow/sparse producer lost exact orbit -> selection -> retained-orbit order")
 
     for path in (
         "source/blender/draw/intern/DRW_gpu_wrapper.hh",
@@ -278,17 +288,27 @@ def self_check(sources: dict[str, str]) -> None:
             "selectionPoint = nativeCubePagePoint(selectionBaseline, box);",
             "selectionPoint = center;",
         ),
-        ("producer", '"isolated-selection-drain"', '"selection-drain-bypassed"'),
         (
             "producer",
-            "(current) => nativeSelectionComplete(current, selectionBaseline),\n"
-            "      drainTimeoutMs,\n      true,",
-            "(current) => true,\n      drainTimeoutMs,\n      false,",
+            '"isolated-selection-replay-drain"',
+            '"selection-replay-drain-bypassed"',
         ),
         (
             "producer",
-            "selectionComplete: nativeSelectionComplete(selectionDrain, selectionBaseline)",
+            "(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&\n"
+            "        selectionContinuationRetired(current, selectionBaseline) &&",
+            "(current) => true &&\n"
+            "        selectionContinuationRetired(current, selectionBaseline) &&",
+        ),
+        (
+            "producer",
+            "selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)",
             "selectionComplete: true",
+        ),
+        (
+            "producer",
+            "retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained",
+            "retainedReplayExercised: true",
         ),
         ("producer", "view3dRotateRetired(current, rotateBaseline, expectedRotates)", "true"),
         ("producer", "evidence.selectionReadbackFailureLines.length !== 0", "false"),

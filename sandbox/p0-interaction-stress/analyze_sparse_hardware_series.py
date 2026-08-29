@@ -203,9 +203,16 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
                 SHA256.fullmatch(step["sha256"]) is not None,
                 f"focused step pixel SHA-256 is invalid: {step.get('name')}")
     by_name = {step["name"]: step for step in steps}
+    deselected = by_name["deselect-all"]
     baseline = by_name["isolated-orbit-drain"]
     navigation = by_name["isolated-selection-navigation-passthrough"]
     final = by_name["isolated-selection-drain"]
+    require(baseline["sha256"] != deselected["sha256"],
+            "first isolated orbit did not change pixels")
+    require(navigation["sha256"] != baseline["sha256"],
+            "pending-selection navigation did not change pixels")
+    require(final["sha256"] != baseline["sha256"],
+            "replayed transform tail did not change pixels")
     require(final.get("selectionDrawValidation", {}).get("pending") == 0,
             "selection validation remained pending after the drain")
     continuation = final.get("selectionContinuation")
@@ -306,7 +313,11 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
             "wmMiddleReleases": 0, "wmKeyPresses": 0, "wmKeyReleases": 0,
         },
     }
-    steps = [copy.deepcopy(dict(base_step, name=name)) for name in sorted(REQUIRED_STEPS)]
+    steps = [copy.deepcopy(dict(
+        base_step,
+        name=name,
+        sha256=hashlib.sha256(f"pixels-{name}".encode()).hexdigest(),
+    )) for name in sorted(REQUIRED_STEPS)]
     by_name = {step["name"]: step for step in steps}
     by_name["isolated-selection-navigation-passthrough"]["selectionContinuation"].update(
         {"active": 1, "replayedEvents": 0}
@@ -404,6 +415,18 @@ def self_check() -> None:
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-selection-drain")[
                               "selectionContinuation"].__setitem__("replayedEvents", 0),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-orbit-drain").__setitem__(
+                              "sha256", next(step for step in docs[0]["steps"]
+                                             if step["name"] == "deselect-all")["sha256"]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-navigation-passthrough").__setitem__(
+                              "sha256", next(step for step in docs[0]["steps"]
+                                             if step["name"] == "isolated-orbit-drain")["sha256"]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-drain").__setitem__(
+                              "sha256", next(step for step in docs[0]["steps"]
+                                             if step["name"] == "isolated-orbit-drain")["sha256"]),
         lambda docs: docs[0].__setitem__("selectionReadbackFailureLines", ["failed"]),
         lambda docs: docs[0]["drainTimelines"].__setitem__(
             "isolated-selection-navigation-passthrough", []),

@@ -3893,7 +3893,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   censuses were rejected rather than counted. Focused mutation checks and REUSE 2,823/2,823 are
   green. Direct M4 remains Apple-pixel RED and pinned-oracle regression restores M0 6/6 while
   preserving every named later boundary. This binds software stability only and does not close
-  P0-I/J.
+  P0-I/J. **Async-modal sibling pass-through candidate implemented/relinked/pending Apple
+  (`8e5df79`, patch 0319):** the return-code audit now covers screenshot readback plus 3D-cursor,
+  view-center, zoom-border, and NDOF depth continuations. Each non-owned event returns bare
+  pass-through so later WM handlers receive it; only the continuation's private timer retains
+  running-modal ownership. The cursor invoke path's deliberate click-drag combination and the
+  navigation continuation's owned queued-event replay remain intact. Fail-first/final mutation
+  contracts, all five sibling suites, five production Wasm objects, canonical replay, locked
+  relink/no-work/preflight, and REUSE are green. The exact isolated-X slow/sparse product control
+  passed live pending-selection navigation, Cube selection, and independent recovery in
+  329/3,936/6,821 ms with zero page/lifecycle errors. RELINKED CAPTURE `.wasm.orig` is
+  `79c4a0f9edf4` (119,031,231 bytes); JS/Wasm/data/manifest are
+  `bba3f480bb3b`/`bc9a997ed19a`/`095d0ba748c3`/`6e3b16ececcb`. Direct M4 remains Apple-pixel RED;
+  pinned-oracle regression restores M0 6/6 and preserves every named later boundary. This closes
+  the source sibling audit, not P0-I/J: the driver must still pass exact Apple 10/10 plus the same-
+  generation P0-E/zero-artifact gauntlet. See
+  `notes/p0-async-modal-event-passthrough-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

@@ -756,3 +756,60 @@ barrier admission; admitted greater than presented locates it between admitted W
 clean surface transaction; matching terminal/admitted/presented with stale native state or pixels
 locates it downstream. No hardware receipt, profile, result, promise, tolerance, golden, blacklist,
 deferral, APPLY/public bundle, tag, or launch claim changed.
+
+## Bind queue admission to completed Blender WM dispatch
+
+The driver-provided `b326a3be` screenshots are real retained pixels, but their filesystem times
+also establish that every sample was taken only 344-408 ms after the previous one. The labeled
+Numpad4 frame is byte-identical to the preceding Camera frame even though later selection frames
+advance. That evidence proves a substantial worker/render backlog at the filed cadence; the rapid
+producer's existing 12-second terminal/native-state decision remains the authority for separating
+backlog from a permanent freeze.
+
+Source tracing found one remaining false-localization seam in that producer. The admitted counter
+advanced when `GHOST_SystemWeb::processEvents()` pushed a synthetic `GHOST_kEventWindowUpdate` into
+GHOST's queue. It did not prove `ghost_event_proc()` consumed the event. Presentation then sampled
+the latest admitted atomic directly, so an unrelated later surface transaction could publish that
+generation even if the intended WindowUpdate had not crossed Blender's consumer.
+
+Commit `9942dd9` carries the exact input generation in a web-owned WindowUpdate event and installs a
+small GHOST consumer on the first `processEvents()` call. Blender registers its WM consumer before
+that call, and `GHOST_EventManager` dispatches consumers in registration order, so the new monotonic
+dispatched edge advances only after Blender's WM callback has returned. `presentBackbuffer()` now
+snapshots dispatched rather than admitted state. The browser exposes the new counter, bounded logs
+record it, and the rapid producer requires terminal, admitted, dispatched, and cleanly presented
+generations all to cross the terminal edge. Redraw policy, the resize-only episode/barrier, receipt
+criteria, and hardware adapter rules are unchanged.
+
+The contract failed first on the absent dispatched predicate
+(`ledger/buildlogs/20260829T004747-3599335.log`). Final mutation/source checks, real Wasm GHOST
+objects, and the integrated native/wasm32 WebGPU/GHOST suite are green
+(`20260829T005213-3604552`, `20260829T005740-3608240`, and
+`20260829T005740-3608241`). The exact fallback preserves all five immediate retained frames, then
+drains after 6,579 ms with terminal/admitted/dispatched/presented `49/49/49/49`; its independent
+orbit repaints after 1,412 ms at `62/62/62/62`. Button/key edges are balanced, the held mask is zero,
+the resize episode remains 1, and page/lifecycle errors are empty
+(`ledger/buildlogs/20260829T005411-3605481.log`). This is software-adapter diagnostic evidence only.
+
+CAPTURE preflight, the hardware-gauntlet and pinned capture-profile self-checks, and REUSE 6.2.0 are
+green (`20260829T005630-3607651`, `20260829T005630-3607643`,
+`20260829T005644-3607836`, and `20260829T005656-3607959`). Exact product identities are:
+
+- `blender_browser.js`: `06505f5705bf` (709,920 bytes)
+- `blender_browser.wasm`: `64151db95d30` (120,336,944 bytes)
+- `blender_browser.wasm.orig`: `31c7a6bab76a` (118,988,169 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `e49feeebb96c` (13,812 bytes)
+
+The CAPTURE relink and committed-state locked no-work proof are
+`ledger/buildlogs/20260829T005241-3604751.log` and
+`ledger/buildlogs/20260829T005835-3609942.log`. Direct M4 remains honestly RED at the unsupported
+Apple-pixel binding (`20260829T005500-3606111`); the pinned-container regression restores M0 6/6
+while every later tier retains its named strict/APPLY/product boundary
+(`20260829T005537-3606633`).
+
+P0-I/J remain open. The exact Apple discriminator now localizes terminal greater than admitted to
+the resize barrier, admitted greater than dispatched to GHOST/WM dispatch, dispatched greater than
+presented to surface validation/presentation, and matching generations with stale Blender state or
+pixels downstream of all three. No hardware receipt, profile, result, promise, tolerance, golden,
+blacklist, deferral, APPLY/public bundle, tag, or launch claim changed.

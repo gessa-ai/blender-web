@@ -3528,7 +3528,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `f396b0ea7950` (118,987,372 bytes). Apple must run this exact generation: terminal > admitted
   locates the loss at the barrier, admitted > presented locates it between WM admission and clean
   surface presentation, and matching generations with stale native state/pixels puts the defect
-  downstream. P0-I/J remain open. See
+  downstream. **WM-dispatch discriminator implemented/relinked (`9942dd9`):** admitted previously
+  meant only that `processEvents()` pushed a synthetic WindowUpdate; a later unrelated frame could
+  sample that generation without proving Blender's WM consumer ever processed the event. Each web
+  WindowUpdate now owns its input generation, and a GHOST consumer installed after Blender's WM
+  consumer publishes a distinct monotonic dispatched edge. Surface validation carries only that
+  dispatched edge, and the rapid producer requires terminal/admitted/dispatched/presented in order.
+  The exact fallback retains the five 350 ms samples, then drains in 6,579 ms at `49/49/49/49` and
+  repaints an independent orbit in 1,412 ms at `62/62/62/62`, with balanced input and zero page/
+  lifecycle errors. Exact CAPTURE `.wasm.orig` is `31c7a6bab76a` (118,988,169 bytes). Apple must run
+  this generation: admitted > dispatched isolates GHOST/WM dispatch; dispatched > presented
+  isolates surface presentation; matching generations with stale native state/pixels places the
+  loss downstream. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -21,9 +21,11 @@ queued actions behind an unchanged canvas. The producer therefore records truste
 worker-side GHOST press/release counters, plus a held-button mask that must return to zero. Within
 12 seconds on hardware, the complete terminal MMB/G/click edge sequence must reach GHOST, Blender's
 modal stack must drain, pixels must change, and WM-tick, presentation, and input-retry counters must
-advance. The hardware verdict also requires native state proving that the click selected Cube, the
-second orbit changed the view rotation, and the confirmed `G` changed Cube location. One independent
-recovery orbit must then change rotation again without moving Cube. (The software-only fallback
+advance. The input-tail evidence distinguishes queue admission, dispatch after Blender's WM event
+consumer, and clean surface presentation; each boundary must reach the last terminal input
+generation. The hardware verdict also requires native state proving that the click selected Cube,
+the second orbit changed the view rotation, and the confirmed `G` changed Cube location. One
+independent recovery orbit must then change rotation again without moving Cube. (The software-only fallback
 allows 30 seconds because SwiftShader validation is substantially slower and does not bind the
 hardware-only GPU-pick/state predicate.) It reports
 whether the rapid action frames were identical without treating identity alone as failure. Page or

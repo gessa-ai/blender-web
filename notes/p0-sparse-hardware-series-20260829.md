@@ -46,6 +46,14 @@ Apple hardware and the same-generation P0-E/broader acceptance gauntlet is green
   `ledger/buildlogs/20260829T141600-45762.log`
 - REUSE 6.2.0:
   `ledger/buildlogs/20260829T141600-45764.log`
+- committed-state REUSE, direct M4, and authoritative container regression:
+  `ledger/buildlogs/20260829T141942-49024.log`,
+  `ledger/buildlogs/20260829T142006-49179.log`, and
+  `ledger/buildlogs/20260829T142015-49259.log`
+
+The direct M4 gate remains red at the named Apple browser-pixel boundary. The container regression
+restores M0 6/6 and keeps M1-M8 red at their named strict-receipt, hardware-pixel, deferred-Wasm,
+render-suite, APPLY/bundle, and product-receipt boundaries; it does not create a completion claim.
 
 ## Exact-product controls
 

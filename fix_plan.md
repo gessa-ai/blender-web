@@ -3866,7 +3866,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   rejected; the isolated-X rerun exercised the live pending-selection route, passed navigation,
   completed selection, and selected Cube without product errors. This remains device-free evidence:
   P0-I/J stay open for Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
-  `notes/p0-selection-unrelated-event-passthrough-20260829.md`.
+  `notes/p0-selection-unrelated-event-passthrough-20260829.md`. **Repeated software stability
+  verified/pending Apple:** the unchanged product completed 10/10 fresh isolated-X slow/sparse
+  runs. Every run required and observed live pending-selection navigation pass-through, completed
+  action/selection/recovery, selected Cube, and ended with zero page/lifecycle errors; action,
+  selection, and independent-recovery drains were 325-429/2,505-4,715/6,938-8,722 ms. One bounded
+  pre-browser Xvfb launcher hang was rejected rather than counted. Focused mutation checks and
+  REUSE 2,821/2,821 remain green. This binds software stability only and does not close P0-I/J.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

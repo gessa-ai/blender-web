@@ -47,6 +47,23 @@ are unchanged.
 - REUSE 6.2.0 is green for 2,820/2,820 files at
   `ledger/buildlogs/20260829T165302-152371.log`.
 
+### Repeated software stability
+
+The unchanged exact CAPTURE product then completed 10/10 fresh isolated-X slow/sparse runs. Every
+run required and observed the live pending-selection navigation pass-through, completed the native
+action/selection/recovery gates, selected exactly Cube, retired the selection modal, and finished
+with zero page or browser-lifecycle errors. Action drain was 325-429 ms, selection completion was
+2,505-4,715 ms, and the independent recovery orbit completed in 6,938-8,722 ms. The accepted logs
+are `ledger/buildlogs/20260829T170545-161018.log` through
+`ledger/buildlogs/20260829T171136-166582.log`.
+
+One earlier Xvfb launcher never created a browser process, exceeded its bounded startup, and left
+an empty `ledger/buildlogs/20260829T170049-158015.log`; it is rejected rather than counted. Fresh
+navigation/unrelated-event, stream-continuation, and sync-stage mutation checks are green at
+`ledger/buildlogs/20260829T171315-167409.log` through
+`ledger/buildlogs/20260829T171315-167414.log`. REUSE 6.2.0 remains green for 2,821/2,821 files at
+`ledger/buildlogs/20260829T171510-169633.log`.
+
 ## Exact candidate and boundary
 
 Implementation commit is `a3dd47b`. The relinked CAPTURE inventory is JS

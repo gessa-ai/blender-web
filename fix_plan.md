@@ -3705,8 +3705,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   and exact slow/sparse software controls are green. RELINKED CAPTURE `.wasm.orig` is
   `c22cc2e373d5` (119,001,697 bytes); the control selects Cube and retires both orbits with zero
   selection-fallback/page/lifecycle errors. P0-I/J remain open for this exact inventory to pass
-  Apple 10/10 and the same-generation composed P0-E gauntlet. See
-  `notes/p0-selection-failure-nonmodal-20260829.md`.
+  Apple 10/10 and the same-generation composed P0-E gauntlet. **External-cancel replay hardened/
+  relinked/pending hardware (`da29c42`, patch 0310):** teardown audit found the registered WM
+  `cancel` callback was the only terminal selection-continuation path that freed its retained input
+  FIFO without replaying it first. It now restores that FIFO through the existing same-manager/
+  window guard before releasing the timer and GPU sessions. The fail-first/final 20-mutation
+  contract, native/Wasm editor compiles, canonical replay, CAPTURE preflight, adjacent selection
+  contracts, exact slow/sparse software control, and REUSE are green. RELINKED CAPTURE `.wasm.orig`
+  is `63e188ba4232` (119,001,717 bytes); the control selects Cube and retires both orbits with zero
+  selection-fallback/page/lifecycle errors. This closes one input-loss teardown seam, not the Apple
+  pixel gate: P0-I/J remain open for exact Apple 10/10 plus the same-generation P0-E gauntlet. See
+  `notes/p0-selection-failure-nonmodal-20260829.md` and
+  `notes/p0-selection-cancel-replay-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

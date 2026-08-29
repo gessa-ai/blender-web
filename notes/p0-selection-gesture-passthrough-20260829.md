@@ -42,6 +42,26 @@ timeout; the stale 240-timer expectation no longer masks this source check.
   `ledger/buildlogs/20260829T172831-178486.log`; the first orbit, selection drain, and independent
   recovery completed in 414/4,643/7,220 ms with no product failure.
 
+### Repeated software stability
+
+The unchanged exact CAPTURE product completed 10/10 fresh slow/sparse software runs. Six ran under
+WSLg and four under fresh isolated Xvfb servers. Every accepted run required and observed live
+pending-selection navigation pass-through, selected exactly `Cube`, retired both viewport rotates
+and the selection continuation, and recorded zero selection-readback, page, or lifecycle errors.
+First-orbit drain was 313-437 ms, selection completion was 2,395-5,029 ms, and the independent
+recovery orbit completed in 6,862-8,409 ms. Accepted evidence is
+`ledger/buildlogs/20260829T173858-186790.log` through
+`ledger/buildlogs/20260829T174721-194956.log`.
+
+Four additional WSLg attempts closed their target page/context externally with empty page-error
+and selection-failure censuses; they are rejected rather than counted. Their logs are
+`20260829T174014-187726`, `20260829T174209-189763`, `20260829T174321-191291`, and
+`20260829T174437-192282`. Fresh navigation, stream-continuation, and sync-stage mutation checks are
+green at `20260829T174908-196406`, `196407`, and `196412`. Pinned REUSE 6.2.0 covers
+2,823/2,823 files at `20260829T174920-196533`. Direct M4 remains red only at the unchanged
+Apple/browser-pixel binding (`20260829T175036-196977`); pinned-oracle regression restores M0 6/6
+while preserving every named later boundary (`20260829T175044-197079`).
+
 Implementation commit is `7c0971b`. The relinked CAPTURE inventory is JS
 `bba3f480bb3b`, Wasm `48ef66fc238d`, `.wasm.orig` `104bc1579a91` (119,031,221 bytes), data
 `095d0ba748c3`, and split manifest `059d3bd3a8dd`.

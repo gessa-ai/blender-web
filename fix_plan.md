@@ -3884,7 +3884,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   manifest are `bba3f480bb3b`/`48ef66fc238d`/`095d0ba748c3`/`059d3bd3a8dd`. This source/device-free
   closure does not close P0-I/J: the exact generation still requires Apple 10/10 plus the same-
   generation P0-E/zero-artifact gauntlet. See
-  `notes/p0-selection-gesture-passthrough-20260829.md`.
+  `notes/p0-selection-gesture-passthrough-20260829.md`. **Repeated software stability verified/
+  pending Apple:** the unchanged product completed 10/10 fresh slow/sparse runs across six WSLg
+  and four isolated-X passes. Every accepted run exercised live pending-selection navigation
+  pass-through, selected exactly Cube, retired both rotates and the selection continuation, and
+  recorded zero selection-readback/page/lifecycle errors; action, selection, and recovery drains
+  were 313-437/2,395-5,029/6,862-8,409 ms. Four external WSLg target closures with empty error
+  censuses were rejected rather than counted. Focused mutation checks and REUSE 2,823/2,823 are
+  green. Direct M4 remains Apple-pixel RED and pinned-oracle regression restores M0 6/6 while
+  preserving every named later boundary. This binds software stability only and does not close
+  P0-I/J.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

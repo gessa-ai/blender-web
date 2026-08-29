@@ -3573,7 +3573,17 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   input, episode 1, and zero page/lifecycle errors. CAPTURE `.wasm.orig` is
   `f6a096b53f13` (118,990,678 bytes). This is diagnostic provenance, not a redraw-policy change or
   a software pixel receipt; Apple must run this exact generation and the composed 10/10 gauntlet.
-  P0-I/J remain open. See
+  **Content-stage miss classifier implemented/relinked (`1355506`):** a clean surface validation
+  that still lacks the strict input-content receipt now emits one bounded line per distinct stage
+  transition, including the exact input/terminal/trace generations, completeness mask, draw counts,
+  and background/grid/display/last-pass identities. The six mask bits are derived from the unchanged
+  strict predicate, so this adds diagnosis without accepting a weaker frame. Native/wasm32 behavior
+  covers background-only `0x09` and complete `0x3f`; source mutations remove the predicate or miss
+  line fail closed. The exact fallback replay converges at terminal/admitted/dispatched/presented/
+  content `49/49/49/49/49` and recovery `62/62/62/62/62`, with no miss line on its successful path.
+  CAPTURE `.wasm.orig` is `e5629d6d0867` (118,991,633 bytes). Apple must run this generation: a
+  timeout's first `content-miss` line now distinguishes absent background, grid, display, ordering,
+  or trace-generation provenance in one hardware pass. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

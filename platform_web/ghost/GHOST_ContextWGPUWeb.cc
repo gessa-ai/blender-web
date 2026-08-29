@@ -117,6 +117,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_admitted_count(void)
   return double(ghost_web::input_redraw_admitted_count());
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_presented_count(void)
+{
+  return double(ghost_web::input_redraw_presented_count());
+}
+
 /* Proxied-callback delivery evidence for the rapid-input freeze diagnostic. Button ordinals are
  * GHOST_TButton values (left=0, middle=1, right=2, ...). Counts advance only when the WM worker's
  * tracked state changes; the mask exposes a terminal press whose matching release never arrived. */
@@ -1148,6 +1153,8 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint32_t requested_height = requested_height_;
   const uint32_t backbuffer_width = backbuffer_w_;
   const uint32_t backbuffer_height = backbuffer_h_;
+  const uint64_t input_redraw_admitted_generation =
+      ghost_web::input_redraw_admitted_count();
   if (validate_transaction) {
     present_settlement_.begin();
   }
@@ -1228,6 +1235,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            requested_height,
            backbuffer_width,
            backbuffer_height,
+           input_redraw_admitted_generation,
            validate_transaction](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
               const bool retry_after_settlement =
@@ -1350,6 +1358,24 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
                   ghost_web::note_viewport_content_presented(redraw_trace, redraw_trace_episode))
               {
                 std::printf("WGPUWeb: validated VIEW_3D content presented\n");
+              }
+              if (input_redraw_admitted_generation != 0u &&
+                  ghost_web::note_input_redraw_presented(input_redraw_admitted_generation))
+              {
+                const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
+                static uint32_t input_redraw_presented_log_count = 0;
+                if (terminal_generation != 0u &&
+                    input_redraw_admitted_generation >= terminal_generation &&
+                    input_redraw_presented_log_count < 64)
+                {
+                  std::printf("[bw] GHOST-input-redraw presented input=%llu terminal=%llu "
+                              "present=%llu\n",
+                              static_cast<unsigned long long>(
+                                  input_redraw_admitted_generation),
+                              static_cast<unsigned long long>(terminal_generation),
+                              static_cast<unsigned long long>(ghost_web::present_count() + 1u));
+                  input_redraw_presented_log_count++;
+                }
               }
               /* ghost-keepalive advances only after the submission scope completes cleanly. */
               ghost_web::note_present();

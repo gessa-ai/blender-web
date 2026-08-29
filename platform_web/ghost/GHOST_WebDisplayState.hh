@@ -219,6 +219,7 @@ inline std::atomic<uint64_t> redraw_retry_counter{0};
 inline std::atomic<uint64_t> input_redraw_retry_counter{0};
 inline std::atomic<uint64_t> input_redraw_terminal_generation{0};
 inline std::atomic<uint64_t> input_redraw_admitted_generation{0};
+inline std::atomic<uint64_t> input_redraw_presented_generation{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
 
@@ -427,6 +428,28 @@ inline void note_input_redraw_admitted(const uint64_t input_generation)
 inline uint64_t input_redraw_admitted_count()
 {
   return input_redraw_admitted_generation.load(std::memory_order_acquire);
+}
+
+/** Latest admitted input-tail generation carried by a clean surface presentation. */
+inline bool note_input_redraw_presented(const uint64_t input_generation)
+{
+  uint64_t presented = input_redraw_presented_generation.load(std::memory_order_relaxed);
+  while (presented < input_generation) {
+    if (input_redraw_presented_generation.compare_exchange_weak(
+            presented,
+            input_generation,
+            std::memory_order_release,
+            std::memory_order_relaxed))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline uint64_t input_redraw_presented_count()
+{
+  return input_redraw_presented_generation.load(std::memory_order_acquire);
 }
 
 /**

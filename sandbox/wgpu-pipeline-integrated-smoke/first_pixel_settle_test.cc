@@ -119,6 +119,32 @@ int main()
     return 1;
   }
 
+  const uint64_t first_presented_input = ghost_web::request_input_redraw_retry();
+  ghost_web::note_input_redraw_terminal(first_presented_input);
+  ghost_web::note_input_redraw_admitted(first_presented_input);
+  if (!require(ghost_web::input_redraw_terminal_count() == first_presented_input &&
+                   ghost_web::input_redraw_admitted_count() == first_presented_input,
+               "terminal input publishes an admitted WM redraw generation") ||
+      !require(ghost_web::note_input_redraw_presented(first_presented_input) &&
+                   ghost_web::input_redraw_presented_count() == first_presented_input,
+               "a clean surface submit publishes its admitted input generation"))
+  {
+    return 1;
+  }
+  const uint64_t second_presented_input = ghost_web::request_input_redraw_retry();
+  ghost_web::note_input_redraw_terminal(second_presented_input);
+  ghost_web::note_input_redraw_admitted(second_presented_input);
+  if (!require(ghost_web::note_input_redraw_presented(second_presented_input) &&
+                   ghost_web::input_redraw_presented_count() == second_presented_input,
+               "a newer clean surface submit advances input presentation") ||
+      !require(!ghost_web::note_input_redraw_presented(first_presented_input) &&
+                   !ghost_web::note_input_redraw_presented(second_presented_input) &&
+                   ghost_web::input_redraw_presented_count() == second_presented_input,
+               "late and duplicate submit callbacks cannot regress input presentation"))
+  {
+    return 1;
+  }
+
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t episode_generation_seen = ghost_web::redraw_episode_generation();
@@ -780,8 +806,9 @@ int main()
       "present_settlement=coalesced-wm-retry "
       "present_telemetry=suppressed-wm-replayed "
       "input_delivery=balanced-mask "
+      "input_presentation=monotonic "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 81 ? 0 : 1;
+  return checks == 85 ? 0 : 1;
 }

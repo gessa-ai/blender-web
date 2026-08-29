@@ -162,7 +162,9 @@ def validate_delivery_sources(
         "inline void input_redraw_trace_note(",
         "inline RedrawTraceSnapshot input_redraw_trace_snapshot()",
         "inline bool input_redraw_content_trace_complete(",
+        "inline uint32_t input_redraw_content_trace_stage_mask(",
         "inline bool note_input_redraw_content_presented(",
+        "return input_redraw_content_trace_stage_mask(trace, input_generation) == 0x3fu;",
         "input_redraw_content_presented_generation.compare_exchange_weak(",
         "inline uint64_t input_redraw_content_presented_count()",
     ):
@@ -251,6 +253,10 @@ def validate_delivery_sources(
         "ghost_web::note_input_redraw_content_presented(",
         '"[bw] GHOST-input-redraw presented input=%llu terminal=%llu "',
         '"[bw] GHOST-input-redraw content input=%llu terminal=%llu "',
+        '"[bw] GHOST-input-redraw content-miss input=%llu terminal=%llu "',
+        '"trace=%llu available=%d stages=0x%02x "',
+        '"draws=%llu offscreen=%llu window=%llu "',
+        '"background=%llu/%d grid=%llu/%d display=%llu/%d last=%llu/%d "',
         '"frame-bound=1 present=%llu\\n"',
     ):
         require_once(context_source, token)
@@ -563,6 +569,16 @@ def self_check(
             context_source,
             "input_redraw_trace.input_redraw_generation == input_redraw_frame_generation",
             "input_redraw_trace.input_redraw_generation != input_redraw_frame_generation",
+        )),
+        (source, replace_once(
+            display,
+            "return input_redraw_content_trace_stage_mask(trace, input_generation) == 0x3fu;",
+            "return input_redraw_content_trace_stage_mask(trace, input_generation) != 0x3fu;",
+        ), system_header, system_source, event_bridge, context_source),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            '"[bw] GHOST-input-redraw content-miss input=%llu terminal=%llu "',
+            '"[bw] GHOST-input-redraw content-unknown input=%llu terminal=%llu "',
         )),
     )
     delivery_rejected = 0

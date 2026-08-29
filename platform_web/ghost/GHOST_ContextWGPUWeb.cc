@@ -1174,6 +1174,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint64_t input_redraw_frame_generation =
       input_redraw_frame_provenance_.generation_for_present(
           barrier_redraw_trace_available ? barrier_redraw_trace.input_redraw_generation : 0u);
+  const uint64_t input_redraw_terminal_generation = ghost_web::input_redraw_terminal_count();
   const ghost_web::RedrawTraceSnapshot input_redraw_trace =
       ghost_web::input_redraw_trace_snapshot();
   const bool input_redraw_trace_available =
@@ -1259,6 +1260,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            backbuffer_width,
            backbuffer_height,
            input_redraw_frame_generation,
+           input_redraw_terminal_generation,
            input_redraw_trace_available,
            input_redraw_trace,
            validate_transaction](const bool valid) {
@@ -1424,6 +1426,58 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
                                   input_redraw_trace.frame_window_draw_count),
                               static_cast<unsigned long long>(ghost_web::present_count() + 1u));
                   input_redraw_content_log_count++;
+                }
+              }
+              const uint32_t input_redraw_content_stages =
+                  ghost_web::input_redraw_content_trace_stage_mask(
+                      input_redraw_trace, input_redraw_frame_generation);
+              if (input_redraw_frame_generation != 0u &&
+                  input_redraw_terminal_generation != 0u &&
+                  input_redraw_frame_generation >= input_redraw_terminal_generation &&
+                  ghost_web::input_redraw_content_presented_count() <
+                      input_redraw_frame_generation &&
+                  (!input_redraw_trace_available || input_redraw_content_stages != 0x3fu))
+              {
+                static uint64_t input_redraw_content_miss_input = 0;
+                static uint64_t input_redraw_content_miss_trace = 0;
+                static uint32_t input_redraw_content_miss_stages = 0;
+                static uint32_t input_redraw_content_miss_log_count = 0;
+                if (input_redraw_content_miss_log_count < 64 &&
+                    (input_redraw_content_miss_input != input_redraw_frame_generation ||
+                     input_redraw_content_miss_trace !=
+                         input_redraw_trace.input_redraw_generation ||
+                     input_redraw_content_miss_stages != input_redraw_content_stages))
+                {
+                  input_redraw_content_miss_input = input_redraw_frame_generation;
+                  input_redraw_content_miss_trace = input_redraw_trace.input_redraw_generation;
+                  input_redraw_content_miss_stages = input_redraw_content_stages;
+                  std::printf(
+                      "[bw] GHOST-input-redraw content-miss input=%llu terminal=%llu "
+                      "trace=%llu available=%d stages=0x%02x "
+                      "draws=%llu offscreen=%llu window=%llu "
+                      "background=%llu/%d grid=%llu/%d display=%llu/%d last=%llu/%d "
+                      "present=%llu\n",
+                      static_cast<unsigned long long>(input_redraw_frame_generation),
+                      static_cast<unsigned long long>(input_redraw_terminal_generation),
+                      static_cast<unsigned long long>(
+                          input_redraw_trace.input_redraw_generation),
+                      input_redraw_trace_available ? 1 : 0,
+                      input_redraw_content_stages,
+                      static_cast<unsigned long long>(input_redraw_trace.frame_draw_count),
+                      static_cast<unsigned long long>(
+                          input_redraw_trace.frame_offscreen_draw_count),
+                      static_cast<unsigned long long>(
+                          input_redraw_trace.frame_window_draw_count),
+                      static_cast<unsigned long long>(input_redraw_trace.background.sequence),
+                      input_redraw_trace.background.window_target ? 1 : 0,
+                      static_cast<unsigned long long>(input_redraw_trace.grid.sequence),
+                      input_redraw_trace.grid.window_target ? 1 : 0,
+                      static_cast<unsigned long long>(input_redraw_trace.display.sequence),
+                      input_redraw_trace.display.window_target ? 1 : 0,
+                      static_cast<unsigned long long>(input_redraw_trace.last.sequence),
+                      input_redraw_trace.last.window_target ? 1 : 0,
+                      static_cast<unsigned long long>(ghost_web::present_count() + 1u));
+                  input_redraw_content_miss_log_count++;
                 }
               }
               /* ghost-keepalive advances only after the submission scope completes cleanly. */

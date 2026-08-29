@@ -197,7 +197,10 @@ int main()
       ghost_web::input_redraw_trace_snapshot();
   if (!require(!ghost_web::input_redraw_content_trace_complete(
                    input_content_trace, later_dispatched_input),
-               "a background-only input frame cannot certify scene content"))
+               "a background-only input frame cannot certify scene content") ||
+      !require(ghost_web::input_redraw_content_trace_stage_mask(
+                   input_content_trace, later_dispatched_input) == 0x09u,
+               "the incomplete trace mask identifies generation plus background only"))
   {
     return 1;
   }
@@ -207,6 +210,9 @@ int main()
   if (!require(ghost_web::input_redraw_content_trace_complete(
                    input_content_trace, later_dispatched_input),
                "background, grid, and final display complete the exact input frame") ||
+      !require(ghost_web::input_redraw_content_trace_stage_mask(
+                   input_content_trace, later_dispatched_input) == 0x3fu,
+               "the complete trace mask retains every strict input-content stage") ||
       !require(ghost_web::note_input_redraw_content_presented(
                    input_content_trace, later_dispatched_input) &&
                    ghost_web::input_redraw_content_presented_count() == later_dispatched_input,
@@ -921,5 +927,5 @@ int main()
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 96 ? 0 : 1;
+  return checks == 98 ? 0 : 1;
 }

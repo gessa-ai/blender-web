@@ -665,20 +665,50 @@ inline bool viewport_content_trace_complete(const RedrawTraceSnapshot &trace,
          trace.display.sequence > trace.grid.sequence;
 }
 
+/**
+ * Compact diagnostic for the exact stages required by input_redraw_content_trace_complete().
+ * Bits are generation, frame shape, frame order, background, grid, and final display respectively.
+ * Keeping the mask derived from the acceptance predicate lets a hardware miss identify the
+ * absent stage without logging every retry frame or weakening the strict content receipt.
+ */
+inline uint32_t input_redraw_content_trace_stage_mask(const RedrawTraceSnapshot &trace,
+                                                      const uint64_t input_generation)
+{
+  uint32_t stages = 0u;
+  if (input_generation != 0u && trace.input_redraw_generation == input_generation) {
+    stages |= 1u << 0;
+  }
+  if (trace.frame_draw_count >= 3u && trace.frame_offscreen_draw_count >= 2u &&
+      trace.frame_window_draw_count > 0u)
+  {
+    stages |= 1u << 1;
+  }
+  if (trace.frame_first_offscreen_sequence > 0u &&
+      trace.frame_last_window_sequence > trace.frame_first_offscreen_sequence &&
+      trace.frame_last_window_sequence == trace.last.sequence)
+  {
+    stages |= 1u << 2;
+  }
+  if (trace.background.sequence != 0u && trace.background.window_target == false) {
+    stages |= 1u << 3;
+  }
+  if (trace.grid.sequence != 0u && trace.grid.window_target == false) {
+    stages |= 1u << 4;
+  }
+  if (trace.background.sequence < trace.display.sequence &&
+      trace.grid.sequence < trace.display.sequence && trace.display.window_target == true)
+  {
+    stages |= 1u << 5;
+  }
+  return stages;
+}
+
 /** A post-input frame is content-complete only when the exact dispatched generation encoded the
  * same background/grid/final-display shape used by loader and resize admission. */
 inline bool input_redraw_content_trace_complete(const RedrawTraceSnapshot &trace,
                                                 const uint64_t input_generation)
 {
-  return input_generation != 0u && trace.input_redraw_generation == input_generation &&
-         trace.frame_draw_count >= 3u && trace.frame_offscreen_draw_count >= 2u &&
-         trace.frame_window_draw_count > 0u && trace.frame_first_offscreen_sequence > 0u &&
-         trace.frame_last_window_sequence > trace.frame_first_offscreen_sequence &&
-         trace.frame_last_window_sequence == trace.last.sequence &&
-         trace.background.sequence != 0u && trace.background.window_target == false &&
-         trace.grid.sequence != 0u && trace.grid.window_target == false &&
-         trace.background.sequence < trace.display.sequence &&
-         trace.grid.sequence < trace.display.sequence && trace.display.window_target == true;
+  return input_redraw_content_trace_stage_mask(trace, input_generation) == 0x3fu;
 }
 
 inline bool note_input_redraw_content_presented(const RedrawTraceSnapshot &trace,

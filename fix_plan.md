@@ -3733,7 +3733,13 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   isolated orbits. RELINKED CAPTURE `.wasm.orig` is `0c3eda918085` (119,001,878 bytes). P0-I/J
   remain open for this exact inventory to pass Apple 10/10 plus the same-generation P0-E gauntlet;
   no hardware receipt, profile, APPLY/public bundle, tag, result, promise, or launch claim changed.
-  See `notes/p0-selection-validation-boundary-20260829.md`.
+  See `notes/p0-selection-validation-boundary-20260829.md`. **Exact-generation software stability
+  verified/pending hardware:** the unchanged candidate then completed 10/10 fresh isolated-X
+  slow/sparse runs. Every run retired both isolated orbits, selected exactly Cube, and recorded
+  zero validation failures, selection fallbacks, page errors, or lifecycle errors. Validation
+  pending peaked at 19 and returned to zero; selection drained in 10,429-15,451 ms. This binds only
+  repeatable software behavior: the exact Apple 10/10 and same-generation P0-E gauntlet remain
+  mandatory, and no runtime byte or product claim changed.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

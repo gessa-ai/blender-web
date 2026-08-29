@@ -42,6 +42,36 @@ retired with changed native state and pixels. That is useful diagnosis, not hard
   `ledger/buildlogs/20260829T103124-4070731.log` and
   `ledger/buildlogs/20260829T103217-4071311.log`
 
+## Repeated software stability
+
+The unchanged exact CAPTURE generation completed 10/10 fresh isolated-X slow/sparse runs. Every
+run retired the first orbit, selected exactly Cube through Blender's projected viewport point, and
+retired an independent recovery orbit. First-orbit drain was 329-440 ms, selection drain was
+10,429-15,451 ms, and recovery-orbit drain was 558-2,426 ms. Selection validation peaked at 19
+pending tickets, returned to zero in every run, and recorded zero failures. The series also had
+zero selection-fallback lines, page errors, or lifecycle errors. Its wrapped logs are:
+
+- `ledger/buildlogs/20260829T104235-4078521.log`
+- `ledger/buildlogs/20260829T104324-4079674.log`
+- `ledger/buildlogs/20260829T104405-4080184.log`
+- `ledger/buildlogs/20260829T104445-4080640.log`
+- `ledger/buildlogs/20260829T104528-4081126.log`
+- `ledger/buildlogs/20260829T104609-4082251.log`
+- `ledger/buildlogs/20260829T104648-4082687.log`
+- `ledger/buildlogs/20260829T104728-4083187.log`
+- `ledger/buildlogs/20260829T104809-4083672.log`
+- `ledger/buildlogs/20260829T104848-4084792.log`
+
+This establishes repeatable software behavior and a clean discriminator baseline only. The adapter
+was rejected as fallback in every run, so none of these pixels bind the Apple acceptance gate.
+The 82-mutation producer self-check, exact CAPTURE preflight, and pinned REUSE 6.2.0 remain green:
+`ledger/buildlogs/20260829T105110-4086309.log`,
+`ledger/buildlogs/20260829T105110-4086311.log`, and
+`ledger/buildlogs/20260829T105127-4086452.log`. Required M4 remains red at the unchanged
+`browser_pixels` boundary (`ledger/buildlogs/20260829T105127-4086453.log`). Authoritative
+container-backed regression restores M0 6/6 green while M1-M8 retain their named strict receipt,
+hardware, APPLY, and product boundaries (`ledger/buildlogs/20260829T105239-4087208.log`).
+
 ## Exact candidate and closure bar
 
 - implementation commit: `e2bac4a`

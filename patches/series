@@ -1224,3 +1224,6 @@
 # 0306: never accept a cleared selection readback from an attempt that synchronously dropped a
 # first-use browser draw; retry the exact pick after a later resource-readiness edge.
 0306-gpu-webgpu-select-draw-retry.patch
+# 0307: keep a selection draw fail-closed across every late synchronous pre-encode exit, so an
+# untouched cleared pick buffer cannot masquerade as a genuine empty result.
+0307-gpu-webgpu-select-draw-admission.patch

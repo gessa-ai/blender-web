@@ -32119,10 +32119,10 @@ index 0000000000000000000000000000000000000000..17b18463d26c0a577fc808d5da150ca8
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_batch.cc b/source/blender/gpu/webgpu/wgpu_batch.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14629bbf8a
+index 0000000000000000000000000000000000000000..7386fdd7d06aa6a023e42b80f6ee0200c10fc343
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_batch.cc
-@@ -0,0 +1,1073 @@
+@@ -0,0 +1,1147 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -32142,7 +32142,9 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +
 +#include "wgpu_batch.hh"
 +
++#include <atomic>
 +#include <cstdint>
++#include <cstdio>
 +#include <vector>
 +
 +#include "wgpu_buffer.hh"
@@ -32159,6 +32161,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +#include "gpu_state_private.hh"
 +
 +#include "BLI_assert.h"
++#include "BKE_global.hh"
 +
 +#ifdef __EMSCRIPTEN__
 +#  include "GHOST_WebDisplayState.hh"
@@ -32184,6 +32187,64 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +  ghost_web::note_redraw_drop();
 +#endif
 +}
++
++/**
++ * A select-next result starts from a cleared output buffer, so every valid selection batch must
++ * reach its draw command before that clear can be interpreted as a genuine miss. Keep this guard
++ * armed across every synchronous pre-encode exit that is not otherwise classified as a pending
++ * module, pipeline, or binding. Ordinary draws and native builds remain untouched.
++ */
++class SelectionDrawAdmission {
++ public:
++  explicit SelectionDrawAdmission(WGPUShader *shader)
++  {
++#ifdef __EMSCRIPTEN__
++    shader_ = shader;
++    armed_ = shader != nullptr && (G.f & G_FLAG_PICKSEL) != 0;
++#else
++    (void)shader;
++#endif
++  }
++
++  ~SelectionDrawAdmission()
++  {
++#ifdef __EMSCRIPTEN__
++    if (!armed_) {
++      return;
++    }
++    note_webgpu_draw_drop();
++    static std::atomic<uint32_t> log_count{0};
++    if (log_count.fetch_add(1u, std::memory_order_relaxed) < 128u) {
++      std::printf("[bw] WGPUWeb-select-draw-drop shader=%s stage=%s\n",
++                  shader_->name_get().c_str(),
++                  stage_);
++    }
++#endif
++  }
++
++  void stage(const char *stage)
++  {
++#ifdef __EMSCRIPTEN__
++    stage_ = stage;
++#else
++    (void)stage;
++#endif
++  }
++
++  void admit()
++  {
++#ifdef __EMSCRIPTEN__
++    armed_ = false;
++#endif
++  }
++
++ private:
++#ifdef __EMSCRIPTEN__
++  WGPUShader *shader_ = nullptr;
++  const char *stage_ = "module";
++  bool armed_ = false;
++#endif
++};
 +
 +static wgpu::ComputePipeline triangle_fan_index_pipeline(WGPUContext &ctx)
 +{
@@ -32384,6 +32445,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +  if (fb == nullptr || shader == nullptr) {
 +    return;
 +  }
++  SelectionDrawAdmission selection_draw_admission(shader);
 +  /* Browser module validation can still be pending after finalize(). Retry from the retained
 +   * WGSL, but never expose a provisional/error module to pipeline creation. */
 +  if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
@@ -32392,6 +32454,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +    note_webgpu_draw_drop();
 +    return;
 +  }
++  selection_draw_admission.stage("geometry");
 +
 +  /* Collect ALL vertex buffers (a Blender mesh/overlay batch spreads a shader's inputs
 +   * across several verts[] slots) and upload each. Recorded by verts[] slot so the plan's
@@ -32535,7 +32598,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +                                                               draw_index_format);
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
-+
++  selection_draw_admission.stage("pipeline");
 +  wgpu::RenderPipeline pipeline = ctx->batch_pipeline_pool_get().get(
 +      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
@@ -32633,6 +32696,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +    if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
 +      return;
 +    }
++    selection_draw_admission.stage("render-pass");
 +
 +    for (int layer = 0; layer < layers; layer++) {
 +      for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
@@ -32729,6 +32793,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +                             draw_parameters.instance_first);
 +              }
 +              fb->debug_note_draw(shader->name_get().c_str());
++              selection_draw_admission.admit();
 +              mv_pass.End();
 +              return true;
 +            },
@@ -32759,6 +32824,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
 +    return;
 +  }
++  selection_draw_admission.stage("render-pass");
 +
 +  wgpu::Device device = ctx->device_get();
 +  const auto load_action = fb->load_action_transaction();
@@ -32817,6 +32883,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +                    draw_parameters.instance_first);
 +        }
 +        fb->debug_note_draw(shader->name_get().c_str());
++        selection_draw_admission.admit();
 +        pass.End();
 +        return true;
 +      },
@@ -32859,12 +32926,14 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +  if (fb == nullptr || shader == nullptr) {
 +    return;
 +  }
++  SelectionDrawAdmission selection_draw_admission(shader);
 +  if (!shader->ensure_shader_modules(ctx->instance_get(), ctx->device_get()) ||
 +      shader->vertex_module() == nullptr || shader->fragment_module() == nullptr)
 +  {
 +    note_webgpu_draw_drop();
 +    return;
 +  }
++  selection_draw_admission.stage("geometry");
 +
 +  WGPUStorageBuffer *indirect = static_cast<WGPUStorageBuffer *>(indirect_buf);
 +  const webgpu::Buffer &indirect_gpu = indirect->buffer();
@@ -32943,6 +33012,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +      indexed ? wibo->index_format() : wgpu::IndexFormat::Undefined);
 +  info.flip_y = !ctx->is_window_backbuffer(fb);
 +
++  selection_draw_admission.stage("pipeline");
 +  wgpu::RenderPipeline pipeline = ctx->batch_pipeline_pool_get().get(
 +      ctx->instance_get(), ctx->device_get(), info);
 +  if (pipeline == nullptr) {
@@ -33051,6 +33121,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +    if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
 +      return;
 +    }
++    selection_draw_admission.stage("render-pass");
 +
 +    for (int layer = 0; layer < layers; layer++) {
 +      for (int vp = 0; vp < GPU_MAX_VIEWPORTS; vp++) {
@@ -33124,6 +33195,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +              mv_pass.SetBindGroup(0, mv_bind_group);
 +              issue_indirect_draws(mv_pass);
 +              fb->debug_note_draw(shader->name_get().c_str());
++              selection_draw_admission.admit();
 +              mv_pass.End();
 +              return true;
 +            },
@@ -33154,6 +33226,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +  if (!shader->bind_group_entries_complete(entries, pending_bindings)) {
 +    return;
 +  }
++  selection_draw_admission.stage("render-pass");
 +
 +  const auto load_action = fb->load_action_transaction();
 +  std::function<void(bool)> load_action_completion;
@@ -33189,6 +33262,7 @@ index 0000000000000000000000000000000000000000..c2a9cf69133a511c2a1ea1f51b903e14
 +        }
 +        issue_indirect_draws(pass);
 +        fb->debug_note_draw(shader->name_get().c_str());
++        selection_draw_admission.admit();
 +        pass.End();
 +        return true;
 +      },

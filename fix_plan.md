@@ -3661,7 +3661,21 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   selection-readback errors. Selection took 9,944-15,164 ms on cold software and exercised 36
   selectable shader-cache misses each time. This binds software retry stability only: the Apple
   10/10 pixel and same-generation gauntlet gates are unchanged. See
-  `notes/p0-selection-draw-retry-software-stability-20260829.md`.
+  `notes/p0-selection-draw-retry-software-stability-20260829.md`. **Selection draw admission
+  hardened/relinked/pending hardware (patch 0307):** the retry signal still covered only named
+  module/pipeline deferrals; direct and indirect batch draws could return later while resolving
+  geometry, bind groups, load actions, or render passes without changing the generation that
+  protects the cleared pick buffer. A browser-only `G_FLAG_PICKSEL` admission guard now remains
+  armed across every synchronous pre-encode exit and disarms only after a real direct or indirect
+  draw command is encoded. Ordinary draws and native builds are unchanged. The nine-mutation
+  source/model contract, canonical replay, integrated native/wasm32 suite, real CAPTURE relink,
+  locked no-work, product preflight, and REUSE are green. The exact slow/sparse software control
+  selects Cube and retires its two isolated orbits in 317/12,165/1,878 ms with zero page,
+  lifecycle, or selection-readback errors; bounded diagnostics census the expected first-use
+  module/pipeline exits. RELINKED CAPTURE `.wasm.orig` is `a42be64bbc1c` (118,997,196 bytes).
+  This is fail-closed hardening and software diagnosis, not pixel closure: the driver still must
+  pass this exact inventory 10/10 on Apple and compose it with the same-generation P0-E gauntlet.
+  See `notes/p0-selection-draw-admission-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

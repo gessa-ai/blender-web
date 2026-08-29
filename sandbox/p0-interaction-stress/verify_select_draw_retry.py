@@ -92,7 +92,7 @@ def validate_source(sources: dict[str, str]) -> None:
     require(vertex, "buffer_.create_for_draw_scope(", 2)
     require(index, "buffer_.create_for_draw_scope(", 2)
     for source, expected_calls in (
-        (batch, 5),
+        (batch, 6),
         (immediate, 2),
         (backend, 2),
         (framebuffer, 2),

@@ -108,6 +108,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_view3d_rotate_retirement.py --self-check
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_stream_continuation.py --self-check
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_select_draw_admission.py
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir BW_P0_SPARSE=1 \

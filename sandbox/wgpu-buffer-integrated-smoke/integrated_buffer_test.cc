@@ -13,8 +13,10 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
+#include <functional>
 #include <limits>
 #include <utility>
+#include <vector>
 
 #include "wgpu_buffer.hh"
 #include "wgpu_pixel_buffer.hh"
@@ -155,6 +157,21 @@ struct ReadbackCommandTrace {
   int submits = 0;
   int scope_pushes = 0;
   int scope_pops = 0;
+  int submission_notifications = 0;
+  int map_starts = 0;
+  bool defer_scopes = false;
+  std::vector<std::function<void()>> deferred_scopes;
+
+  void settle_deferred_scopes()
+  {
+    while (!deferred_scopes.empty()) {
+      std::vector<std::function<void()>> callbacks = std::move(deferred_scopes);
+      deferred_scopes.clear();
+      for (std::function<void()> &callback : callbacks) {
+        callback();
+      }
+    }
+  }
 };
 
 class ReadbackCommandBufferProbe {
@@ -224,10 +241,17 @@ class ReadbackDeviceProbe {
                         group == 0) ||
                        (trace_->failure == ReadbackCommandTrace::Failure::SubmissionScope &&
                         group == 1);
-    std::forward<Callback>(callback)(wgpu::PopErrorScopeStatus::Success,
-                                     error ? wgpu::ErrorType::Validation :
-                                             wgpu::ErrorType::NoError,
-                                     wgpu::StringView{});
+    auto settle = [callback = std::forward<Callback>(callback), error]() mutable {
+      callback(wgpu::PopErrorScopeStatus::Success,
+               error ? wgpu::ErrorType::Validation : wgpu::ErrorType::NoError,
+               wgpu::StringView{});
+    };
+    if (trace_->defer_scopes) {
+      trace_->deferred_scopes.emplace_back(std::move(settle));
+    }
+    else {
+      settle();
+    }
     return trace_->scope_pops;
   }
 
@@ -280,16 +304,23 @@ bool readback_command_transaction_contract()
     bw::OrderedQueueScheduler scheduler;
     bool result = false;
     int completion_count = 0;
-    bw::command_encode_submit_scoped(instance,
-                                     device,
-                                     queue,
-                                     scheduler,
-                                     nullptr,
-                                     [](auto &encoder) { encoder.Copy(); },
-                                     [&](const bool valid) {
-                                       result = valid;
-                                       completion_count++;
-                                     });
+    bw::command_encode_submit_scoped_with_submit(
+        instance,
+        device,
+        queue,
+        scheduler,
+        nullptr,
+        [](auto &encoder) { encoder.Copy(); },
+        [&](const bool submitted) {
+          trace.submission_notifications++;
+          if (submitted) {
+            trace.map_starts++;
+          }
+        },
+        [&](const bool valid) {
+          result = valid;
+          completion_count++;
+        });
 
     const bool expect_success = failure == ReadbackCommandTrace::Failure::None;
     const int expect_copy = failure == ReadbackCommandTrace::Failure::Encoder ? 0 : 1;
@@ -318,6 +349,9 @@ bool readback_command_transaction_contract()
         !require(trace.copies == expect_copy, "readback copy ordering") ||
         !require(trace.finishes == expect_finish, "readback finish ordering") ||
         !require(trace.submits == expect_submit, "readback submit ordering") ||
+        !require(trace.submission_notifications == 1,
+                 "readback submission notification count") ||
+        !require(trace.map_starts == expect_submit, "readback map-start ordering") ||
         !require(trace.scope_pushes == expect_scope_groups * 3,
                  "readback scope push ordering") ||
         !require(trace.scope_pops == expect_scope_groups * 3,
@@ -328,8 +362,65 @@ bool readback_command_transaction_contract()
     }
   }
 
+  ReadbackCommandTrace deferred_trace;
+  deferred_trace.defer_scopes = true;
+  const ReadbackDeviceProbe deferred_device(deferred_trace);
+  const ReadbackQueueProbe deferred_queue(deferred_trace);
+  const ReadbackInstanceProbe deferred_instance;
+  bw::OrderedQueueScheduler deferred_scheduler;
+  bool deferred_result = false;
+  int deferred_completion_count = 0;
+  bw::command_encode_submit_scoped_with_submit(
+      deferred_instance,
+      deferred_device,
+      deferred_queue,
+      deferred_scheduler,
+      "deferred readback",
+      [](auto &encoder) { encoder.Copy(); },
+      [&](const bool submitted) {
+        deferred_trace.submission_notifications++;
+        if (submitted) {
+          deferred_trace.map_starts++;
+        }
+      },
+      [&](const bool valid) {
+        deferred_result = valid;
+        deferred_completion_count++;
+      });
+
+#ifdef __EMSCRIPTEN__
+  if (!require(deferred_trace.submits == 1, "browser deferred submit is same-turn") ||
+      !require(deferred_trace.map_starts == 1, "browser deferred map start is same-turn") ||
+      !require(deferred_completion_count == 0,
+               "browser deferred validation remains unsettled"))
+  {
+    return false;
+  }
+#else
+  if (!require(deferred_trace.submits == 0, "native deferred submit waits for validation") ||
+      !require(deferred_trace.map_starts == 0, "native deferred map waits for submission") ||
+      !require(deferred_completion_count == 0,
+               "native deferred validation remains unsettled"))
+  {
+    return false;
+  }
+#endif
+  deferred_trace.settle_deferred_scopes();
+  if (!require(deferred_trace.submits == 1, "deferred readback eventually submits") ||
+      !require(deferred_trace.submission_notifications == 1,
+               "deferred readback notifies once") ||
+      !require(deferred_trace.map_starts == 1, "deferred readback maps once") ||
+      !require(deferred_result, "deferred readback validates") ||
+      !require(deferred_completion_count == 1, "deferred readback completes once") ||
+      !require(deferred_scheduler.pending_count() == 0,
+               "deferred readback scheduler settles"))
+  {
+    return false;
+  }
+
   std::printf("CONTRACT readback-command PASS cases=%zu copies=4 "
-              "submit_policy=native-validated/browser-same-turn scopes=complete completion=once\n",
+              "submit_policy=native-validated/browser-same-turn "
+              "map_policy=after-submit/browser-same-turn scopes=complete completion=once\n",
               failures.size());
   return true;
 }

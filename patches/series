@@ -1239,3 +1239,6 @@
 # 0311: expose read-only GPU/readback/modal/replay stages for the sparse selection continuation,
 # so one hardware timeout identifies the retained-input boundary without another policy guess.
 0311-view3d-web-selection-continuation-telemetry.patch
+# 0312: register selection-buffer MapAsync in the browser submission turn, but publish bytes only
+# after both mapping and asynchronous command validation settle successfully.
+0312-gpu-webgpu-select-readback-same-turn-map.patch

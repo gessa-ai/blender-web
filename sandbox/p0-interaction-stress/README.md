@@ -120,6 +120,8 @@ harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_draw_admission.py
 harness/buildwrap.sh .host-tools/bin/python3.13 \
   sandbox/p0-interaction-stress/verify_select_draw_validation.py
+harness/buildwrap.sh .host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/verify_select_readback_same_turn.py --self-check
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir \
   harness/buildwrap.sh node sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123
 DISPLAY=:0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir BW_P0_SPARSE=1 \
@@ -270,3 +272,9 @@ retained input in order and emits one bounded console diagnostic, which this pro
 it does not populate the operator report list: Blender turns any such report into a popup that can
 capture all later input and recreate the apparent total freeze. Native selection reports retain
 their existing behavior.
+
+`verify_select_readback_same_turn.py` binds the browser-only lifetime seam between queue submission
+and mapping the selection staging buffer. The copy submit remains synchronous in the calling
+JavaScript turn; `MapAsync` is registered immediately after that submit instead of waiting behind
+asynchronous error-scope settlement. Mapped bytes remain private until both mapping and command
+validation succeed, so the ordering fix cannot publish a rejected cleared selection result.

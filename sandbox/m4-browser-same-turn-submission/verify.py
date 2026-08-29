@@ -79,7 +79,7 @@ def validate(sources: dict[str, str]) -> None:
     patch = sources["patch"]
     series = sources["series"]
 
-    command = function(common, "inline void command_encode_submit_scoped(")
+    command = function(common, "inline void command_encode_submit_scoped_with_submit(")
     command_browser = browser_branch(command, "command transaction")
     ordered(
         command_browser,
@@ -87,9 +87,10 @@ def validate(sources: dict[str, str]) -> None:
             "(void)scheduler;\n  webgpu_error_scopes_push(device);",
             "auto encoder = device.CreateCommandEncoder();",
             "command_buffer = encoder.Finish();",
-            "const bool submitted = handles_valid && queue != nullptr;",
-            "if (submitted) {\n    webgpu_error_scopes_push(device);",
+            "const bool did_submit = handles_valid && queue != nullptr;",
+            "if (did_submit) {\n    webgpu_error_scopes_push(device);",
             "queue.Submit(1, &command_buffer);",
+            "(*submission)(true);",
             "operation_label.empty() ? \"\" : operation_label + \" submission\"",
             "webgpu_error_scopes_pop(instance, device, encode_label, std::move(settle));",
         ),
@@ -114,6 +115,12 @@ def validate(sources: dict[str, str]) -> None:
         command_native.count("webgpu_error_scopes_push(device);") == 2 and
         command_native.count("webgpu_error_scopes_pop(") == 2,
         "native command scopes no longer bracket encode and submit",
+    )
+    command_wrapper = function(common, "inline void command_encode_submit_scoped(")
+    require_once(
+        command_wrapper,
+        "command_encode_submit_scoped_with_submit(",
+        "compact command wrapper",
     )
 
     write_buffer = function(common, "inline void queue_write_buffer_scoped(")
@@ -197,10 +204,10 @@ def mutate_once(source: str, old: str, new: str) -> str:
 def selfcheck(sources: dict[str, str]) -> int:
     validate(sources)
     mutations = (
-        ("common", "const bool submitted = handles_valid && queue != nullptr;", "const bool submitted = false;"),
+        ("common", "const bool did_submit = handles_valid && queue != nullptr;", "const bool did_submit = false;"),
         (
             "common",
-            "queue.Submit(1, &command_buffer);\n    /* Pop the nested submission scopes",
+            "queue.Submit(1, &command_buffer);\n    (*submission)(true);\n    /* Pop the nested submission scopes",
             "/* submission removed */\n    /* Pop the nested submission scopes",
         ),
         ("common", "webgpu_error_scopes_pop(instance, device, encode_label, std::move(settle));", ""),

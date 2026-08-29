@@ -34409,10 +34409,10 @@ index 0000000000000000000000000000000000000000..57c6972542d8f1b65bcf15be3ee41a13
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_common.hh b/source/blender/gpu/webgpu/wgpu_common.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db807cb7c1
+index 0000000000000000000000000000000000000000..71649450a8fad60f655bedb0e5948492b62a72bb
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_common.hh
-@@ -0,0 +1,2901 @@
+@@ -0,0 +1,2943 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -35506,22 +35506,28 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +  std::shared_ptr<State> state_ = std::make_shared<State>();
 +};
 +
-+/** Encode and submit one short-lived command buffer only after its validation scopes complete.
-+ * The ordered scheduler keeps later queue writes behind this pending submission. */
++/** Encode and submit one short-lived command buffer, reporting the exact queue-submission edge
++ * separately from its later validation result. Browser submission is synchronous in the calling
++ * turn; native submission remains ordered behind encoding validation. `submitted` is called once
++ * with true immediately after `Queue::Submit`, or once with false when no submit can occur. */
 +template<typename InstanceT,
 +         typename DeviceT,
 +         typename QueueT,
 +         typename EncodeFn,
++         typename SubmittedFn,
 +         typename CompleteFn>
-+inline void command_encode_submit_scoped(const InstanceT &instance,
-+                                         const DeviceT &device,
-+                                         const QueueT &queue,
-+                                         OrderedQueueScheduler &scheduler,
-+                                         const char *label,
-+                                         EncodeFn &&encode,
-+                                         CompleteFn &&complete)
++inline void command_encode_submit_scoped_with_submit(const InstanceT &instance,
++                                                     const DeviceT &device,
++                                                     const QueueT &queue,
++                                                     OrderedQueueScheduler &scheduler,
++                                                     const char *label,
++                                                     EncodeFn &&encode,
++                                                     SubmittedFn &&submitted,
++                                                     CompleteFn &&complete)
 +{
++  using SubmittedT = std::decay_t<SubmittedFn>;
 +  using CompleteT = std::decay_t<CompleteFn>;
++  const auto submission = std::make_shared<SubmittedT>(std::forward<SubmittedFn>(submitted));
 +  const auto completion = std::make_shared<CompleteT>(std::forward<CompleteFn>(complete));
 +  const std::string operation_label = label ? label : "";
 +  const std::string encode_label = operation_label.empty() ? "" : operation_label + " encoding";
@@ -35552,15 +35558,15 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +    handles_valid = command_buffer != nullptr;
 +  }
 +
-+  const bool submitted = handles_valid && queue != nullptr;
++  const bool did_submit = handles_valid && queue != nullptr;
 +  struct BrowserCommandResult {
 +    std::atomic<int> pending{0};
 +    std::atomic<bool> valid{true};
 +    std::shared_ptr<CompleteT> completion;
 +  };
 +  auto result = std::make_shared<BrowserCommandResult>();
-+  result->pending.store(submitted ? 2 : 1, std::memory_order_relaxed);
-+  result->valid.store(submitted, std::memory_order_relaxed);
++  result->pending.store(did_submit ? 2 : 1, std::memory_order_relaxed);
++  result->valid.store(did_submit, std::memory_order_relaxed);
 +  result->completion = completion;
 +  auto settle = [result](const bool scope_valid) {
 +    if (!scope_valid) {
@@ -35571,14 +35577,18 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +    }
 +  };
 +
-+  if (submitted) {
++  if (did_submit) {
 +    webgpu_error_scopes_push(device);
 +    queue.Submit(1, &command_buffer);
++    (*submission)(true);
 +    /* Pop the nested submission scopes before the enclosing encoding scopes. */
 +    webgpu_error_scopes_pop(instance,
 +                            device,
 +                            operation_label.empty() ? "" : operation_label + " submission",
 +                            settle);
++  }
++  else {
++    (*submission)(false);
 +  }
 +  webgpu_error_scopes_pop(instance, device, encode_label, std::move(settle));
 +#else
@@ -35614,6 +35624,7 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +       command_buffer = std::move(command_buffer),
 +       handles_valid,
 +       operation_label,
++       submission,
 +       completion](const bool encode_valid) mutable {
 +        ticket.resolve(
 +            [instance,
@@ -35622,14 +35633,17 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +             command_buffer = std::move(command_buffer),
 +             valid = handles_valid && encode_valid,
 +             operation_label,
++             submission,
 +             completion](std::function<void(bool)> done) mutable {
 +              if (!valid || queue == nullptr) {
++                (*submission)(false);
 +                (*completion)(false);
 +                done(false);
 +                return;
 +              }
 +              webgpu_error_scopes_push(device);
 +              queue.Submit(1, &command_buffer);
++              (*submission)(true);
 +              webgpu_error_scopes_pop(
 +                  instance,
 +                  device,
@@ -35639,9 +35653,37 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +                    done(submit_valid);
 +                  });
 +            },
-+            [completion]() { (*completion)(false); });
++            [submission, completion]() {
++              (*submission)(false);
++              (*completion)(false);
++            });
 +      });
 +#endif
++}
++
++/** Encode and submit one short-lived command buffer. Callers that only need the terminal
++ * validation result retain the original compact interface. */
++template<typename InstanceT,
++         typename DeviceT,
++         typename QueueT,
++         typename EncodeFn,
++         typename CompleteFn>
++inline void command_encode_submit_scoped(const InstanceT &instance,
++                                         const DeviceT &device,
++                                         const QueueT &queue,
++                                         OrderedQueueScheduler &scheduler,
++                                         const char *label,
++                                         EncodeFn &&encode,
++                                         CompleteFn &&complete)
++{
++  command_encode_submit_scoped_with_submit(instance,
++                                           device,
++                                           queue,
++                                           scheduler,
++                                           label,
++                                           std::forward<EncodeFn>(encode),
++                                           [](const bool /*submitted*/) {},
++                                           std::forward<CompleteFn>(complete));
 +}
 +
 +/** Encode a short-lived pass inside the same scoped, ordered command transaction. */
@@ -43550,10 +43592,10 @@ index 0000000000000000000000000000000000000000..9e38e923b56b90c771a3b28ce9d83adc
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_readback.cc b/source/blender/gpu/webgpu/wgpu_readback.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f02575d5381e1e0a77230179af28928657e7a513
+index 0000000000000000000000000000000000000000..6c670fe3e17c85e355337dbb2b44211175559c18
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_readback.cc
-@@ -0,0 +1,1062 @@
+@@ -0,0 +1,1146 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later
@@ -43997,13 +44039,20 @@ index 0000000000000000000000000000000000000000..f02575d5381e1e0a77230179af289286
 +  pending.texture_pin = wgpu::Texture(nullptr);
 +}
 +
-+void complete_pending(const std::shared_ptr<Pending> &pending, wgpu::MapAsyncStatus map_status)
++void complete_pending(const std::shared_ptr<Pending> &pending,
++                      wgpu::MapAsyncStatus map_status,
++                      const TicketError command_error = TicketError::None)
 +{
-+  TicketError completion_error = TicketError::None;
++  TicketError completion_error = command_error;
 +  std::vector<uint8_t> tight;
 +  bool publish_cache_redraw = false;
 +
-+  if (map_status != wgpu::MapAsyncStatus::Success) {
++  if (completion_error != TicketError::None) {
++    if (map_status == wgpu::MapAsyncStatus::Success) {
++      pending->staging.Unmap();
++    }
++  }
++  else if (map_status != wgpu::MapAsyncStatus::Success) {
 +    completion_error = TicketError::MapFailed;
 +  }
 +  else {
@@ -44188,6 +44237,92 @@ index 0000000000000000000000000000000000000000..f02575d5381e1e0a77230179af289286
 +  }
 +  release_exact_reservation_locked(reg, record);
 +  evict_cache_tickets_locked(reg);
++}
++
++/** Join the browser's same-turn map request with the command's later error-scope verdict.
++ * Mapping may finish first, but bytes remain private until both halves settle. */
++struct PendingCommandMapState {
++  explicit PendingCommandMapState(std::shared_ptr<Pending> pending) : pending(std::move(pending))
++  {
++  }
++
++  std::mutex mutex;
++  std::shared_ptr<Pending> pending;
++  bool submission_known = false;
++  bool submitted = false;
++  bool command_done = false;
++  bool command_valid = false;
++  bool map_done = false;
++  bool finalized = false;
++  wgpu::MapAsyncStatus map_status = wgpu::MapAsyncStatus::Error;
++};
++
++void pending_command_map_maybe_complete(const std::shared_ptr<PendingCommandMapState> &state)
++{
++  std::shared_ptr<Pending> pending;
++  bool submitted = false;
++  bool command_valid = false;
++  wgpu::MapAsyncStatus map_status = wgpu::MapAsyncStatus::Error;
++  {
++    std::lock_guard lock(state->mutex);
++    if (state->finalized || !state->submission_known || !state->command_done ||
++        (state->submitted && !state->map_done))
++    {
++      return;
++    }
++    state->finalized = true;
++    pending = state->pending;
++    submitted = state->submitted;
++    command_valid = state->command_valid;
++    map_status = state->map_status;
++  }
++
++  if (!submitted) {
++    fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
++    release_backend_handles(*pending);
++    return;
++  }
++  complete_pending(pending,
++                   map_status,
++                   command_valid ? TicketError::None : TicketError::CommandEncodingFailed);
++}
++
++void pending_command_map_submitted(const std::shared_ptr<PendingCommandMapState> &state,
++                                   const bool submitted)
++{
++  {
++    std::lock_guard lock(state->mutex);
++    state->submission_known = true;
++    state->submitted = submitted;
++  }
++  if (submitted) {
++    const std::shared_ptr<Pending> pending = state->pending;
++    pending->staging.MapAsync(
++        wgpu::MapMode::Read,
++        0,
++        pending->staging_size,
++        wgpu::CallbackMode::AllowSpontaneous,
++        [state](wgpu::MapAsyncStatus status, wgpu::StringView) {
++          {
++            std::lock_guard lock(state->mutex);
++            state->map_status = status;
++            state->map_done = true;
++          }
++          pending_command_map_maybe_complete(state);
++        });
++  }
++  pending_command_map_maybe_complete(state);
++}
++
++void pending_command_map_validated(const std::shared_ptr<PendingCommandMapState> &state,
++                                   const bool valid)
++{
++  {
++    std::lock_guard lock(state->mutex);
++    state->command_valid = valid;
++    state->command_done = true;
++  }
++  pending_command_map_maybe_complete(state);
 +}
 +
 +}  // namespace
@@ -44406,27 +44541,18 @@ index 0000000000000000000000000000000000000000..f02575d5381e1e0a77230179af289286
 +  }
 +  pending->staging = staging;
 +
-+  webgpu::command_encode_submit_scoped(
++  const auto command_map = std::make_shared<PendingCommandMapState>(pending);
++  webgpu::command_encode_submit_scoped_with_submit(
 +      instance,
 +      device,
 +      queue,
 +      scheduler,
 +      "buffer readback copy",
 +      [&](auto &encoder) { encoder.CopyBufferToBuffer(handle, offset, staging, 0, copy); },
-+      [pending, staging, copy](const bool valid) mutable {
-+        if (!valid) {
-+          fail_reserved_pending(pending, TicketError::CommandEncodingFailed);
-+          release_backend_handles(*pending);
-+          return;
-+        }
-+        staging.MapAsync(wgpu::MapMode::Read,
-+                         0,
-+                         copy,
-+                         wgpu::CallbackMode::AllowSpontaneous,
-+                         [pending](wgpu::MapAsyncStatus status, wgpu::StringView) {
-+                           complete_pending(pending, status);
-+                         });
-+      });
++      [command_map](const bool submitted) {
++        pending_command_map_submitted(command_map, submitted);
++      },
++      [command_map](const bool valid) { pending_command_map_validated(command_map, valid); });
 +  return pending->ticket;
 +}
 +
@@ -44618,10 +44744,10 @@ index 0000000000000000000000000000000000000000..f02575d5381e1e0a77230179af289286
 +}  // namespace blender::gpu::webgpu::readback
 diff --git a/source/blender/gpu/webgpu/wgpu_readback.hh b/source/blender/gpu/webgpu/wgpu_readback.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..ec9130e8af7919ff7d6f6a78ae3de3cdee24efaf
+index 0000000000000000000000000000000000000000..5421ff5c2a79c51289cd082d979dbeaef222b7fd
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_readback.hh
-@@ -0,0 +1,230 @@
+@@ -0,0 +1,232 @@
 +/* SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later
@@ -44789,11 +44915,13 @@ index 0000000000000000000000000000000000000000..ec9130e8af7919ff7d6f6a78ae3de3cd
 +                    RequestMode mode = RequestMode::Cache);
 +
 +/** KICK a buffer readback: `CopyBufferToBuffer(handle, offset, staging, 0, copy)` +
-+ * `MapAsync(AllowSpontaneous)`. `want` (<= copy) bytes are latched under `key` when the
-+ * map resolves. The underlying buffer handle is pinned in the record so its raw address
-+ * cannot be reused before its callback completes. Cache mode reuses an identical
-+ * in-flight key; exact mode always creates a new ticket and copy. `redraw_on_ready` lets an
-+ * abandoned cache caller request one bounded retry after successful settlement. */
++ * `MapAsync(AllowSpontaneous)`. On the browser, the map is registered in the same calling turn
++ * immediately after the copy submission; mapped bytes remain private until both the map and the
++ * command's asynchronous validation scopes settle successfully. `want` (<= copy) bytes are latched
++ * under `key` only after that join. The underlying buffer handle is pinned in the record so its raw
++ * address cannot be reused before its callback completes. Cache mode reuses an identical in-flight
++ * key; exact mode always creates a new ticket and copy. `redraw_on_ready` lets an abandoned cache
++ * caller request one bounded retry after successful settlement. */
 +Ticket kick_buffer(const wgpu::Instance &instance,
 +                   const wgpu::Device &device,
 +                   const wgpu::Queue &queue,
@@ -50387,10 +50515,10 @@ index 0000000000000000000000000000000000000000..1a67146d0c00f641b9c8550e21bc35cb
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_storage_buffer.cc b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ce9b721ef2336f83f13620ee9cef19e2fdecf62e
+index 0000000000000000000000000000000000000000..56b57d07abad480c40b50311fcca09b48dfdf758
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_storage_buffer.cc
-@@ -0,0 +1,362 @@
+@@ -0,0 +1,364 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -50433,6 +50561,8 @@ index 0000000000000000000000000000000000000000..ce9b721ef2336f83f13620ee9cef19e2
 +      return GPU_READBACK_ERROR_CAPACITY_EXCEEDED;
 +    case TicketError::StagingAllocationFailed:
 +      return GPU_READBACK_ERROR_ALLOCATION_FAILED;
++    case TicketError::CommandEncodingFailed:
++      return GPU_READBACK_ERROR_BACKEND_FAILURE;
 +    case TicketError::MapFailed:
 +      return GPU_READBACK_ERROR_MAP_FAILED;
 +    case TicketError::NoMappedRange:
@@ -50832,10 +50962,10 @@ index 0000000000000000000000000000000000000000..3d920e91ea0441fcc888af4325bd3219
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_texture.cc b/source/blender/gpu/webgpu/wgpu_texture.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8564227e4883ae8d81462e2f2b170b3e840bcc88
+index 0000000000000000000000000000000000000000..e83cd8ad712bb9aa259fb4b6a5c197222deb0a4c
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_texture.cc
-@@ -0,0 +1,2805 @@
+@@ -0,0 +1,2807 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -52047,6 +52177,8 @@ index 0000000000000000000000000000000000000000..8564227e4883ae8d81462e2f2b170b3e
 +      return GPU_READBACK_ERROR_CAPACITY_EXCEEDED;
 +    case readback::TicketError::StagingAllocationFailed:
 +      return GPU_READBACK_ERROR_ALLOCATION_FAILED;
++    case readback::TicketError::CommandEncodingFailed:
++      return GPU_READBACK_ERROR_BACKEND_FAILURE;
 +    case readback::TicketError::MapFailed:
 +      return GPU_READBACK_ERROR_MAP_FAILED;
 +    case readback::TicketError::NoMappedRange:

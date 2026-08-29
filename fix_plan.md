@@ -3607,7 +3607,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   proving that immediate identity alone is not a liveness verdict on this lane. No runtime byte or
   receipt changed. Apple must run this exact sparse discriminator; its timeout timeline now locates
   delivery vs WM vs surface vs content vs native-state/pixel loss before any seventh runtime patch.
-  P0-I/J remain open. See
+  **WM-worker focus/grab discriminator implemented/relinked (`3f2a13c`):** the sparse drain now also
+  requires browser focus active plus inactive pointer lock, disabled requested grab, and disabled
+  effective GHOST grab, read through shared atomics published only by the owning worker paths. The
+  exact fallback candidate reaches those settled values on both isolated orbits at generations
+  `29` and `40`; CAPTURE `.wasm.orig` is `61d81e10c406` (118,992,442 bytes). This is read-only
+  diagnosis, not an input/redraw fix or hardware closure. Apple must run this generation: stale
+  focus/grab state isolates worker callback retirement, while settled ownership with later stale
+  native state/pixels moves the defect downstream. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -1079,3 +1079,60 @@ retains its named strict/APPLY/product failures while pinned-container M0 is 6/6
 `ledger/buildlogs/20260829T035949-3760258.log`). P0-I/J remain open. The driver must run the sparse
 mode on Apple: if the second isolated orbit times out, its timeline will locate the first mismatch
 among delivery, admission, dispatch, surface validation, strict content, native state, and pixels.
+
+## Bind a sparse timeout to WM-worker focus and cursor ownership
+
+The slow/sparse producer still observed pointer-lock rejection and DOM focus only from browser-main.
+Neither proves that the proxied callback retired the WM worker's pending lock request, effective
+GHOST grab, or logical focus state. A retained Apple screenshot could therefore still leave two
+material explanations merged: downstream draw/present staleness, or an MMB grab whose worker-owned
+teardown never completed.
+
+Commit `3f2a13c` publishes four read-only, enum-sized shared atomics from the owning GHOST paths:
+browser focus, pointer-lock state, requested grab mode, and effective cursor-grab mode. The browser
+harness reads these through `EMSCRIPTEN_KEEPALIVE` exports; it never dereferences a worker-owned
+window object. Each isolated action drain now additionally requires the settled state
+`focus=1, lock=0, requested=0, grab=0`, and preserves all four values in every timeout sample. This
+changes diagnostic acceptance only: no input, pointer-lock, redraw, resource-readiness, surface,
+or present policy changed.
+
+The source contract failed first when the exports were absent
+(`ledger/buildlogs/20260829T041437-3771948.log`). Final source/syntax checks and the 69-mutation
+self-check are green (`ledger/buildlogs/20260829T042053-3777108.log`,
+`ledger/buildlogs/20260829T042053-3777109.log`,
+`ledger/buildlogs/20260829T042053-3777110.log`); the integrated native/wasm32 matrix is green
+(`ledger/buildlogs/20260829T042059-3777656.log`), as are the real shipping GHOST Wasm object compile
+and REUSE 6.2.0 (`ledger/buildlogs/20260829T041736-3775280.log`,
+`ledger/buildlogs/20260829T042020-3776851.log`).
+
+The committed-state CAPTURE relink and locked no-work replay are
+`ledger/buildlogs/20260829T042126-3779229.log` and
+`ledger/buildlogs/20260829T042239-3779792.log`. Exact product identities are:
+
+- `blender_browser.js`: `151a71ed6640` (710,608 bytes)
+- `blender_browser.wasm`: `280c86f2ed2a` (120,341,276 bytes)
+- `blender_browser.wasm.orig`: `61d81e10c406` (118,992,442 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `b8de2e8f46b2` (13,994 bytes)
+
+CAPTURE inventory, split identity, pinned profile-producer self-check, and composed hardware-
+gauntlet self-check are green (`ledger/buildlogs/20260829T042306-3780388.log`,
+`ledger/buildlogs/20260829T042306-3780396.log`,
+`ledger/buildlogs/20260829T042320-3780769.log`,
+`ledger/buildlogs/20260829T042505-3781732.log`). Three discarded invocations correctly failed before
+a product verdict: an unqualified absent `reuse` executable, system Node 25 instead of pinned Node
+22.16.0, and an empty repo-local browser cache; their corrected pinned invocations are the green
+logs above.
+
+The exact slow/sparse fallback control against the relinked bytes passes. The first isolated orbit
+drains in 326 ms at terminal/admitted/dispatched/presented/content `29/29/29/29/29`; the independent
+orbit drains in 1,951 ms at `40/40/40/40/40`. Both end with the worker state
+`focus=1, lock=0, requested=0, grab=0`, changed native rotation and pixels, and zero page/lifecycle
+errors (`ledger/buildlogs/20260829T042402-3781070.log`). This is software-adapter diagnostic evidence
+only. Direct M4 remains RED at the fresh Apple binding
+(`ledger/buildlogs/20260829T042511-3781769.log`), and aggregate regression retains the named
+CAPTURE-versus-APPLY/public-product boundaries
+(`ledger/buildlogs/20260829T042519-3781867.log`). P0-I/J remain open until Apple runs exact
+`61d81e10c406`: a nonzero worker grab/focus mismatch localizes the freeze to callback retirement;
+settled worker ownership with a later failed stage localizes it downstream without another policy
+guess.

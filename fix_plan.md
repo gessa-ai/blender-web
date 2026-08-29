@@ -3906,8 +3906,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `79c4a0f9edf4` (119,031,231 bytes); JS/Wasm/data/manifest are
   `bba3f480bb3b`/`bc9a997ed19a`/`095d0ba748c3`/`6e3b16ececcb`. Direct M4 remains Apple-pixel RED;
   pinned-oracle regression restores M0 6/6 and preserves every named later boundary. This closes
-  the source sibling audit, not P0-I/J: the driver must still pass exact Apple 10/10 plus the same-
-  generation P0-E/zero-artifact gauntlet. See
+  the source sibling audit, not P0-I/J. **Repeated software stability verified/pending Apple:** the
+  unchanged product then completed 10/10 fresh slow/sparse runs across two WSLg and eight isolated-
+  X sessions. Every accepted run required live pending-selection navigation pass-through, selected
+  exactly Cube, retired both isolated orbits and the selection continuation, and recorded zero
+  selection-readback/page/lifecycle errors; action/selection/recovery drains were
+  317-462/1,707-4,023/6,818-8,804 ms. One external WSLg target closure with an empty error census
+  was rejected rather than counted. Fresh focused mutation checks and REUSE 2,825/2,825 are green;
+  direct M4 remains Apple-pixel RED and pinned-oracle regression restores M0 6/6 while preserving
+  the named strict/hardware/APPLY/product boundaries. This binds software stability only: the
+  driver must still pass exact Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
   `notes/p0-async-modal-event-passthrough-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -51,6 +51,26 @@ does not actually let the next owner handle the event.
   live, Cube selection finished, and the independent recovery orbit completed in
   329/3,936/6,821 ms with zero page or lifecycle errors.
 
+### Repeated software stability
+
+The unchanged exact CAPTURE product subsequently completed 10/10 fresh slow/sparse software
+runs: two under WSLg and eight under fresh isolated X servers. Every accepted run required and
+observed live pending-selection navigation pass-through, completed both isolated orbits, selected
+exactly `Cube`, retired the selection continuation, and recorded zero selection-readback, page, or
+lifecycle errors. Action, selection, and independent-recovery drains were respectively
+317-462/1,707-4,023/6,818-8,804 ms. The accepted logs are
+`ledger/buildlogs/20260829T182142-221129.log`,
+`ledger/buildlogs/20260829T182230-221657.log`, and
+`ledger/buildlogs/20260829T182407-223328.log` through
+`ledger/buildlogs/20260829T182846-227977.log`. One intervening WSLg target/context closure had
+empty page-error and product-failure censuses and was rejected rather than counted
+(`ledger/buildlogs/20260829T182307-222760.log`).
+
+Fresh navigation/source mutation, selection-stream, and selection-sync-stage checks are green at
+`ledger/buildlogs/20260829T183052-229454.log` through
+`ledger/buildlogs/20260829T183052-229483.log`. Pinned REUSE 6.2.0 covers 2,825/2,825 files at
+`ledger/buildlogs/20260829T183245-230896.log`.
+
 ## Product identity and boundary
 
 The relinked CAPTURE inventory at `8e5df79` is JS `bba3f480bb3b`, Wasm
@@ -58,9 +78,9 @@ The relinked CAPTURE inventory at `8e5df79` is JS `bba3f480bb3b`, Wasm
 `095d0ba748c3`, and split manifest `6e3b16ececcb`.
 
 The software-adapter run is diagnostic only. Direct M4 remains red at the Apple browser-pixel
-binding (`ledger/buildlogs/20260829T181550-215466.log`), while pinned-oracle regression restores
+binding (`ledger/buildlogs/20260829T183103-229701.log`), while pinned-oracle regression restores
 M0 6/6 and preserves the named M1-M8 boundaries
-(`ledger/buildlogs/20260829T181617-215905.log`). P0-I/J remain open until this exact generation
+(`ledger/buildlogs/20260829T183107-229755.log`). P0-I/J remain open until this exact generation
 passes the driver's 10/10 slow/sparse Apple series plus the same-generation P0-E and zero-artifact
 gauntlet. No hardware receipt, profile, APPLY/public bundle, tag, release, promotion, promise,
 tolerance, golden, blacklist, deferral, or launch claim changes here.

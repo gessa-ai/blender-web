@@ -217,6 +217,8 @@ inline uint64_t immediate_dashed_stage_count(const uint32_t stage)
  */
 inline std::atomic<uint64_t> redraw_retry_counter{0};
 inline std::atomic<uint64_t> input_redraw_retry_counter{0};
+inline std::atomic<uint64_t> input_redraw_terminal_generation{0};
+inline std::atomic<uint64_t> input_redraw_admitted_generation{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
 
@@ -392,15 +394,39 @@ inline uint64_t redraw_retry_generation()
  * that tail without changing the hard-ceiling semantics of asynchronous resource publication.
  * The aggregate retry generation still advances for the browser diagnostic and immediate update.
  */
-inline void request_input_redraw_retry()
+inline uint64_t request_input_redraw_retry()
 {
-  input_redraw_retry_counter.fetch_add(1u, std::memory_order_release);
+  const uint64_t input_generation =
+      input_redraw_retry_counter.fetch_add(1u, std::memory_order_release) + 1u;
   redraw_retry_counter.fetch_add(1u, std::memory_order_release);
+  return input_generation;
 }
 
 inline uint64_t input_redraw_retry_generation()
 {
   return input_redraw_retry_counter.load(std::memory_order_acquire);
+}
+
+/** Latest accepted terminal input callback (button/key release or one complete wheel event). */
+inline void note_input_redraw_terminal(const uint64_t input_generation)
+{
+  input_redraw_terminal_generation.store(input_generation, std::memory_order_release);
+}
+
+inline uint64_t input_redraw_terminal_count()
+{
+  return input_redraw_terminal_generation.load(std::memory_order_acquire);
+}
+
+/** Latest input-tail generation carried by an admitted synthetic WM WindowUpdate. */
+inline void note_input_redraw_admitted(const uint64_t input_generation)
+{
+  input_redraw_admitted_generation.store(input_generation, std::memory_order_release);
+}
+
+inline uint64_t input_redraw_admitted_count()
+{
+  return input_redraw_admitted_generation.load(std::memory_order_acquire);
 }
 
 /**

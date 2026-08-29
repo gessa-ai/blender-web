@@ -48,6 +48,9 @@ def validate(source: str) -> None:
         "current.ticks > counterBaseline.ticks",
         "current.presents > counterBaseline.presents",
         "current.retries > counterBaseline.retries",
+        "current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal",
+        "current.inputRedraw.admitted >= current.inputRedraw.terminal",
+        "current.inputRedraw.episode === counterBaseline.inputRedraw.episode",
         "nativeDeliveryComplete(current)",
         "(!hardwareDiagnostic || nativeStateComplete(current))",
         'operator === "WM_OT_bwp0r_input_probe"',
@@ -88,6 +91,7 @@ def validate(source: str) -> None:
         "nativeStates: failureContext?.nativeStates || []",
         "retained.length === 5 ? new Set(retained).size === 1 : null",
         "eventTail: (failureContext?.consoleLines || [])",
+        "inputRedrawLines: (failureContext?.consoleLines || [])",
         "actionDrainMs: actionDrain.settleMs",
         "recoveryOrbitMs: steps.at(-1).settleMs",
         "nativeStateContract: {",
@@ -123,31 +127,69 @@ def validate_delivery_sources(
         "input_button_mask.fetch_and(~bit, std::memory_order_release);",
         "input_key_press_counter : input_key_release_counter",
         "input_button_mask.load(std::memory_order_acquire)",
+        "inline std::atomic<uint64_t> input_redraw_terminal_generation{0};",
+        "inline std::atomic<uint64_t> input_redraw_admitted_generation{0};",
+        "inline uint64_t request_input_redraw_retry()",
+        "return input_generation;",
+        "inline void note_input_redraw_terminal(const uint64_t input_generation)",
+        "input_redraw_terminal_generation.store(input_generation, std::memory_order_release);",
+        "inline void note_input_redraw_admitted(const uint64_t input_generation)",
+        "input_redraw_admitted_generation.store(input_generation, std::memory_order_release);",
+        "inline uint64_t input_redraw_terminal_count()",
+        "inline uint64_t input_redraw_admitted_count()",
     ):
         require_once(display, token)
     require_once(
         system_header,
         "/** Update one tracked button and publish a diagnostic edge only on a real state transition. */",
     )
+    require_once(
+        system_header,
+        "void requestInputRedrawRetry(const char *terminal_kind = nullptr,",
+    )
     for token in (
         "const bool was_down = buttons_.get(button);",
         "buttons_.set(button, down);",
         "if (was_down != down)",
         "ghost_web::note_input_button(uint32_t(button), down);",
+        "const uint64_t episode_before = ghost_web::redraw_episode_generation();",
+        "const uint64_t input_generation = ghost_web::request_input_redraw_retry();",
+        "const uint64_t episode_after = ghost_web::redraw_episode_generation();",
+        "ghost_web::note_input_redraw_terminal(input_generation);",
+        '"[bw] GHOST-input-redraw terminal kind=%s code=%u input=%llu "',
+        "const bool input_redraw_pending_admission =",
+        "ghost_web::input_redraw_admitted_count();",
+        "ghost_web::note_input_redraw_admitted(input_redraw_generation);",
+        '"[bw] GHOST-input-redraw admitted input=%llu terminal=%llu "',
+        '"[bw] GHOST-input-redraw withheld input=%llu terminal=%llu "',
     ):
         require_once(system_source, token)
     require_once(event_bridge, "ghost_web::note_input_key(down);")
+    require_once(
+        event_bridge,
+        'sys.requestInputRedrawRetry(down ? nullptr : "button-up", uint32_t(button));',
+    )
+    require_once(
+        event_bridge,
+        'sys.requestInputRedrawRetry(down ? nullptr : "key-up", uint32_t(key));',
+    )
     for token in (
         "bw_input_button_press_count(const uint32_t button)",
         "bw_input_button_release_count(const uint32_t button)",
         "bw_input_key_press_count(void)",
         "bw_input_key_release_count(void)",
         "bw_input_button_mask(void)",
+        "bw_input_redraw_retry_count(void)",
+        "bw_input_redraw_terminal_count(void)",
+        "bw_input_redraw_admitted_count(void)",
         "return double(ghost_web::input_button_press_count(button));",
         "return double(ghost_web::input_button_release_count(button));",
         "return double(ghost_web::input_key_press_count());",
         "return double(ghost_web::input_key_release_count());",
         "return double(ghost_web::input_buttons_held_mask());",
+        "return double(ghost_web::input_redraw_retry_generation());",
+        "return double(ghost_web::input_redraw_terminal_count());",
+        "return double(ghost_web::input_redraw_admitted_count());",
     ):
         require_once(context_source, token)
     if source.count('readArg("_bw_input_button_press_count"') != 2:
@@ -158,6 +200,10 @@ def validate_delivery_sources(
         'keyPresses: read("_bw_input_key_press_count")',
         'keyReleases: read("_bw_input_key_release_count")',
         'heldMask: read("_bw_input_button_mask")',
+        'published: read("_bw_input_redraw_retry_count")',
+        'terminal: read("_bw_input_redraw_terminal_count")',
+        'admitted: read("_bw_input_redraw_admitted_count")',
+        'episode: read("_bw_redraw_episode_count")',
     ):
         require_once(source, token)
 
@@ -197,6 +243,21 @@ def self_check(
             source,
             "current.retries > counterBaseline.retries",
             "current.retries >= counterBaseline.retries",
+        ),
+        replace_once(
+            source,
+            "current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal",
+            "current.inputRedraw.terminal >= counterBaseline.inputRedraw.terminal",
+        ),
+        replace_once(
+            source,
+            "current.inputRedraw.admitted >= current.inputRedraw.terminal",
+            "current.inputRedraw.admitted < current.inputRedraw.terminal",
+        ),
+        replace_once(
+            source,
+            "current.inputRedraw.episode === counterBaseline.inputRedraw.episode",
+            "current.inputRedraw.episode !== counterBaseline.inputRedraw.episode",
         ),
         replace_once(source, "nativeDeliveryComplete(current)", "true"),
         replace_once(
@@ -332,6 +393,26 @@ def self_check(
             context_source,
             "return double(ghost_web::input_button_release_count(button));",
             "return double(ghost_web::input_button_press_count(button));",
+        )),
+        (source, replace_once(
+            display,
+            "input_redraw_admitted_generation.store(input_generation, std::memory_order_release);",
+            "",
+        ), system_header, system_source, event_bridge, context_source),
+        (source, display, system_header, replace_once(
+            system_source,
+            "ghost_web::note_input_redraw_admitted(input_redraw_generation);",
+            "",
+        ), event_bridge, context_source),
+        (source, display, system_header, system_source, replace_once(
+            event_bridge,
+            'sys.requestInputRedrawRetry(down ? nullptr : "button-up", uint32_t(button));',
+            "sys.requestInputRedrawRetry();",
+        ), context_source),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            "return double(ghost_web::input_redraw_admitted_count());",
+            "return double(ghost_web::input_redraw_terminal_count());",
         )),
     )
     delivery_rejected = 0

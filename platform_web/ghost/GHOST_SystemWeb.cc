@@ -1364,30 +1364,76 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
       ghost_web::redraw_trace_finish(redraw_episode_generation);
     }
   }
+  const uint64_t redraw_retry_generation = ghost_web::redraw_retry_generation();
+  const uint64_t input_redraw_generation = ghost_web::input_redraw_retry_generation();
   const bool redraw_recovery_requested =
       window_ != nullptr &&
-      ghost_web::redraw_recovery_tick(ghost_web::redraw_retry_generation(),
+      ghost_web::redraw_recovery_tick(redraw_retry_generation,
                                       redraw_retry_generation_seen_,
                                       redraw_episode_generation,
                                       redraw_episode_generation_seen_,
                                       ghost_web::redraw_drop_generation(),
                                       redraw_drop_generation_seen_,
-                                      ghost_web::input_redraw_retry_generation(),
+                                      input_redraw_generation,
                                       input_redraw_retry_generation_seen_,
                                       redraw_heartbeat_);
+  const uint64_t input_redraw_admitted_generation =
+      ghost_web::input_redraw_admitted_count();
+  const bool input_redraw_pending_admission =
+      input_redraw_generation != input_redraw_admitted_generation;
   const uint64_t present_replay_generation = ghost_web::present_replay_generation();
   const bool present_replay_pending =
       present_replay_generation != present_replay_generation_seen_;
-  if (window_ != nullptr && ghost_web::filter_redraw_present_barrier_update(
-                                 redraw_episode_generation,
-                                 redraw_recovery_requested || present_replay_pending))
-  {
+  const bool redraw_update_requested = redraw_recovery_requested || present_replay_pending;
+  const bool redraw_update_admitted =
+      window_ != nullptr && ghost_web::filter_redraw_present_barrier_update(
+                                redraw_episode_generation, redraw_update_requested);
+  if (redraw_update_admitted) {
     pushEvent(
         std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window_));
+    if (input_redraw_pending_admission) {
+      ghost_web::note_input_redraw_admitted(input_redraw_generation);
+      const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
+      if (terminal_generation > input_redraw_admitted_generation &&
+          input_redraw_generation >= terminal_generation)
+      {
+        static uint32_t input_redraw_admitted_log_count = 0;
+        if (input_redraw_admitted_log_count < 64) {
+          std::printf("[bw] GHOST-input-redraw admitted input=%llu terminal=%llu "
+                      "retry=%llu episode=%llu present=%llu\n",
+                      static_cast<unsigned long long>(input_redraw_generation),
+                      static_cast<unsigned long long>(terminal_generation),
+                      static_cast<unsigned long long>(redraw_retry_generation),
+                      static_cast<unsigned long long>(redraw_episode_generation),
+                      static_cast<unsigned long long>(ghost_web::present_count()));
+          input_redraw_admitted_log_count++;
+        }
+      }
+    }
     if (present_replay_pending) {
       /* Consume only after the ordinary WM update is admitted. A resize barrier may temporarily
        * withhold it, but cannot lose the request at the generic recovery heartbeat ceiling. */
       present_replay_generation_seen_ = present_replay_generation;
+    }
+  }
+  else if (window_ != nullptr && redraw_update_requested && input_redraw_pending_admission) {
+    const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
+    static uint64_t input_redraw_withheld_terminal_seen = 0;
+    static uint32_t input_redraw_withheld_log_count = 0;
+    if (terminal_generation > input_redraw_admitted_generation &&
+        terminal_generation != input_redraw_withheld_terminal_seen &&
+        input_redraw_withheld_log_count < 32)
+    {
+      input_redraw_withheld_terminal_seen = terminal_generation;
+      std::printf("[bw] GHOST-input-redraw withheld input=%llu terminal=%llu "
+                  "retry=%llu episode=%llu barrier=%d/%d\n",
+                  static_cast<unsigned long long>(input_redraw_generation),
+                  static_cast<unsigned long long>(terminal_generation),
+                  static_cast<unsigned long long>(redraw_retry_generation),
+                  static_cast<unsigned long long>(redraw_episode_generation),
+                  ghost_web::redraw_present_barrier_is_scheduled() ? 1 : 0,
+                  ghost_web::redraw_present_barrier_is_ready() ? 1 : 0);
+      input_redraw_withheld_log_count++;
     }
   }
 
@@ -1457,13 +1503,32 @@ void reconcile_modifier_pair(GHOST_ModifierKeys &keys,
 
 }  // namespace
 
-void GHOST_SystemWeb::requestInputRedrawRetry()
+void GHOST_SystemWeb::requestInputRedrawRetry(const char *terminal_kind,
+                                              const uint32_t terminal_code)
 {
   /* Input can expose a region whose first-use browser resource was not ready during the
    * preceding bounded burst. Publish a distinct input-tail generation in addition to the
    * aggregate retry edge: callbacks observed in one WM tick coalesce, and the last real input
    * always leaves one complete bounded recovery budget without entering resize's barrier. */
-  ghost_web::request_input_redraw_retry();
+  const uint64_t episode_before = ghost_web::redraw_episode_generation();
+  const uint64_t input_generation = ghost_web::request_input_redraw_retry();
+  const uint64_t episode_after = ghost_web::redraw_episode_generation();
+  if (terminal_kind != nullptr) {
+    ghost_web::note_input_redraw_terminal(input_generation);
+    static uint32_t input_redraw_terminal_log_count = 0;
+    if (input_redraw_terminal_log_count < 64) {
+      std::printf("[bw] GHOST-input-redraw terminal kind=%s code=%u input=%llu "
+                  "admitted=%llu retry=%llu episode=%llu episode_changed=%d\n",
+                  terminal_kind,
+                  terminal_code,
+                  static_cast<unsigned long long>(input_generation),
+                  static_cast<unsigned long long>(ghost_web::input_redraw_admitted_count()),
+                  static_cast<unsigned long long>(ghost_web::redraw_retry_generation()),
+                  static_cast<unsigned long long>(episode_after),
+                  episode_after != episode_before ? 1 : 0);
+      input_redraw_terminal_log_count++;
+    }
+  }
 }
 
 void GHOST_SystemWeb::noteButton(const GHOST_TButton button, const bool down)

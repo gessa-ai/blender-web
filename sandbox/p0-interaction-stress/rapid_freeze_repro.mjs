@@ -213,6 +213,12 @@ try {
         ticks: read("_bw_wm_tick_count"),
         presents: read("_bw_present_count"),
         retries: read("_bw_redraw_retry_count"),
+        inputRedraw: {
+          published: read("_bw_input_redraw_retry_count"),
+          terminal: read("_bw_input_redraw_terminal_count"),
+          admitted: read("_bw_input_redraw_admitted_count"),
+          episode: read("_bw_redraw_episode_count"),
+        },
         suppressed: read("_bw_present_suppressed_count"),
         replays: read("_bw_present_replay_count"),
         pointerLock: window.__bwPointerLockBridge?.snapshot?.() || null,
@@ -281,6 +287,9 @@ try {
           current.ticks > counterBaseline.ticks &&
           current.presents > counterBaseline.presents &&
           current.retries > counterBaseline.retries &&
+          current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal &&
+          current.inputRedraw.admitted >= current.inputRedraw.terminal &&
+          current.inputRedraw.episode === counterBaseline.inputRedraw.episode &&
           nativeDeliveryComplete(current) &&
           (!hardwareDiagnostic || nativeStateComplete(current)) &&
           current.nativeModalOperators.every((operator) =>
@@ -382,6 +391,7 @@ try {
     pageErrors,
     lifecycle,
     pointerLockLines: consoleLines.filter((line) => /Pointer Lock|pointerlock/i.test(line)),
+    inputRedrawLines: consoleLines.filter((line) => /GHOST-input-redraw/.test(line)),
     eventTail: consoleLines.filter((line) => /ghost_event_proc/.test(line)).slice(-80),
   };
   if (pageErrors.length !== 0 || lifecycle.length !== 0) {
@@ -403,6 +413,8 @@ catch (error) {
     lifecycle: failureContext?.lifecycle || [],
     pointerLockLines: (failureContext?.consoleLines || [])
       .filter((line) => /Pointer Lock|pointerlock/i.test(line)),
+    inputRedrawLines: (failureContext?.consoleLines || [])
+      .filter((line) => /GHOST-input-redraw/.test(line)),
     eventTail: (failureContext?.consoleLines || [])
       .filter((line) => /ghost_event_proc/.test(line)).slice(-80),
     consoleTail: (failureContext?.consoleLines || []).slice(-120),

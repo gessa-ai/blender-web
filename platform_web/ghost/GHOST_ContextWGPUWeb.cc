@@ -99,6 +99,24 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)
   return double(ghost_web::redraw_retry_generation());
 }
 
+/* Exact ordinary-input recovery handoff. Publication occurs in the proxied HTML5 callback;
+ * terminal records the last completed button/key/wheel callback; admitted advances only when a
+ * synthetic WindowUpdate carrying that terminal generation passes the resize barrier. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_retry_count(void)
+{
+  return double(ghost_web::input_redraw_retry_generation());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_terminal_count(void)
+{
+  return double(ghost_web::input_redraw_terminal_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_admitted_count(void)
+{
+  return double(ghost_web::input_redraw_admitted_count());
+}
+
 /* Proxied-callback delivery evidence for the rapid-input freeze diagnostic. Button ordinals are
  * GHOST_TButton values (left=0, middle=1, right=2, ...). Counts advance only when the WM worker's
  * tracked state changes; the mask exposes a terminal press whose matching release never arrived. */

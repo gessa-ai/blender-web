@@ -106,8 +106,10 @@ class GHOST_SystemWeb : public GHOST_System {
   void noteButton(GHOST_TButton button, bool down);
 
   /** Publish one coalescible bounded redraw retry for accepted ordinary input.
+   * A non-null terminal kind also emits bounded end-to-end admission diagnostics.
    * This deliberately does not start the resize-only drawable episode/barrier. */
-  void requestInputRedrawRetry();
+  void requestInputRedrawRetry(const char *terminal_kind = nullptr,
+                               uint32_t terminal_code = 0);
 
   const std::string &canvasSelector() const
   {

@@ -72,7 +72,7 @@ def validate(
         "inline std::atomic<uint64_t> present_replay_counter{0};",
         "inline void request_redraw_retry()",
         "inline uint64_t redraw_retry_generation()",
-        "inline void request_input_redraw_retry()",
+        "inline uint64_t request_input_redraw_retry()",
         "inline uint64_t input_redraw_retry_generation()",
         "inline uint64_t request_redraw_episode()",
         "inline uint64_t redraw_episode_generation()",
@@ -172,12 +172,13 @@ def validate(
         require_once(barrier, token, "resize present barrier")
     episode_request = method(display_header, "inline uint64_t request_redraw_episode()")
     require_once(episode_request, "return generation;", "resize episode publication")
-    input_request = method(display_header, "inline void request_input_redraw_retry()")
+    input_request = method(display_header, "inline uint64_t request_input_redraw_retry()")
     require_once(
         input_request,
-        "input_redraw_retry_counter.fetch_add(1u, std::memory_order_release);",
+        "input_redraw_retry_counter.fetch_add(1u, std::memory_order_release) + 1u;",
         "ordinary-input trailing recovery publication",
     )
+    require_once(input_request, "return input_generation;", "ordinary-input generation result")
     require_once(
         input_request,
         "\n  redraw_retry_counter.fetch_add(1u, std::memory_order_release);",
@@ -295,6 +296,8 @@ def validate(
         "ghost_web::filter_redraw_present_barrier_update(",
         "ghost_web::present_replay_generation()",
         "const bool present_replay_pending =",
+        "const bool redraw_update_requested =",
+        "const bool redraw_update_admitted =",
         "redraw_recovery_requested || present_replay_pending",
         "GHOST_kEventWindowUpdate",
     ):
@@ -315,7 +318,7 @@ def validate(
     replay_consume_at = process.index(
         "present_replay_generation_seen_ = present_replay_generation;", replay_event_at
     )
-    if not (replay_generation_at < replay_pending_at < replay_filter_at < replay_request_at <
+    if not (replay_generation_at < replay_pending_at < replay_request_at < replay_filter_at <
             replay_event_at < replay_consume_at):
         raise ValueError("settlement replay is consumed before its WM update is admitted")
     if "GHOST_kEventWindowActivate" in process:
@@ -592,8 +595,8 @@ def selfcheck(
         (replace_once(display_header, "episode_generation_seen = episode_generation;\n    heartbeat = 0;", "episode_generation_seen = episode_generation;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "retry_generation != retry_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "input_retry_generation != input_retry_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
-        (mutate_method(display_header, "inline void request_input_redraw_retry()", "input_redraw_retry_counter.fetch_add(1u, std::memory_order_release);", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
-        (mutate_method(display_header, "inline void request_input_redraw_retry()", "\n  redraw_retry_counter.fetch_add(1u, std::memory_order_release);", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline uint64_t request_input_redraw_retry()", "input_redraw_retry_counter.fetch_add(1u, std::memory_order_release) + 1u;", "0;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (mutate_method(display_header, "inline uint64_t request_input_redraw_retry()", "\n  redraw_retry_counter.fetch_add(1u, std::memory_order_release);", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline uint64_t input_redraw_retry_generation()", "return input_redraw_retry_counter.load(std::memory_order_acquire);", "return 0;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "drop_generation != drop_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_retry_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),

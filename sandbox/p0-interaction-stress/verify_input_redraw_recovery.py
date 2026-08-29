@@ -15,8 +15,8 @@ SYSTEM_SOURCE = ROOT / "platform_web/ghost/GHOST_SystemWeb.cc"
 BRIDGE_SOURCE = ROOT / "platform_web/ghost/GHOST_EventBridgeWeb.cc"
 CONTEXT_SOURCE = ROOT / "platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 
-HELPER_DECL = "void requestInputRedrawRetry();"
-HELPER = "void GHOST_SystemWeb::requestInputRedrawRetry()"
+HELPER_DECL = "void requestInputRedrawRetry(const char *terminal_kind = nullptr,"
+HELPER = "void GHOST_SystemWeb::requestInputRedrawRetry(const char *terminal_kind,"
 MOVE = "void on_mouse_move(GHOST_SystemWeb &sys, const EmscriptenMouseEvent &e)"
 BUTTON = (
     "void on_mouse_button(GHOST_SystemWeb &sys, int em_event_type, "
@@ -27,7 +27,14 @@ KEY = (
     "void on_key(GHOST_SystemWeb &sys, int em_event_type, "
     "const EmscriptenKeyboardEvent &e)"
 )
-REQUEST = "sys.requestInputRedrawRetry();"
+REQUESTS = {
+    "mouse-move": "sys.requestInputRedrawRetry();",
+    "mouse-button": (
+        'sys.requestInputRedrawRetry(down ? nullptr : "button-up", uint32_t(button));'
+    ),
+    "wheel": 'sys.requestInputRedrawRetry("wheel");',
+    "key": 'sys.requestInputRedrawRetry(down ? nullptr : "key-up", uint32_t(key));',
+}
 EXPORT = 'extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)'
 
 
@@ -58,7 +65,7 @@ def validate(header: str, system: str, bridge: str, context: str) -> None:
         raise ValueError("system API lost the input redraw-retry declaration")
 
     helper = method(system, HELPER)
-    if helper.count("ghost_web::request_input_redraw_retry();") != 1:
+    if helper.count("ghost_web::request_input_redraw_retry()") != 1:
         raise ValueError("system helper no longer publishes exactly one bounded input tail")
     if "ghost_web::request_redraw_retry();" in helper:
         raise ValueError("ordinary input collapsed back into shader-readiness ownership")
@@ -72,25 +79,27 @@ def validate(header: str, system: str, bridge: str, context: str) -> None:
         "key": method(bridge, KEY),
     }
     for label, body in callbacks.items():
-        if body.count(REQUEST) != 1:
+        if body.count(REQUESTS[label]) != 1:
             raise ValueError(f"{label} does not publish exactly one coalescible retry")
         if "request_redraw_episode" in body:
             raise ValueError(f"{label} incorrectly starts a resize-only redraw episode")
 
     button = callbacks["mouse-button"]
+    button_request = REQUESTS["mouse-button"]
     invalid_guard = "if (button == GHOST_kButtonMaskNone)"
-    if button.index(REQUEST) < button.index(invalid_guard):
+    if button.index(button_request) < button.index(invalid_guard):
         raise ValueError("unsupported mouse buttons publish a redraw retry")
 
     wheel = callbacks["wheel"]
+    wheel_request = REQUESTS["wheel"]
     zero_guard = "if (e.deltaY == 0.0 && e.deltaX == 0.0)"
-    if zero_guard not in wheel or wheel.index(REQUEST) < wheel.index(zero_guard):
+    if zero_guard not in wheel or wheel.index(wheel_request) < wheel.index(zero_guard):
         raise ValueError("zero-delta wheel events publish a redraw retry")
-    if wheel.index(REQUEST) > min(wheel.index("if (e.deltaY != 0.0)"),
-                                  wheel.index("if (e.deltaX != 0.0)")):
+    if wheel.index(wheel_request) > min(wheel.index("if (e.deltaY != 0.0)"),
+                                        wheel.index("if (e.deltaX != 0.0)")):
         raise ValueError("wheel retry is conditional on only one axis")
 
-    if bridge.count(REQUEST) != len(callbacks):
+    if bridge.count("sys.requestInputRedrawRetry") != len(callbacks):
         raise ValueError("unexpected input redraw-retry call outside the four input bridges")
 
     export = method(context, EXPORT)
@@ -109,7 +118,7 @@ def self_check(header: str, system: str, bridge: str, context: str) -> None:
             replace_once(
                 system,
                 helper,
-                helper.replace("ghost_web::request_input_redraw_retry();", "", 1),
+                helper.replace("ghost_web::request_input_redraw_retry()", "", 1),
             ),
             bridge,
             context,
@@ -120,7 +129,7 @@ def self_check(header: str, system: str, bridge: str, context: str) -> None:
                 system,
                 helper,
                 helper.replace(
-                    "ghost_web::request_input_redraw_retry();",
+                    "ghost_web::request_input_redraw_retry()",
                     "ghost_web::request_redraw_episode();",
                     1,
                 ),
@@ -129,14 +138,22 @@ def self_check(header: str, system: str, bridge: str, context: str) -> None:
             context,
         ),
     ]
-    for callback in callbacks:
-        mutations.append((header, system, replace_once(bridge, callback, callback.replace(REQUEST, "", 1)), context))
+    for (label, callback) in zip(("mouse-move", "mouse-button", "wheel", "key"), callbacks):
+        mutations.append(
+            (
+                header,
+                system,
+                replace_once(bridge, callback, callback.replace(REQUESTS[label], "", 1)),
+                context,
+            )
+        )
 
     button = callbacks[1]
-    moved_button_request = button.replace(f"  {REQUEST}\n", "", 1)
+    button_request = REQUESTS["mouse-button"]
+    moved_button_request = button.replace(f"  {button_request}\n", "", 1)
     moved_button_request = moved_button_request.replace(
         "  if (button == GHOST_kButtonMaskNone)",
-        f"  {REQUEST}\n  if (button == GHOST_kButtonMaskNone)",
+        f"  {button_request}\n  if (button == GHOST_kButtonMaskNone)",
         1,
     )
     mutations.append(
@@ -147,7 +164,7 @@ def self_check(header: str, system: str, bridge: str, context: str) -> None:
             context,
         )
     )
-    mutations.append((header, system, bridge + f"\n{REQUEST}\n", context))
+    mutations.append((header, system, bridge + "\nsys.requestInputRedrawRetry();\n", context))
     export = method(context, EXPORT)
     mutations.append((
         header,

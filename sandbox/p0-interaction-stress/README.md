@@ -68,6 +68,36 @@ result ready, `7` failed), separate GPU/query/combined readback status, modal ti
 queued input, and replay/finish edges. These are read-only discriminators; they do not alter the
 selection timeout, input ordering, redraw policy, or hardware acceptance bar.
 
+The deterministic-freeze acceptance bar is ten independent slow/sparse Apple runs against one
+exact CAPTURE generation. Hardware mode requires an immutable run label, the expected
+`wasm.orig` SHA-256, and a new output path. It hashes all five local product files, matches the
+local and served split manifests, pins the browser stack and accepted adapter, and creates the JSON
+only after the run passes. Produce and validate the series with:
+
+```sh
+orig_sha=$(sha256sum build-wasm-windowed-opt/bin/blender_browser.wasm.orig | awk '{print $1}')
+evidence=sandbox/p0-interaction-stress/sparse-hardware-evidence
+mkdir -p "$evidence"
+for attempt in 01 02 03 04 05 06 07 08 09 10; do
+  run="mac-m4pro-p0j-sparse-${attempt}"
+  BW_P0_RAPID_HARDWARE=1 BW_P0_SPARSE=1 \
+    BW_P0_RUN="$run" \
+    BW_P0_EXPECTED_WASM_ORIG_SHA256="$orig_sha" \
+    BW_P0_OUTPUT="$evidence/${run}.json" \
+    "$PWD/tools/emsdk/node/22.16.0_64bit/bin/node" \
+    sandbox/p0-interaction-stress/rapid_freeze_repro.mjs 8123 || exit 1
+done
+.host-tools/bin/python3.13 \
+  sandbox/p0-interaction-stress/analyze_sparse_hardware_series.py \
+  "$evidence"/mac-m4pro-p0j-sparse-{01,02,03,04,05,06,07,08,09,10}.json
+```
+
+The series consumer reruns every per-document selection, replay, native-state, pixel, timeout,
+page/lifecycle, stack, adapter, and product assertion. It rejects fewer or more than ten runs,
+duplicate labels/timestamps/paths, or any cross-run source, stack, adapter, or product drift. This
+focused 10/10 discriminator complements rather than replaces the broader repeated interaction and
+same-generation P0-E gauntlet below.
+
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a
 second MMB orbit. Each changing view is coupled to settled Blender-native perspective/rotation and

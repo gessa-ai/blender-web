@@ -28,6 +28,27 @@ def validate(source: str) -> None:
     for token in (
         'const hardwareDiagnostic = process.env.BW_P0_RAPID_HARDWARE === "1";',
         'const sparseDiagnostic = process.env.BW_P0_SPARSE === "1";',
+        'const productSelfcheck = process.env.BW_P0_PRODUCT_SELFCHECK === "1";',
+        'const runLabel = process.env.BW_P0_RUN || "";',
+        'const expectedWasmOrigSha256 = process.env.BW_P0_EXPECTED_WASM_ORIG_SHA256 || "";',
+        'const outputPath = process.env.BW_P0_OUTPUT ? resolve(process.env.BW_P0_OUTPUT) : "";',
+        'const binDir = resolve(process.env.BLENDER_WEB_BIN ||',
+        'const REQUIRED_HARDWARE_STACK = Object.freeze({',
+        'nodeVersion: "v22.16.0"',
+        'playwrightVersion: "1.61.1"',
+        'pngjsVersion: "7.0.0"',
+        'chromiumVersion: "149.0.7827.55"',
+        'hardware diagnostic run label is invalid',
+        'hardware diagnostic expected wasm.orig SHA-256 is invalid',
+        'hardware diagnostic output path is required',
+        'rapid input hardware stack rejected:',
+        'const sourceIdentity = {',
+        'path: "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"',
+        'const productIdentity = (hardwareDiagnostic || productSelfcheck) ? await inspectProductIdentity(',
+        'servedGeneration differs from local CAPTURE generation',
+        'P0J_RAPID_PRODUCT_IDENTITY_SELFCHECK_PASS',
+        'const finalProductIdentity = await inspectProductIdentity(',
+        'hardware diagnostic product changed during the run',
         'const sampleCadenceMs = sparseDiagnostic ? 650 : 350;',
         'hardwareDiagnostic && process.platform !== "darwin"',
         'const SOFTWARE_ADAPTER_TOKENS = Object.freeze([',
@@ -140,7 +161,15 @@ def validate(source: str) -> None:
         "inputRedrawLines: (failureContext?.consoleLines || [])",
         "actionDrainMs: actionDrain.settleMs",
         "recoveryOrbitMs: recoveryOrbit.settleMs",
-        'schema: 1,\n    mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst"',
+        'const evidence = {\n'
+        '    schema: 2,\n'
+        '    run: hardwareDiagnostic ? runLabel : null,\n'
+        '    capturedAt: new Date().toISOString(),\n'
+        '    source: sourceIdentity,\n'
+        '    stack: stackIdentity,\n'
+        '    productIdentity,\n'
+        '    mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst"',
+        'await writeFile(outputPath, evidenceText, {encoding: "utf8", flag: "wx"});',
         "drainTimelines,",
         "nativeStateContract,",
         "actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick)",

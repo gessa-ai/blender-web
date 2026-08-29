@@ -2,19 +2,43 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 import {createHash} from "node:crypto";
+import {createReadStream} from "node:fs";
+import {lstat, readFile, writeFile} from "node:fs/promises";
 import {createRequire} from "node:module";
 import {dirname, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const moduleRoot = process.env.BW_NODE_MODULES || resolve(root, ".m4-node/node_modules");
-const {chromium} = createRequire(resolve(moduleRoot, "package.json"))("playwright");
+const require = createRequire(resolve(moduleRoot, "package.json"));
+const {chromium} = require("playwright");
 const port = Number(process.argv[2] || 8123);
 const hardwareDiagnostic = process.env.BW_P0_RAPID_HARDWARE === "1";
 const sparseDiagnostic = process.env.BW_P0_SPARSE === "1";
+const productSelfcheck = process.env.BW_P0_PRODUCT_SELFCHECK === "1";
+const runLabel = process.env.BW_P0_RUN || "";
+const expectedWasmOrigSha256 = process.env.BW_P0_EXPECTED_WASM_ORIG_SHA256 || "";
+const outputPath = process.env.BW_P0_OUTPUT ? resolve(process.env.BW_P0_OUTPUT) : "";
+const binDir = resolve(process.env.BLENDER_WEB_BIN ||
+  resolve(root, "build-wasm-windowed-opt/bin"));
 const ozonePlatform = process.env.BW_P0_OZONE || "";
 const stateOnlyDiagnostic = process.env.BW_P0_STATE_ONLY === "1";
 const sampleCadenceMs = sparseDiagnostic ? 650 : 350;
+const REQUIRED_HARDWARE_STACK = Object.freeze({
+  nodeVersion: "v22.16.0",
+  playwrightVersion: "1.61.1",
+  pngjsVersion: "7.0.0",
+  chromiumVersion: "149.0.7827.55",
+});
+const PRODUCT_FILES = Object.freeze([
+  "blender_browser.js",
+  "blender_browser.wasm",
+  "blender_browser.wasm.orig",
+  "blender_browser.data",
+  "blender_browser.split-build.json",
+]);
+const SAFE_RUN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 const SOFTWARE_ADAPTER_TOKENS = Object.freeze([
   "swiftshader", "llvmpipe", "lavapipe", "softpipe", "software rasterizer",
   "microsoft basic render", "warp",
@@ -85,8 +109,89 @@ if (hardwareDiagnostic && process.platform !== "darwin") {
 if (hardwareDiagnostic && stateOnlyDiagnostic) {
   throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic");
 }
+if (hardwareDiagnostic && productSelfcheck) {
+  throw new Error("product identity self-check cannot allocate Apple evidence");
+}
+if (hardwareDiagnostic && !SAFE_RUN.test(runLabel)) {
+  throw new Error("hardware diagnostic run label is invalid");
+}
+if ((hardwareDiagnostic || productSelfcheck) && !SHA256.test(expectedWasmOrigSha256)) {
+  throw new Error("hardware diagnostic expected wasm.orig SHA-256 is invalid");
+}
+if (hardwareDiagnostic && !outputPath) {
+  throw new Error("hardware diagnostic output path is required");
+}
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+const sha256File = (path) => new Promise((accept, reject) => {
+  const digest = createHash("sha256");
+  const stream = createReadStream(path);
+  stream.on("data", (chunk) => digest.update(chunk));
+  stream.on("error", reject);
+  stream.on("end", () => accept(digest.digest("hex")));
+});
+const generationFromManifest = (manifest) => {
+  const generation = {
+    mode: manifest?.mode,
+    originalWasmSha256: manifest?.original?.sha256,
+    instrumentedWasmSha256: manifest?.instrumented?.sha256,
+    javascriptSha256: manifest?.js?.sha256,
+  };
+  if (generation.mode !== "capture" ||
+      ![generation.originalWasmSha256, generation.instrumentedWasmSha256,
+        generation.javascriptSha256].every((value) => SHA256.test(value || ""))) {
+    throw new Error("split manifest does not identify one CAPTURE generation");
+  }
+  return generation;
+};
+const inspectProductIdentity = async (servedPort, expectedOrig) => {
+  const files = {};
+  for (const name of PRODUCT_FILES) {
+    const path = resolve(binDir, name);
+    const info = await lstat(path);
+    if (!info.isFile() || info.isSymbolicLink()) {
+      throw new Error(`hardware diagnostic product entry is not a direct file: ${name}`);
+    }
+    files[name] = {bytes: info.size, sha256: await sha256File(path)};
+  }
+  const localManifest = JSON.parse(await readFile(
+    resolve(binDir, "blender_browser.split-build.json"), "utf8"));
+  const generation = generationFromManifest(localManifest);
+  if (generation.originalWasmSha256 !== files["blender_browser.wasm.orig"].sha256 ||
+      generation.instrumentedWasmSha256 !== files["blender_browser.wasm"].sha256 ||
+      generation.javascriptSha256 !== files["blender_browser.js"].sha256) {
+    throw new Error("local CAPTURE manifest differs from product bytes");
+  }
+  if (generation.originalWasmSha256 !== expectedOrig) {
+    throw new Error("local CAPTURE generation differs from expected wasm.orig");
+  }
+  const response = await fetch(
+    `http://127.0.0.1:${servedPort}/bin/blender_browser.split-build.json`,
+    {cache: "no-store"},
+  );
+  if (!response.ok) {
+    throw new Error(`served CAPTURE manifest returned HTTP ${response.status}`);
+  }
+  const servedGeneration = generationFromManifest(await response.json());
+  if (JSON.stringify(servedGeneration) !== JSON.stringify(generation)) {
+    throw new Error("servedGeneration differs from local CAPTURE generation");
+  }
+  return {binDir, files, generation, servedGeneration};
+};
+const sourceIdentity = {
+  path: "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs",
+  sha256: await sha256File(fileURLToPath(import.meta.url)),
+};
+const productIdentity = (hardwareDiagnostic || productSelfcheck) ? await inspectProductIdentity(
+  port, expectedWasmOrigSha256) : null;
+if (productSelfcheck) {
+  process.stdout.write(
+    "P0J_RAPID_PRODUCT_IDENTITY_SELFCHECK_PASS " +
+    `files=${Object.keys(productIdentity.files).length} ` +
+    `wasm_orig=${productIdentity.generation.originalWasmSha256}\n`,
+  );
+  process.exit(0);
+}
 const classifyAdapter = (raw) => {
   const identity = Object.values(raw.info).join(" ").trim().toLowerCase();
   const softwareMatches = SOFTWARE_ADAPTER_TOKENS.filter((token) => identity.includes(token));
@@ -265,6 +370,22 @@ const browser = await chromium.launch({
     ]),
   ],
 });
+const stackIdentity = {
+  platform: process.platform,
+  nodeVersion: process.version,
+  playwrightVersion: require("playwright/package.json").version,
+  pngjsVersion: require("pngjs/package.json").version,
+  chromiumVersion: browser.version(),
+};
+if (hardwareDiagnostic) {
+  const differences = Object.entries(REQUIRED_HARDWARE_STACK)
+    .filter(([field, value]) => stackIdentity[field] !== value)
+    .map(([field, value]) => `${field}=${stackIdentity[field]} expected=${value}`);
+  if (differences.length !== 0) {
+    await browser.close();
+    throw new Error(`rapid input hardware stack rejected: ${differences.join(", ")}`);
+  }
+}
 
 let failureContext = null;
 try {
@@ -769,7 +890,12 @@ try {
   }
 
   const evidence = {
-    schema: 1,
+    schema: 2,
+    run: hardwareDiagnostic ? runLabel : null,
+    capturedAt: new Date().toISOString(),
+    source: sourceIdentity,
+    stack: stackIdentity,
+    productIdentity,
     mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst",
     sampleCadenceMs,
     evidenceClass: hardwareDiagnostic ? "diagnostic-apple" :
@@ -803,13 +929,31 @@ try {
       evidence.selectionReadbackFailureLines.length !== 0) {
     throw new Error(`rapid input diagnostic has page/lifecycle errors: ${JSON.stringify(evidence)}`);
   }
-  process.stdout.write(`${JSON.stringify(evidence, null, 2)}\n`);
+  if (hardwareDiagnostic) {
+    const finalProductIdentity = await inspectProductIdentity(port, expectedWasmOrigSha256);
+    if (JSON.stringify(finalProductIdentity) !== JSON.stringify(productIdentity)) {
+      throw new Error("hardware diagnostic product changed during the run");
+    }
+  }
+  const evidenceText = `${JSON.stringify(evidence, null, 2)}\n`;
+  if (outputPath) {
+    await writeFile(outputPath, evidenceText, {encoding: "utf8", flag: "wx"});
+  }
+  else {
+    process.stdout.write(evidenceText);
+  }
 }
 catch (error) {
   const retained = sparseDiagnostic ? [] :
     (failureContext?.steps || []).slice(8, 13).map((step) => step.sha256);
   process.stderr.write(`${JSON.stringify({
     error: error?.stack || String(error),
+    schema: 2,
+    run: hardwareDiagnostic ? runLabel : null,
+    capturedAt: new Date().toISOString(),
+    source: sourceIdentity,
+    stack: stackIdentity,
+    productIdentity,
     mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst",
     sampleCadenceMs,
     adapter: failureContext?.adapter || null,

@@ -99,6 +99,24 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)
   return double(ghost_web::redraw_retry_generation());
 }
 
+/* Read-only selection-attempt discriminator. A sparse interaction timeout can otherwise show a
+ * live WM and a retained VIEW3D_OT_select without identifying whether its draw was synchronously
+ * dropped, still awaiting browser command validation, or rejected after encoding. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_drop_count(void)
+{
+  return double(ghost_web::redraw_drop_generation());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_selection_draw_validation_pending_count(void)
+{
+  return double(ghost_web::selection_draw_validation_pending());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_selection_draw_validation_failure_count(void)
+{
+  return double(ghost_web::selection_draw_validation_failure_generation());
+}
+
 /* Exact ordinary-input recovery handoff. Publication occurs in the proxied HTML5 callback;
  * terminal records the last completed button/key/wheel callback; admitted advances when a
  * synthetic WindowUpdate passes the resize barrier; dispatched advances only after Blender's WM

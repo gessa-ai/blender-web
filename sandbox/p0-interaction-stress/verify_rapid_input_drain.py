@@ -412,6 +412,39 @@ def validate_worker_state_sources(
             raise ValueError(f"missing WM cursor-grab diagnostic boundary {token!r}")
 
 
+def validate_selection_diagnostic_sources(
+    source: str,
+    display: str,
+    context_source: str,
+) -> None:
+    """Keep sparse hardware failures attributable after an asynchronous selection starts."""
+    for token in (
+        'drawDrops: read("_bw_redraw_drop_count")',
+        'pending: read("_bw_selection_draw_validation_pending_count")',
+        'failures: read("_bw_selection_draw_validation_failure_count")',
+        'drawDrops: current.drawDrops,',
+        'selectionDrawValidation: {...current.selectionDrawValidation},',
+        'splashDismissed.selectionDrawValidation.failures].every(Number.isFinite)',
+        'throw new Error("selection draw/drop diagnostics are unavailable in the served product")',
+    ):
+        require_once(source, token)
+    for token in (
+        "inline uint64_t redraw_drop_generation()",
+        "inline uint64_t selection_draw_validation_pending()",
+        "inline uint64_t selection_draw_validation_failure_generation()",
+    ):
+        require_once(display, token)
+    for token in (
+        "bw_redraw_drop_count(void)",
+        "bw_selection_draw_validation_pending_count(void)",
+        "bw_selection_draw_validation_failure_count(void)",
+        "return double(ghost_web::redraw_drop_generation());",
+        "return double(ghost_web::selection_draw_validation_pending());",
+        "return double(ghost_web::selection_draw_validation_failure_generation());",
+    ):
+        require_once(context_source, token)
+
+
 def replace_once(source: str, old: str, new: str) -> str:
     if source.count(old) != 1:
         raise ValueError(f"mutation input count differs for {old!r}")
@@ -432,6 +465,7 @@ def self_check(
         source, display, system_header, system_source, event_bridge, context_source
     )
     validate_worker_state_sources(source, display, system_source, window_source)
+    validate_selection_diagnostic_sources(source, display, context_source)
     mutations = (
         replace_once(source, 'timeoutMs = 12000', 'timeoutMs = 120000'),
         replace_once(source, "current.sha256 !== baseline", "current.sha256 === baseline"),
@@ -822,10 +856,64 @@ def self_check(
             "worker-state mutation self-check rejected "
             f"{worker_state_rejected}/{len(worker_state_mutations)}"
         )
+    selection_diagnostic_mutations = (
+        (replace_once(
+            source,
+            'drawDrops: read("_bw_redraw_drop_count")',
+            "drawDrops: null",
+        ), display, context_source),
+        (replace_once(
+            source,
+            'pending: read("_bw_selection_draw_validation_pending_count")',
+            "pending: null",
+        ), display, context_source),
+        (replace_once(
+            source,
+            'failures: read("_bw_selection_draw_validation_failure_count")',
+            "failures: null",
+        ), display, context_source),
+        (replace_once(
+            source,
+            "selectionDrawValidation: {...current.selectionDrawValidation},",
+            "selectionDrawValidation: {},",
+        ), display, context_source),
+        (replace_once(
+            source,
+            'splashDismissed.selectionDrawValidation.failures].every(Number.isFinite)',
+            "true",
+        ), display, context_source),
+        (source, display, replace_once(
+            context_source,
+            "return double(ghost_web::redraw_drop_generation());",
+            "return double(ghost_web::redraw_retry_generation());",
+        )),
+        (source, display, replace_once(
+            context_source,
+            "return double(ghost_web::selection_draw_validation_pending());",
+            "return 0.0;",
+        )),
+        (source, display, replace_once(
+            context_source,
+            "return double(ghost_web::selection_draw_validation_failure_generation());",
+            "return 0.0;",
+        )),
+    )
+    selection_diagnostic_rejected = 0
+    for mutation in selection_diagnostic_mutations:
+        try:
+            validate_selection_diagnostic_sources(*mutation)
+        except ValueError:
+            selection_diagnostic_rejected += 1
+    if selection_diagnostic_rejected != len(selection_diagnostic_mutations):
+        raise ValueError(
+            "selection-diagnostic mutation self-check rejected "
+            f"{selection_diagnostic_rejected}/{len(selection_diagnostic_mutations)}"
+        )
     print(
         "P0J_RAPID_INPUT_DRAIN_SELFCHECK_PASS "
-        f"mutations={rejected + delivery_rejected + worker_state_rejected} "
-        f"delivery={delivery_rejected} worker_state={worker_state_rejected}"
+        f"mutations={rejected + delivery_rejected + worker_state_rejected + selection_diagnostic_rejected} "
+        f"delivery={delivery_rejected} worker_state={worker_state_rejected} "
+        f"selection_diagnostic={selection_diagnostic_rejected}"
     )
 
 
@@ -856,9 +944,10 @@ def main() -> int:
             source, display, system_header, system_source, event_bridge, context_source
         )
         validate_worker_state_sources(source, display, system_source, window_source)
+        validate_selection_diagnostic_sources(source, display, context_source)
         print(
             "P0J_RAPID_INPUT_DRAIN_SOURCE_PASS "
-            "bound_ms=12000 counters=wm,present,retry,ghost-input,focus,grab"
+            "bound_ms=12000 counters=wm,present,retry,ghost-input,focus,grab,selection"
         )
     return 0
 

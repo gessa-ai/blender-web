@@ -56,7 +56,10 @@ per-poll timeline preserves every generation, pixel hash, held-button mask, nati
 stack, so a hardware failure identifies the first stalled boundary instead of treating an
 immediate identical screenshot as permanent freeze. This exact orbit -> click -> orbit order is
 load-bearing: the click, not the already-retired first orbit, triggered the selection-readback
-error popup in the diagnosed candidate.
+error popup in the diagnosed candidate. Every sample also carries the global draw-drop generation
+and the browser selection-validation pending/failure counters, distinguishing a synchronous draw
+deferral, a validation callback that never settles, and an asynchronously rejected selection draw
+without changing selection or redraw policy.
 
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a

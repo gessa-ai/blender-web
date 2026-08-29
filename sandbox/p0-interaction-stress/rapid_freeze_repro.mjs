@@ -226,6 +226,11 @@ try {
         ticks: read("_bw_wm_tick_count"),
         presents: read("_bw_present_count"),
         retries: read("_bw_redraw_retry_count"),
+        drawDrops: read("_bw_redraw_drop_count"),
+        selectionDrawValidation: {
+          pending: read("_bw_selection_draw_validation_pending_count"),
+          failures: read("_bw_selection_draw_validation_failure_count"),
+        },
         inputRedraw: {
           published: read("_bw_input_redraw_retry_count"),
           terminal: read("_bw_input_redraw_terminal_count"),
@@ -378,6 +383,8 @@ try {
         ticks: current.ticks,
         presents: current.presents,
         retries: current.retries,
+        drawDrops: current.drawDrops,
+        selectionDrawValidation: {...current.selectionDrawValidation},
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
         wmInput: {...current.wmInput},
@@ -412,7 +419,13 @@ try {
   };
   const steps = [];
   failureContext.steps = steps;
-  steps.push(await sample("splash-dismissed"));
+  const splashDismissed = await sample("splash-dismissed");
+  if (![splashDismissed.drawDrops,
+        splashDismissed.selectionDrawValidation.pending,
+        splashDismissed.selectionDrawValidation.failures].every(Number.isFinite)) {
+    throw new Error("selection draw/drop diagnostics are unavailable in the served product");
+  }
+  steps.push(splashDismissed);
   const settle = async (name) => {
     await page.waitForTimeout(sampleCadenceMs);
     steps.push(await sample(name));

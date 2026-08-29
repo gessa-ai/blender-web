@@ -50,12 +50,14 @@ navigation orbit without waiting for the asynchronous selection continuation to 
 modal is still active, navigation events return bare `OPERATOR_PASS_THROUGH`, which leaves the
 modal installed while allowing the viewport keymap to invoke and retire `VIEW3D_OT_rotate`
 immediately; they never enter the continuation's retained-input FIFO. State-changing ordinary
-input remains retained until the pick settles. The combined drain requires both input stages, a
-retired selection continuation,
-exactly Cube selected, a changed view rotation, strict content pixels, and an unchanged Cube
-location. The click point is Blender's own projection of the Cube origin into the live `VIEW_3D`
-window, converted from Blender's bottom-left window coordinates to the browser canvas; the producer
-does not guess a stale screen coordinate after the first orbit. A bounded
+input remains retained until the pick settles. The producer then sends the driver's complete
+`G` -> pointer motion -> confirm tail while that continuation is live. Pointer motion passes
+through only during the held MMB navigation gesture; otherwise it stays ordered between the
+retained transform key and confirmation. The combined drain requires both input stages, a retired
+selection continuation, exactly Cube selected, changed view rotation, strict content pixels, and
+a changed Cube location. The click point is Blender's own projection of the Cube origin into the
+live `VIEW_3D` window, converted from Blender's bottom-left window coordinates to the browser
+canvas; the producer does not guess a stale screen coordinate after the first orbit. A bounded
 per-poll timeline preserves every generation, pixel hash, held-button mask, native state, and modal
 stack, so a hardware failure identifies the first stalled boundary instead of treating an
 immediate identical screenshot as permanent freeze. This exact orbit -> click -> orbit order is

@@ -28,6 +28,7 @@ NAVIGATION_PATCH = ROOT / "patches/0315-view3d-web-selection-navigation-passthro
 EVENT_PATCH = ROOT / "patches/0317-view3d-web-selection-unrelated-event-passthrough.patch"
 GESTURE_PATCH = ROOT / "patches/0318-view3d-web-gesture-selection-passthrough.patch"
 SIBLING_PATCH = ROOT / "patches/0319-web-async-modal-event-passthrough.patch"
+MOTION_PATCH = ROOT / "patches/0320-view3d-web-selection-navigation-motion-order.patch"
 SERIES = ROOT / "patches/series"
 
 
@@ -98,19 +99,28 @@ def validate(sources: dict[str, str]) -> int:
     event_patch = sources["event_patch"]
     gesture_patch = sources["gesture_patch"]
     sibling_patch = sources["sibling_patch"]
+    motion_patch = sources["motion_patch"]
     series = sources["series"]
 
+    require(view3d_select, "  bool navigation_active = false;\n")
     helper = (
-        "static bool view3d_select_async_navigation_event(const short event_type)\n"
+        "static bool view3d_select_async_navigation_event(View3DSelectAsyncData *data,\n"
+        "                                                 const wmEvent *event)\n"
         "{\n"
-        "  return ISMOUSE_MOTION(event_type) || event_type == MIDDLEMOUSE ||\n"
-        "         ISMOUSE_WHEEL(event_type) || ISMOUSE_GESTURE(event_type) ||\n"
-        "         ISKEYMODIFIER(event_type) || ISNDOF(event_type);\n"
+        "  if (event->type == MIDDLEMOUSE) {\n"
+        "    data->navigation_active = event->val != KM_RELEASE;\n"
+        "    return true;\n"
+        "  }\n"
+        "  if (ISMOUSE_MOTION(event->type)) {\n"
+        "    return data->navigation_active;\n"
+        "  }\n"
+        "  return ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||\n"
+        "         ISKEYMODIFIER(event->type) || ISNDOF(event->type);\n"
         "}"
     )
     require(view3d_select, helper)
     route = (
-        "if (view3d_select_async_navigation_event(event->type)) {\n"
+        "if (view3d_select_async_navigation_event(data, event)) {\n"
         "      return OPERATOR_PASS_THROUGH;\n"
         "    }"
     )
@@ -225,12 +235,31 @@ def validate(sources: dict[str, str]) -> int:
         "selectionNavigationWindow.selectionContinuation.active === 1",
     ):
         require(producer, token)
+    for token in (
+        'await page.keyboard.press("g");',
+        'await page.mouse.click(center.x + 40, center.y - 20);',
+    ):
+        require(producer, token, 2)
+    require(producer, 'await page.mouse.move(center.x + 40, center.y - 20, {steps: 8});')
+    transform_marker = "Match the driver's complete slow/sparse tail."
+    require(producer, transform_marker)
+    require(
+        producer,
+        "const nativeSelectionReplayComplete = (current, baseline) =>\n"
+        "    current.selectionSync.syncLoops > baseline.selectionSync.syncLoops &&\n"
+        "    current.selectionSync.completedLoops > baseline.selectionSync.completedLoops &&\n"
+        "    current.nativeStateSequence > baseline.nativeStateSequence &&\n"
+        "    baseline.nativeState?.selected_count === 0 && nativeCubeSelected(current) &&\n"
+        "    nativeViewChanged(current, baseline) &&\n"
+        "    stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location);",
+    )
     require(producer, "\n    selectionNavigationPassthroughRequired =\n", 2)
     if "retainedReplayExercised" in producer:
         raise ValueError("hardware producer still requires the navigation gesture to be replayed")
     if not (
         producer.index('"isolated-selection-pending"')
         < producer.index('"isolated-selection-navigation-passthrough"')
+        < producer.index(transform_marker)
         < producer.index('"isolated-selection-drain"')
     ):
         raise ValueError("slow/sparse producer lost selection -> live navigation -> settle order")
@@ -274,10 +303,18 @@ def validate(sources: dict[str, str]) -> int:
         "source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc",
     ):
         require(sibling_patch, f"diff --git a/{relative} b/{relative}")
+    for token in (
+        "+  bool navigation_active = false;",
+        "+    data->navigation_active = event->val != KM_RELEASE;",
+        "+    return data->navigation_active;",
+        "+    if (view3d_select_async_navigation_event(data, event)) {",
+    ):
+        require(motion_patch, token)
     require(series, NAVIGATION_PATCH.name)
     require(series, EVENT_PATCH.name)
     require(series, GESTURE_PATCH.name)
     require(series, SIBLING_PATCH.name)
+    require(series, MOTION_PATCH.name)
     return async_combined_passthrough_census(sources)
 
 
@@ -292,18 +329,18 @@ def self_check(sources: dict[str, str]) -> None:
     mutations = (
         (
             "view3d_select",
-            "event_type == MIDDLEMOUSE",
-            "event_type == LEFTMOUSE",
+            "data->navigation_active = event->val != KM_RELEASE;",
+            "data->navigation_active = true;",
         ),
         (
             "view3d_select",
-            "ISMOUSE_MOTION(event_type)",
-            "false",
+            "    return data->navigation_active;",
+            "    return true;",
         ),
         (
             "view3d_select",
-            "if (view3d_select_async_navigation_event(event->type)) {",
-            "if (false && view3d_select_async_navigation_event(event->type)) {",
+            "if (view3d_select_async_navigation_event(data, event)) {",
+            "if (false && view3d_select_async_navigation_event(data, event)) {",
         ),
         (
             "view3d_select",
@@ -429,6 +466,12 @@ def self_check(sources: dict[str, str]) -> None:
             "b/source/blender/editors/screen/screendump-lost.cc",
         ),
         ("series", SIBLING_PATCH.name, "0319-missing.patch"),
+        (
+            "motion_patch",
+            "+    return data->navigation_active;",
+            "+    return true;",
+        ),
+        ("series", MOTION_PATCH.name, "0320-missing.patch"),
     )
     rejected = 0
     for key, old, new in mutations:
@@ -464,6 +507,7 @@ def main() -> int:
         "event_patch": EVENT_PATCH.read_text() if EVENT_PATCH.is_file() else "",
         "gesture_patch": GESTURE_PATCH.read_text() if GESTURE_PATCH.is_file() else "",
         "sibling_patch": SIBLING_PATCH.read_text() if SIBLING_PATCH.is_file() else "",
+        "motion_patch": MOTION_PATCH.read_text() if MOTION_PATCH.is_file() else "",
         "series": SERIES.read_text(),
     }
     try:

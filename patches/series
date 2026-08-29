@@ -1263,3 +1263,6 @@
 # 0319: extend the WM return-code contract to browser screenshot and depth continuations;
 # non-owned events pass onward while each continuation consumes only its own timer.
 0319-web-async-modal-event-passthrough.patch
+# 0320: pass pointer motion through pending browser selection only while a real middle-mouse
+# navigation gesture is held, preserving transform-key/motion/confirm ordering in the FIFO.
+0320-view3d-web-selection-navigation-motion-order.patch

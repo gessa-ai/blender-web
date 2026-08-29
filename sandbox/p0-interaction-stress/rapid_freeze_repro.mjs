@@ -646,7 +646,7 @@ try {
     current.nativeStateSequence > baseline.nativeStateSequence &&
     baseline.nativeState?.selected_count === 0 && nativeCubeSelected(current) &&
     nativeViewChanged(current, baseline) &&
-    stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location);
+    stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location);
   const hardwareActionStateComplete = (current, baseline) =>
     current.nativeStateSequence > baseline.nativeStateSequence &&
     nativeCubeSelected(current) && nativeViewChanged(current, baseline) &&
@@ -850,6 +850,14 @@ try {
       nativeViewChanged(selectionNavigationWindow, selectionBaseline) &&
       selectionNavigationWindow.selectionContinuation.replayedEvents ===
         selectionBaseline.selectionContinuation.replayedEvents;
+
+    /* Match the driver's complete slow/sparse tail. While the selection continuation is still
+     * live, G, its pointer motion, and confirmation must retain their original order. Passing all
+     * mouse motion through as "navigation" lets the motion overtake the retained G key and turns
+     * the replay into a zero-delta transform. */
+    await page.keyboard.press("g");
+    await page.mouse.move(center.x + 40, center.y - 20, {steps: 8});
+    await page.mouse.click(center.x + 40, center.y - 20);
     selectionDrain = await waitForActionDrain(
       "isolated-selection-drain",
       selectionBaseline.sha256,
@@ -857,9 +865,9 @@ try {
       selectionPendingWindow,
       1,
       (current) => ghostInputDeliveryComplete(
-        current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}) &&
+        current, selectionInputBaseline, {left: 2, middle: 1, keys: 1}) &&
         wmInputDeliveryComplete(
-          current, selectionWmInputBaseline, {left: 1, middle: 1, keys: 0}),
+          current, selectionWmInputBaseline, {left: 2, middle: 1, keys: 1}),
       (current) => nativeSelectionReplayComplete(current, selectionBaseline) &&
         selectionContinuationRetired(current, selectionBaseline) &&
         (!selectionNavigationPassthroughRequired || selectionNavigationPassedThrough),

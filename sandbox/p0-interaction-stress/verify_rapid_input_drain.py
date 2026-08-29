@@ -115,7 +115,7 @@ def validate(source: str) -> None:
         '"isolated-selection-navigation-passthrough",',
         'selectionNavigationPassedThrough =\n',
         '"isolated-selection-drain",',
-        'current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}',
+        'current, selectionInputBaseline, {left: 2, middle: 1, keys: 1}',
         '(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&',
         'selectionContinuationRetired(current, selectionBaseline)',
         'selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)',
@@ -141,7 +141,6 @@ def validate(source: str) -> None:
         'current.nativeState?.active_object === "Cube"',
         'current.nativeState?.selected_count === 1',
         'stateArrayChanged(current.nativeState?.view_rotation, baseline.nativeState?.view_rotation)',
-        'stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location)',
         'const hardwareRecoveryStateComplete = (current, baseline) =>',
         'const rapidInputBaseline = steps.at(-1).ghostInput;',
         'const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;',
@@ -183,8 +182,12 @@ def validate(source: str) -> None:
         require_once(source, token)
     if source.count(
         "stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)"
+    ) != 1:
+        raise ValueError("only the independent recovery orbit may preserve Cube location")
+    if source.count(
+        "stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location)"
     ) != 2:
-        raise ValueError("selection replay and recovery must preserve Cube location")
+        raise ValueError("queued and rapid transforms must both move Cube")
     if source.index("current.sha256 !== baseline") > source.index("return {...current"):
         raise ValueError("pixel and counter liveness is checked after accepting the sample")
     if source.index('"action-drain",\n      orbitBeforeClick.sha256') > source.index(
@@ -635,8 +638,14 @@ def self_check(
         ),
         replace_once(
             source,
-            "stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location)",
-            "true",
+            "const nativeSelectionReplayComplete = (current, baseline) =>\n"
+            "    current.selectionSync.syncLoops > baseline.selectionSync.syncLoops &&\n"
+            "    current.selectionSync.completedLoops > baseline.selectionSync.completedLoops &&\n"
+            "    current.nativeStateSequence > baseline.nativeStateSequence &&\n"
+            "    baseline.nativeState?.selected_count === 0 && nativeCubeSelected(current) &&\n"
+            "    nativeViewChanged(current, baseline) &&\n"
+            "    stateArrayChanged(current.nativeState?.location, baseline.nativeState?.location);",
+            "const nativeSelectionReplayComplete = (current, baseline) => true;",
         ),
         replace_once(
             source,

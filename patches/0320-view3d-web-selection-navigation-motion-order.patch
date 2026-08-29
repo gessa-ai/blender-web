@@ -1,0 +1,37 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -4128,5 +4128,6 @@ struct View3DSelectAsyncData {
+   ParticleEditDepthCacheSession *particle_depth_session = nullptr;
+ #ifdef __EMSCRIPTEN__
+   Vector<wmEvent> queued_events;
++  bool navigation_active = false;
+ #endif
+ };
+@@ -4158,6 +4159,13 @@ static bool view3d_select_async_navigation_event(const short event_type)
+-static bool view3d_select_async_navigation_event(const short event_type)
++static bool view3d_select_async_navigation_event(View3DSelectAsyncData *data,
++                                                 const wmEvent *event)
+ {
+-  return ISMOUSE_MOTION(event_type) || event_type == MIDDLEMOUSE ||
+-         ISMOUSE_WHEEL(event_type) || ISMOUSE_GESTURE(event_type) ||
+-         ISKEYMODIFIER(event_type) || ISNDOF(event_type);
++  if (event->type == MIDDLEMOUSE) {
++    data->navigation_active = event->val != KM_RELEASE;
++    return true;
++  }
++  if (ISMOUSE_MOTION(event->type)) {
++    return data->navigation_active;
++  }
++  return ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||
++         ISKEYMODIFIER(event->type) || ISNDOF(event->type);
+ }
+@@ -4458,7 +4466,7 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const wm
+     if (ISTIMER(event->type) || event->customdata != nullptr) {
+       return OPERATOR_PASS_THROUGH;
+     }
+-    if (view3d_select_async_navigation_event(event->type)) {
++    if (view3d_select_async_navigation_event(data, event)) {
+       return OPERATOR_PASS_THROUGH;
+     }
+     if (!view3d_select_async_event_push(data, event)) {

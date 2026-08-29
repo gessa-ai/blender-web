@@ -2266,3 +2266,17 @@ copies an event into its own bounded replay queue owns that event and must not a
 When a later correction changes an older numbered patch's postimage, its verifier must reverse the
 later overlays in descending series order, replay the original patch, reapply the overlays, and
 require the exact final bytes. See `patches/0319-web-async-modal-event-passthrough.patch`.
+
+## Class 153 — pass-through classification must preserve gesture ownership and FIFO order
+
+Signature: a pending browser selection correctly passes every mouse-motion event onward so an MMB
+orbit stays live, but it retains a later transform key and confirmation. The transform's pointer
+motion overtakes the retained key, so replay eventually invokes and confirms a zero-delta
+operation even though every DOM, GHOST, WM, readback, and presentation boundary completed. Track
+the actual navigation gesture: MMB press opens pass-through ownership, its motion stays live, and
+MMB release closes it. Outside that interval, pointer motion belongs in the same retained FIFO as
+the state-changing key and confirmation. Bind the hardware consumer to changed native geometry,
+not merely balanced input counters or a retired modal stack. See
+`upstream/source/blender/editors/space_view3d/view3d_select.cc`,
+`patches/0320-view3d-web-selection-navigation-motion-order.patch`, and
+`sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

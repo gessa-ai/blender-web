@@ -61,6 +61,22 @@ def require(condition: bool, message: str) -> None:
         raise SparseSeriesError(message)
 
 
+def numeric_vector(value: object, size: int) -> list[float] | None:
+    if not isinstance(value, list) or len(value) != size:
+        return None
+    if not all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value):
+        return None
+    return [float(item) for item in value]
+
+
+def vector_changed(left: object, right: object, size: int) -> bool:
+    lhs = numeric_vector(left, size)
+    rhs = numeric_vector(right, size)
+    return lhs is not None and rhs is not None and any(
+        abs(a - b) > 0.00001 for a, b in zip(lhs, rhs, strict=True)
+    )
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -186,13 +202,50 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
         require(isinstance(step.get("sha256"), str) and
                 SHA256.fullmatch(step["sha256"]) is not None,
                 f"focused step pixel SHA-256 is invalid: {step.get('name')}")
-    final = next(step for step in steps if step["name"] == "isolated-selection-drain")
+    by_name = {step["name"]: step for step in steps}
+    baseline = by_name["isolated-orbit-drain"]
+    navigation = by_name["isolated-selection-navigation-passthrough"]
+    final = by_name["isolated-selection-drain"]
     require(final.get("selectionDrawValidation", {}).get("pending") == 0,
             "selection validation remained pending after the drain")
     continuation = final.get("selectionContinuation")
     require(isinstance(continuation, dict) and continuation.get("active") == 0 and
             continuation.get("queuedEvents") == 0 and continuation.get("gpuFailures") == 0,
             "selection continuation did not retire cleanly")
+    require(vector_changed(final.get("nativeState", {}).get("location"),
+                           baseline.get("nativeState", {}).get("location"), 3),
+            "queued G/motion/confirm tail did not move Cube")
+    require(vector_changed(final.get("nativeState", {}).get("view_rotation"),
+                           baseline.get("nativeState", {}).get("view_rotation"), 4),
+            "pending-selection navigation did not change the native view")
+    input_contracts = {
+        "ghostInput": (
+            ("leftPresses", 2), ("leftReleases", 2),
+            ("middlePresses", 1), ("middleReleases", 1),
+            ("keyPresses", 1), ("keyReleases", 1),
+        ),
+        "wmInput": (
+            ("wmLeftPresses", 2), ("wmLeftReleases", 2),
+            ("wmMiddlePresses", 1), ("wmMiddleReleases", 1),
+            ("wmKeyPresses", 1), ("wmKeyReleases", 1),
+        ),
+    }
+    for input_field, counters in input_contracts.items():
+        before = baseline.get(input_field)
+        after = final.get(input_field)
+        require(isinstance(before, dict) and isinstance(after, dict),
+                f"{input_field} evidence is absent")
+        for counter, delta in counters:
+            require(type(before.get(counter)) is int and type(after.get(counter)) is int and
+                    after[counter] >= before[counter] + delta,
+                    f"{input_field} {counter} missed the complete slow/sparse tail")
+    navigation_continuation = navigation.get("selectionContinuation")
+    require(isinstance(navigation_continuation, dict) and
+            navigation_continuation.get("active") == 1 and
+            type(navigation_continuation.get("replayedEvents")) is int and
+            type(continuation.get("replayedEvents")) is int and
+            continuation["replayedEvents"] > navigation_continuation["replayedEvents"],
+            "pending selection did not retain and replay the transform tail")
     timelines = document.get("drainTimelines")
     require(isinstance(timelines, dict) and
             all(isinstance(timelines.get(name), list) and timelines[name]
@@ -240,9 +293,37 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
     base_step = {
         "sha256": hashlib.sha256(b"pixels").hexdigest(),
         "selectionDrawValidation": {"pending": 0, "failures": 0},
-        "selectionContinuation": {"active": 0, "queuedEvents": 0, "gpuFailures": 0},
+        "selectionContinuation": {
+            "active": 0, "queuedEvents": 0, "gpuFailures": 0, "replayedEvents": 0,
+        },
+        "nativeState": {"location": [0.0, 0.0, 0.0], "view_rotation": [1.0, 0.0, 0.0, 0.0]},
+        "ghostInput": {
+            "leftPresses": 0, "leftReleases": 0, "middlePresses": 0,
+            "middleReleases": 0, "keyPresses": 0, "keyReleases": 0,
+        },
+        "wmInput": {
+            "wmLeftPresses": 0, "wmLeftReleases": 0, "wmMiddlePresses": 0,
+            "wmMiddleReleases": 0, "wmKeyPresses": 0, "wmKeyReleases": 0,
+        },
     }
-    steps = [dict(base_step, name=name) for name in sorted(REQUIRED_STEPS)]
+    steps = [copy.deepcopy(dict(base_step, name=name)) for name in sorted(REQUIRED_STEPS)]
+    by_name = {step["name"]: step for step in steps}
+    by_name["isolated-selection-navigation-passthrough"]["selectionContinuation"].update(
+        {"active": 1, "replayedEvents": 0}
+    )
+    final = by_name["isolated-selection-drain"]
+    final["selectionContinuation"]["replayedEvents"] = 5
+    final["nativeState"] = {
+        "location": [1.0, 0.0, 0.0], "view_rotation": [0.9, 0.1, 0.0, 0.0],
+    }
+    final["ghostInput"].update({
+        "leftPresses": 2, "leftReleases": 2, "middlePresses": 1,
+        "middleReleases": 1, "keyPresses": 1, "keyReleases": 1,
+    })
+    final["wmInput"].update({
+        "wmLeftPresses": 2, "wmLeftReleases": 2, "wmMiddlePresses": 1,
+        "wmMiddleReleases": 1, "wmKeyPresses": 1, "wmKeyReleases": 1,
+    })
     timestamp = datetime(2026, 8, 29, tzinfo=timezone.utc) + timedelta(seconds=index)
     return {
         "schema": 2,
@@ -311,21 +392,36 @@ def self_check() -> None:
         lambda docs: docs[0].__setitem__("selectionNavigationPassedThrough", False),
         lambda docs: docs[0].__setitem__("selectionDrainMs", HARDWARE_TIMEOUT_MS + 1),
         lambda docs: docs[0]["steps"].pop(),
-        lambda docs: docs[0]["steps"][-1]["selectionDrawValidation"].__setitem__("pending", 1),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-drain")[
+                              "selectionDrawValidation"].__setitem__("pending", 1),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-drain")["nativeState"].__setitem__(
+                              "location", [0.0, 0.0, 0.0]),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-drain")["ghostInput"].__setitem__(
+                              "keyPresses", 0),
+        lambda docs: next(step for step in docs[0]["steps"]
+                          if step["name"] == "isolated-selection-drain")[
+                              "selectionContinuation"].__setitem__("replayedEvents", 0),
         lambda docs: docs[0].__setitem__("selectionReadbackFailureLines", ["failed"]),
         lambda docs: docs[0]["drainTimelines"].__setitem__(
             "isolated-selection-navigation-passthrough", []),
     ]
     rejected = 0
-    for mutate in mutations:
+    accepted_mutations = []
+    for index, mutate in enumerate(mutations):
         candidates = copy.deepcopy(documents)
         mutate(candidates)
         try:
             validate_series(candidates)
         except SparseSeriesError:
             rejected += 1
+        else:
+            accepted_mutations.append(index)
     require(rejected == len(mutations),
-            f"series mutation self-check rejected {rejected}/{len(mutations)}")
+            f"series mutation self-check rejected {rejected}/{len(mutations)}; "
+            f"accepted={accepted_mutations}")
     print(f"P0J_SPARSE_HARDWARE_SERIES_SELFCHECK_PASS positive=2 negative={rejected}")
 
 

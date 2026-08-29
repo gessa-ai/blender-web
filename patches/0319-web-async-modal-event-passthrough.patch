@@ -1,0 +1,65 @@
+diff --git a/source/blender/editors/screen/screendump.cc b/source/blender/editors/screen/screendump.cc
+--- a/source/blender/editors/screen/screendump.cc
++++ b/source/blender/editors/screen/screendump.cc
+@@ -189,4 +189,4 @@ static wmOperatorStatus screenshot_modal(bContext *C, wmOperator *op, const wmEv
+   ScreenshotData *scd = static_cast<ScreenshotData *>(op->customdata);
+   if (scd == nullptr || event->type != TIMER || event->customdata != scd->readback_timer) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }
+diff --git a/source/blender/editors/space_view3d/view3d_edit.cc b/source/blender/editors/space_view3d/view3d_edit.cc
+--- a/source/blender/editors/space_view3d/view3d_edit.cc
++++ b/source/blender/editors/space_view3d/view3d_edit.cc
+@@ -1231,4 +1231,4 @@ static wmOperatorStatus view3d_cursor3d_modal(bContext *C,
+   }
+   if (event->type != TIMER || event->customdata != read->timer) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }
+@@ -1244,5 +1244,5 @@ static wmOperatorStatus view3d_cursor3d_modal(bContext *C,
+   const ViewportDepthPickSession::ReadbackState state = read->session.state();
+   if (state == ViewportDepthPickSession::ReadbackState::Pending) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_RUNNING_MODAL;
+   }
+   if (state == ViewportDepthPickSession::ReadbackState::Failed) {
+diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
+--- a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
+@@ -174,4 +174,4 @@ static wmOperatorStatus viewcenter_pick_modal(bContext *C,
+   }
+   if (event->type != TIMER || event->customdata != read->timer) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }
+@@ -187,5 +187,5 @@ static wmOperatorStatus viewcenter_pick_modal(bContext *C,
+   const ViewportDepthPickSession::ReadbackState state = read->session.state();
+   if (state == ViewportDepthPickSession::ReadbackState::Pending) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_RUNNING_MODAL;
+   }
+   if (state == ViewportDepthPickSession::ReadbackState::Failed) {
+diff --git a/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc b/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
+--- a/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
+@@ -496,4 +496,4 @@ static wmOperatorStatus view3d_zoom_border_modal(bContext *C,
+   }
+   if (event->type != TIMER || event->customdata != read->timer) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }
+@@ -508,5 +508,5 @@ static wmOperatorStatus view3d_zoom_border_modal(bContext *C,
+   const eGPUReadbackStatus status = view3d_zoom_border_depth_read_status(read);
+   if (status == GPU_READBACK_PENDING) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_RUNNING_MODAL;
+   }
+   if (status != GPU_READBACK_READY) {
+diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc b/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
+--- a/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
++++ b/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
+@@ -1508,3 +1508,3 @@ wmOperatorStatus view3d_ndof_depth_modal(bContext *C,
+   if (event->type != TIMER || event->customdata != read->timer) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }

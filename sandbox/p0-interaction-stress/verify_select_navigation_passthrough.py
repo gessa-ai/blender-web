@@ -12,16 +12,44 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 VIEW3D_SELECT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_select.cc"
 WM_EVENT_SYSTEM = ROOT / "upstream/source/blender/windowmanager/intern/wm_event_system.cc"
+SCREENDUMP = ROOT / "upstream/source/blender/editors/screen/screendump.cc"
+VIEW3D_EDIT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_edit.cc"
+VIEW_CENTER = (
+    ROOT / "upstream/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc"
+)
+ZOOM_BORDER = (
+    ROOT / "upstream/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc"
+)
+VIEW_NDOF = ROOT / "upstream/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc"
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
 NAVIGATION_PATCH = ROOT / "patches/0315-view3d-web-selection-navigation-passthrough.patch"
 EVENT_PATCH = ROOT / "patches/0317-view3d-web-selection-unrelated-event-passthrough.patch"
 GESTURE_PATCH = ROOT / "patches/0318-view3d-web-gesture-selection-passthrough.patch"
+SIBLING_PATCH = ROOT / "patches/0319-web-async-modal-event-passthrough.patch"
 SERIES = ROOT / "patches/series"
 
 
 def require(source: str, token: str, count: int = 1) -> None:
     if source.count(token) != count:
         raise ValueError(f"expected {count} occurrence(s) of {token!r}")
+
+
+def definition(source: str, marker: str) -> str:
+    if source.count(marker) != 1:
+        raise ValueError(f"expected one definition marker {marker!r}")
+    start = source.index(marker)
+    brace = source.find("{", start + len(marker))
+    if brace < 0:
+        raise ValueError(f"opening brace missing after {marker!r}")
+    depth = 0
+    for index in range(brace, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : index + 1]
+    raise ValueError(f"unterminated definition after {marker!r}")
 
 
 def validate(sources: dict[str, str]) -> None:
@@ -31,6 +59,7 @@ def validate(sources: dict[str, str]) -> None:
     navigation_patch = sources["navigation_patch"]
     event_patch = sources["event_patch"]
     gesture_patch = sources["gesture_patch"]
+    sibling_patch = sources["sibling_patch"]
     series = sources["series"]
 
     helper = (
@@ -68,6 +97,68 @@ def validate(sources: dict[str, str]) -> None:
         "  }"
     )
     require(view3d_select, bitmap_gesture_route)
+
+    sibling_modals = (
+        (
+            "screendump",
+            "static wmOperatorStatus screenshot_modal(",
+            "if (scd == nullptr || event->type != TIMER || event->customdata != "
+            "scd->readback_timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (scd->readback_tick_count < max_tick_count) {\n"
+            "      return OPERATOR_RUNNING_MODAL;\n"
+            "    }",
+        ),
+        (
+            "view3d_edit",
+            "static wmOperatorStatus view3d_cursor3d_modal(",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (state == ViewportDepthPickSession::ReadbackState::Pending) {\n"
+            "    return OPERATOR_RUNNING_MODAL;\n"
+            "  }",
+        ),
+        (
+            "view_center",
+            "static wmOperatorStatus viewcenter_pick_modal(",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (state == ViewportDepthPickSession::ReadbackState::Pending) {\n"
+            "    return OPERATOR_RUNNING_MODAL;\n"
+            "  }",
+        ),
+        (
+            "zoom_border",
+            "static wmOperatorStatus view3d_zoom_border_modal(",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (status == GPU_READBACK_PENDING) {\n"
+            "    return OPERATOR_RUNNING_MODAL;\n"
+            "  }",
+        ),
+        (
+            "view_ndof",
+            "wmOperatorStatus view3d_ndof_depth_modal(",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (status == GPU_READBACK_PENDING) {\n"
+            "    return OPERATOR_RUNNING_MODAL;\n"
+            "  }",
+        ),
+    )
+    for source_key, marker, pass_route, owned_route in sibling_modals:
+        modal = definition(sources[source_key], marker)
+        require(modal, pass_route)
+        require(modal, owned_route)
+    cursor_invoke = definition(
+        sources["view3d_edit"], "static wmOperatorStatus view3d_cursor3d_invoke("
+    )
+    require(cursor_invoke, "return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;")
     require(
         wm_event_system,
         "if (retval == (OPERATOR_PASS_THROUGH | OPERATOR_RUNNING_MODAL)) {\n"
@@ -134,9 +225,21 @@ def validate(sources: dict[str, str]) -> None:
         require(gesture_patch, token)
     require(gesture_patch, "-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;", 2)
     require(gesture_patch, "+    return OPERATOR_PASS_THROUGH;", 2)
+    require(sibling_patch, "-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;", 8)
+    require(sibling_patch, "+    return OPERATOR_PASS_THROUGH;", 5)
+    require(sibling_patch, "+    return OPERATOR_RUNNING_MODAL;", 3)
+    for relative in (
+        "source/blender/editors/screen/screendump.cc",
+        "source/blender/editors/space_view3d/view3d_edit.cc",
+        "source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc",
+        "source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc",
+        "source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc",
+    ):
+        require(sibling_patch, f"diff --git a/{relative} b/{relative}")
     require(series, NAVIGATION_PATCH.name)
     require(series, EVENT_PATCH.name)
     require(series, GESTURE_PATCH.name)
+    require(series, SIBLING_PATCH.name)
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -194,6 +297,53 @@ def self_check(sources: dict[str, str]) -> None:
             "  }",
         ),
         (
+            "screendump",
+            "if (scd == nullptr || event->type != TIMER || event->customdata != "
+            "scd->readback_timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (scd == nullptr || event->type != TIMER || event->customdata != "
+            "scd->readback_timer) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
+            "view3d_edit",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
+            "view_center",
+            "if (state == ViewportDepthPickSession::ReadbackState::Pending) {\n"
+            "    return OPERATOR_RUNNING_MODAL;\n"
+            "  }",
+            "if (state == ViewportDepthPickSession::ReadbackState::Pending) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
+            "zoom_border",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
+            "view_ndof",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
             "view3d_select",
             "if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {\n"
             "    return OPERATOR_PASS_THROUGH;\n"
@@ -226,6 +376,14 @@ def self_check(sources: dict[str, str]) -> None:
         ("series", EVENT_PATCH.name, "0317-missing.patch"),
         ("gesture_patch", "view3d_particle_gesture_async_modal", "missing_particle_modal"),
         ("series", GESTURE_PATCH.name, "0318-missing.patch"),
+        (
+            "sibling_patch",
+            "diff --git a/source/blender/editors/screen/screendump.cc "
+            "b/source/blender/editors/screen/screendump.cc",
+            "diff --git a/source/blender/editors/screen/screendump.cc "
+            "b/source/blender/editors/screen/screendump-lost.cc",
+        ),
+        ("series", SIBLING_PATCH.name, "0319-missing.patch"),
     )
     rejected = 0
     for key, old, new in mutations:
@@ -247,10 +405,16 @@ def main() -> int:
     sources = {
         "view3d_select": VIEW3D_SELECT.read_text(),
         "wm_event_system": WM_EVENT_SYSTEM.read_text(),
+        "screendump": SCREENDUMP.read_text(),
+        "view3d_edit": VIEW3D_EDIT.read_text(),
+        "view_center": VIEW_CENTER.read_text(),
+        "zoom_border": ZOOM_BORDER.read_text(),
+        "view_ndof": VIEW_NDOF.read_text(),
         "producer": PRODUCER.read_text(),
         "navigation_patch": NAVIGATION_PATCH.read_text() if NAVIGATION_PATCH.is_file() else "",
         "event_patch": EVENT_PATCH.read_text() if EVENT_PATCH.is_file() else "",
         "gesture_patch": GESTURE_PATCH.read_text() if GESTURE_PATCH.is_file() else "",
+        "sibling_patch": SIBLING_PATCH.read_text() if SIBLING_PATCH.is_file() else "",
         "series": SERIES.read_text(),
     }
     try:

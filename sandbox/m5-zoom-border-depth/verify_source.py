@@ -359,10 +359,11 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "event->type == EVT_ESCKEY && event->val == KM_PRESS",
             "event->type == EVT_MODAL_MAP && event->val == GESTURE_MODAL_CANCEL",
             "event->type != TIMER || event->customdata != read->timer",
-            "OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH",
+            "return OPERATOR_PASS_THROUGH;",
             "constexpr int max_tick_count = 240;",
             "if (++read->tick_count > max_tick_count)",
             "if (status == GPU_READBACK_PENDING)",
+            "return OPERATOR_RUNNING_MODAL;",
             "view3d_zoom_border_depth_read_finish(C, op, read)",
         ),
         "gesture handoff and bounded continuation",
@@ -449,8 +450,8 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "bounded timeout",
         ),
         (
+            "return OPERATOR_PASS_THROUGH;",
             "return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;",
-            "return OPERATOR_RUNNING_MODAL;",
             "unrelated event passthrough",
         ),
         (

@@ -232,9 +232,11 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "constexpr int max_queued_motions = 256;",
             "read->queued_motions.append(ndof_motion_copy(*event));",
             "event->type != TIMER || event->customdata != read->timer",
+            "return OPERATOR_PASS_THROUGH;",
             "constexpr int max_tick_count = 240;",
             "if (++read->tick_count > max_tick_count)",
             "ndof_depth_read_status(read)",
+            "return OPERATOR_RUNNING_MODAL;",
             "ndof_depth_read_consume(read, min_depth_point)",
             "read->resolved = true;",
             "ndof_replay_owned_event(C, op, vod, invoke_event, invoke_motion)",
@@ -245,7 +247,7 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
     for needle in (
         "BKE_report(op->reports, RPT_ERROR, \"Timed out waiting for NDOF depth\")",
         "BKE_report(op->reports, RPT_ERROR, \"NDOF depth readback failed\")",
-        "return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;",
+        "return OPERATOR_PASS_THROUGH;",
     ):
         require(needle in modal, f"NDOF modal terminal contract missing {needle!r}")
 
@@ -344,6 +346,16 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         (NDOF_PATH, "GPU_readback_cancel(read->readback);", "read->readback = nullptr;", "GPU cleanup"),
         (NAV_PATH, "return view3d_ndof_depth_modal(C, op, event);", "return OPERATOR_CANCELLED;", "modal routing"),
         (NDOF_PATH, "ot->cancel = view3d_navigate_cancel_fn;", "ot->cancel = nullptr;", "external cancellation"),
+        (
+            NDOF_PATH,
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (event->type != TIMER || event->customdata != read->timer) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "non-owned event passthrough",
+        ),
     )
     for relative, old, new, label in mutations:
         require_once(sources[relative], old, f"selfcheck {label}") if label != "external cancellation" else None
@@ -365,7 +377,7 @@ def main() -> int:
     sources = read_sources(args.source_root.resolve())
     if args.selfcheck:
         run_selfcheck(sources)
-        print("M5_NDOF_DEPTH_SOURCE_SELFCHECK_PASS mutations=8")
+        print("M5_NDOF_DEPTH_SOURCE_SELFCHECK_PASS mutations=9")
         return 0
     result = validate(sources)
     if args.output is not None:

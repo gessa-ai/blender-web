@@ -1260,3 +1260,6 @@
 # 0318: apply the same WM return-code contract to pending particle and bitmap gesture selection;
 # bare pass-through retains each continuation while allowing later event owners to run.
 0318-view3d-web-gesture-selection-passthrough.patch
+# 0319: extend the WM return-code contract to browser screenshot and depth continuations;
+# non-owned events pass onward while each continuation consumes only its own timer.
+0319-web-async-modal-event-passthrough.patch

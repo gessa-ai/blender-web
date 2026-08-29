@@ -15,6 +15,7 @@ NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-center-depth-pick/native}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-center-depth-pick/wasm}"
 OUT="${OUT:-$ROOT/build-deps/m5-center-depth-pick/evidence}"
 PATCH="$ROOT/patches/0257-m5-view-center-pick-continuation.patch"
+OVERLAY_PATCH="$ROOT/patches/0319-web-async-modal-event-passthrough.patch"
 
 require_file()
 {
@@ -31,7 +32,7 @@ sha256_file()
 
 for file in "$HOST_CMAKE" "$PYBIN" "$NODE" "$ROOT/scripts/ninja-locked.sh" \
             "$HERE/CMakeLists.txt" "$HERE/contract_test.cc" "$HERE/verify_source.py" \
-            "$HERE/verify_numbered_patch.py" "$PATCH"; do
+            "$HERE/verify_numbered_patch.py" "$PATCH" "$OVERLAY_PATCH"; do
   require_file "$file"
 done
 
@@ -59,6 +60,7 @@ mkdir -p "$NATIVE_BUILD" "$WASM_BUILD" "$OUT"
 "$PYBIN" "$HERE/verify_source.py" \
   --source-root "$SOURCE_ROOT" --output "$OUT/source.json" >"$OUT/source.stdout"
 "$PYBIN" "$HERE/verify_numbered_patch.py" --source-root "$SOURCE_ROOT" --patch "$PATCH" \
+  --overlay-patch "$OVERLAY_PATCH" \
   >"$OUT/patch.stdout"
 
 "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$NATIVE_BUILD" \

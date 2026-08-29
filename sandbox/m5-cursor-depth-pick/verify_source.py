@@ -337,11 +337,12 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "view3d_cursor3d_depth_read_free(C, op);",
             "if (!view3d_cursor3d_depth_read_context_matches(C, read))",
             "event->type != TIMER || event->customdata != read->timer",
-            "OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH",
+            "return OPERATOR_PASS_THROUGH;",
             "constexpr int max_tick_count = 240;",
             "if (++read->tick_count > max_tick_count)",
             "read->session.state();",
             "ReadbackState::Pending",
+            "return OPERATOR_RUNNING_MODAL;",
             "ReadbackState::Failed",
             "view3d_cursor3d_depth_read_apply(C, op)",
         ),
@@ -440,14 +441,19 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         ),
         (
             "source/blender/editors/space_view3d/view3d_draw.cc",
-            "GPU_readback_size(impl_->readback) != impl_->expected_size",
-            "GPU_readback_size(impl_->readback) > impl_->expected_size",
+            "if (status != GPU_READBACK_READY || "
+            "GPU_readback_size(impl_->readback) != impl_->expected_size) {",
+            "if (status != GPU_READBACK_READY || "
+            "GPU_readback_size(impl_->readback) > impl_->expected_size) {",
             "exact byte size",
         ),
         (
             "source/blender/editors/space_view3d/view3d_draw.cc",
-            "!equals_m4m4(static_cast<RegionView3D *>(region->regiondata)->viewinv, impl_->viewinv)",
-            "false",
+            "region->winx != impl_->region_size[0] || region->winy != impl_->region_size[1] ||\n"
+            "      !equals_m4m4(static_cast<RegionView3D *>(region->regiondata)->viewinv, "
+            "impl_->viewinv)",
+            "region->winx != impl_->region_size[0] || region->winy != impl_->region_size[1] ||\n"
+            "      false",
             "view-transform guard",
         ),
         (
@@ -504,6 +510,22 @@ def run_selfcheck(sources: dict[str, str]) -> None:
             "nullptr",
             "forced depth result",
         ),
+        (
+            "source/blender/editors/space_view3d/view3d_edit.cc",
+            "    return OPERATOR_PASS_THROUGH;",
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;",
+            "non-owned event passthrough",
+        ),
+        (
+            "source/blender/editors/space_view3d/view3d_edit.cc",
+            "if (state == ViewportDepthPickSession::ReadbackState::Pending) {\n"
+            "    return OPERATOR_RUNNING_MODAL;\n"
+            "  }",
+            "if (state == ViewportDepthPickSession::ReadbackState::Pending) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "owned timer consumption",
+        ),
     )
     for relative, before, after, label in mutations:
         require(before in sources[relative], f"selfcheck fixture drifted: {label}")
@@ -526,7 +548,7 @@ def main() -> int:
     sources = read_sources(args.source_root.resolve())
     if args.selfcheck:
         run_selfcheck(sources)
-        print("M5_CURSOR_DEPTH_PICK_SOURCE_SELFCHECK_PASS mutations=13")
+        print("M5_CURSOR_DEPTH_PICK_SOURCE_SELFCHECK_PASS mutations=15")
         return 0
 
     receipt = validate(sources)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Reverse and forward patch 0262 against its exact current postimage."""
+"""Replay patch 0262 plus its later modal-routing overlay against the exact postimage."""
 
 from __future__ import annotations
 
@@ -17,6 +17,14 @@ EXPECTED_NAME = "0262-m5-zoom-border-depth-continuation.patch"
 EXPECTED_PATH = Path(
     "source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc"
 )
+EXPECTED_OVERLAY_NAME = "0319-web-async-modal-event-passthrough.patch"
+EXPECTED_OVERLAY_PATHS = {
+    Path("source/blender/editors/screen/screendump.cc"),
+    Path("source/blender/editors/space_view3d/view3d_edit.cc"),
+    Path("source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc"),
+    EXPECTED_PATH,
+    Path("source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc"),
+}
 
 
 class VerificationError(RuntimeError):
@@ -55,11 +63,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--patch", type=Path, required=True)
+    parser.add_argument("--overlay-patch", type=Path, required=True)
     args = parser.parse_args()
     source_root = args.source_root.resolve()
     patch = args.patch.resolve()
+    overlay = args.overlay_patch.resolve()
     if patch.name != EXPECTED_NAME or patch_paths(patch) != {EXPECTED_PATH}:
         raise VerificationError("numbered patch identity or path set differs")
+    if overlay.name != EXPECTED_OVERLAY_NAME or patch_paths(overlay) != EXPECTED_OVERLAY_PATHS:
+        raise VerificationError("overlay patch identity or path set differs")
     postimage = (source_root / EXPECTED_PATH).read_bytes()
 
     with tempfile.TemporaryDirectory(prefix="m5-zoom-border-patch-") as temporary:
@@ -67,17 +79,28 @@ def main() -> int:
         target = replay / EXPECTED_PATH
         target.parent.mkdir(parents=True)
         target.write_bytes(postimage)
+        overlay_args = ["git", "apply", f"--include={EXPECTED_PATH}"]
+        run([*overlay_args, "--reverse", "--check", str(overlay)], replay)
+        run([*overlay_args, "--reverse", str(overlay)], replay)
+        if target.read_bytes() == postimage:
+            raise VerificationError("overlay reverse application left the target unchanged")
         run(["git", "apply", "--reverse", "--check", str(patch)], replay)
         run(["git", "apply", "--reverse", str(patch)], replay)
         if target.read_bytes() == postimage:
             raise VerificationError("reverse application left the target unchanged")
         run(["git", "apply", "--check", str(patch)], replay)
         run(["git", "apply", str(patch)], replay)
+        run([*overlay_args, "--check", str(overlay)], replay)
+        run([*overlay_args, str(overlay)], replay)
         if target.read_bytes() != postimage:
             raise VerificationError("forward replay differs from the exact postimage")
 
     digest = hashlib.sha256(patch.read_bytes()).hexdigest()
-    print(f"M5_ZOOM_BORDER_NUMBERED_PATCH_PASS files=1 sha256={digest}")
+    overlay_digest = hashlib.sha256(overlay.read_bytes()).hexdigest()
+    print(
+        f"M5_ZOOM_BORDER_NUMBERED_PATCH_PASS files=1 sha256={digest} "
+        f"overlay_sha256={overlay_digest}"
+    )
     return 0
 
 

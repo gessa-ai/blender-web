@@ -14,6 +14,8 @@ NATIVE_BUILD="${NATIVE_BUILD:-$ROOT/build-deps/m5-ndof-depth/native-contract}"
 WASM_BUILD="${WASM_BUILD:-$ROOT/build-deps/m5-ndof-depth/wasm-contract}"
 OUT="${OUT:-$ROOT/build-deps/m5-ndof-depth/evidence}"
 PATCH="$ROOT/patches/0263-m5-ndof-depth-continuation.patch"
+OVERLAY_PATCH="$ROOT/patches/0319-web-async-modal-event-passthrough.patch"
+ROTATE_OVERLAY_PATCH="$ROOT/patches/0304-view3d-web-rotate-retirement-diagnostic.patch"
 CANONICAL="$ROOT/patches/PREVIEW_SNAPSHOT.patch"
 CANONICAL_SHA="$ROOT/patches/PREVIEW_SNAPSHOT.sha256"
 NATIVE_GRAPH="$ROOT/build-native-m1-parity"
@@ -40,7 +42,8 @@ sha256_file()
 for file in "$HOST_CMAKE" "$PYBIN" "$NODE" "$ROOT/scripts/ninja-locked.sh" \
             "$HERE/CMakeLists.txt" "$HERE/contract_test.cc" "$HERE/verify_source.py" \
             "$HERE/verify_numbered_patch.py" "$HERE/verify_canonical_source.py" \
-            "$HERE/compile_overlay.py" "$PATCH" "$CANONICAL" "$CANONICAL_SHA"; do
+            "$HERE/compile_overlay.py" "$PATCH" "$OVERLAY_PATCH" "$ROTATE_OVERLAY_PATCH" \
+            "$CANONICAL" "$CANONICAL_SHA"; do
   require_file "$file"
 done
 
@@ -100,6 +103,8 @@ done
 "$PYBIN" "$HERE/verify_source.py" \
   --source-root "$SOURCE_ROOT" --output "$OUT/source.json" >"$OUT/source.stdout"
 "$PYBIN" "$HERE/verify_numbered_patch.py" --source-root "$SOURCE_ROOT" --patch "$PATCH" \
+  --overlay-patch "$OVERLAY_PATCH" \
+  --rotate-overlay-patch "$ROTATE_OVERLAY_PATCH" \
   >"$OUT/patch.stdout"
 
 "$HOST_CMAKE" -G Ninja -S "$HERE" -B "$NATIVE_BUILD" \

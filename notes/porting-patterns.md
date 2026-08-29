@@ -2256,3 +2256,13 @@ same contradictory return. Mutation-test the actual WM mapping as well as every 
 branch. See `upstream/source/blender/windowmanager/intern/wm_event_system.cc`,
 `upstream/source/blender/editors/space_view3d/view3d_select.cc`, and
 `sandbox/p0-interaction-stress/verify_select_navigation_passthrough.py`.
+
+The same rule applies outside selection. Screenshot, cursor-depth, view-center, border-zoom, and
+NDOF-depth continuations must return bare pass-through for an event that is not their private timer,
+then return running-modal while that owned timer still observes a pending readback. Do not rewrite
+an initial invoke return merely because it uses the combined flags: the cursor invoke deliberately
+keeps click-drag detection alive after installing its modal handler. Likewise, a continuation that
+copies an event into its own bounded replay queue owns that event and must not also pass it onward.
+When a later correction changes an older numbered patch's postimage, its verifier must reverse the
+later overlays in descending series order, replay the original patch, reapply the overlays, and
+require the exact final bytes. See `patches/0319-web-async-modal-event-passthrough.patch`.

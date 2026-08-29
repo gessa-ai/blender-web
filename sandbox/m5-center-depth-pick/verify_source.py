@@ -290,11 +290,12 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
             "if (!viewcenter_pick_depth_read_context_matches(C, read))",
             "event->type == EVT_ESCKEY && event->val == KM_PRESS",
             "event->type != TIMER || event->customdata != read->timer",
-            "OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH",
+            "return OPERATOR_PASS_THROUGH;",
             "constexpr int max_tick_count = 240;",
             "if (++read->tick_count > max_tick_count)",
             "read->session.state();",
             "ReadbackState::Pending",
+            "return OPERATOR_RUNNING_MODAL;",
             "ReadbackState::Failed",
             "viewcenter_pick_depth_read_apply(C, op)",
         ),
@@ -403,8 +404,8 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         ),
         ("if (++read->tick_count > max_tick_count)", "if (false)", "bounded timeout"),
         (
+            "return OPERATOR_PASS_THROUGH;",
             "return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;",
-            "return OPERATOR_RUNNING_MODAL;",
             "unrelated event passthrough",
         ),
         (

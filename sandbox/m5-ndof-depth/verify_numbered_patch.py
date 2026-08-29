@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Reverse and forward patch 0263 against its exact current postimage."""
+"""Replay patch 0263 plus its later modal-routing overlay against the exact postimage."""
 
 from __future__ import annotations
 
@@ -19,6 +19,17 @@ EXPECTED_PATHS = {
     Path("source/blender/editors/space_view3d/view3d_navigate.hh"),
     Path("source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc"),
 }
+EXPECTED_OVERLAY_NAME = "0319-web-async-modal-event-passthrough.patch"
+EXPECTED_OVERLAY_PATHS = {
+    Path("source/blender/editors/screen/screendump.cc"),
+    Path("source/blender/editors/space_view3d/view3d_edit.cc"),
+    Path("source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc"),
+    Path("source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc"),
+    Path("source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc"),
+}
+OVERLAY_TARGET = Path("source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc")
+EXPECTED_ROTATE_OVERLAY_NAME = "0304-view3d-web-rotate-retirement-diagnostic.patch"
+ROTATE_OVERLAY_TARGET = Path("source/blender/editors/space_view3d/view3d_navigate.cc")
 
 
 class VerificationError(RuntimeError):
@@ -53,11 +64,22 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--patch", type=Path, required=True)
+    parser.add_argument("--overlay-patch", type=Path, required=True)
+    parser.add_argument("--rotate-overlay-patch", type=Path, required=True)
     args = parser.parse_args()
     source_root = args.source_root.resolve()
     patch = args.patch.resolve()
+    overlay = args.overlay_patch.resolve()
+    rotate_overlay = args.rotate_overlay_patch.resolve()
     if patch.name != EXPECTED_NAME or patch_paths(patch) != EXPECTED_PATHS:
         raise VerificationError("numbered patch identity or path set differs")
+    if overlay.name != EXPECTED_OVERLAY_NAME or patch_paths(overlay) != EXPECTED_OVERLAY_PATHS:
+        raise VerificationError("overlay patch identity or path set differs")
+    if (
+        rotate_overlay.name != EXPECTED_ROTATE_OVERLAY_NAME
+        or patch_paths(rotate_overlay) != {ROTATE_OVERLAY_TARGET}
+    ):
+        raise VerificationError("rotate overlay patch identity or path set differs")
 
     postimages = {relative: (source_root / relative).read_bytes() for relative in EXPECTED_PATHS}
     with tempfile.TemporaryDirectory(prefix="m5-ndof-depth-patch-") as temporary:
@@ -66,18 +88,37 @@ def main() -> int:
             target = replay / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(postimage)
+        overlay_args = ["git", "apply", f"--include={OVERLAY_TARGET}"]
+        run([*overlay_args, "--reverse", "--check", str(overlay)], replay)
+        run([*overlay_args, "--reverse", str(overlay)], replay)
+        if (replay / OVERLAY_TARGET).read_bytes() == postimages[OVERLAY_TARGET]:
+            raise VerificationError("overlay reverse application left the target unchanged")
+        rotate_overlay_args = ["git", "apply", f"--include={ROTATE_OVERLAY_TARGET}"]
+        run([*rotate_overlay_args, "--reverse", "--check", str(rotate_overlay)], replay)
+        run([*rotate_overlay_args, "--reverse", str(rotate_overlay)], replay)
+        if (replay / ROTATE_OVERLAY_TARGET).read_bytes() == postimages[ROTATE_OVERLAY_TARGET]:
+            raise VerificationError("rotate overlay reverse left the target unchanged")
         run(["git", "apply", "--reverse", "--check", str(patch)], replay)
         run(["git", "apply", "--reverse", str(patch)], replay)
         if all((replay / relative).read_bytes() == postimage for relative, postimage in postimages.items()):
             raise VerificationError("reverse application left every target unchanged")
         run(["git", "apply", "--check", str(patch)], replay)
         run(["git", "apply", str(patch)], replay)
+        run([*rotate_overlay_args, "--check", str(rotate_overlay)], replay)
+        run([*rotate_overlay_args, str(rotate_overlay)], replay)
+        run([*overlay_args, "--check", str(overlay)], replay)
+        run([*overlay_args, str(overlay)], replay)
         for relative, postimage in postimages.items():
             if (replay / relative).read_bytes() != postimage:
                 raise VerificationError(f"forward replay differs: {relative}")
 
     digest = hashlib.sha256(patch.read_bytes()).hexdigest()
-    print(f"M5_NDOF_DEPTH_NUMBERED_PATCH_PASS files=3 sha256={digest}")
+    overlay_digest = hashlib.sha256(overlay.read_bytes()).hexdigest()
+    rotate_overlay_digest = hashlib.sha256(rotate_overlay.read_bytes()).hexdigest()
+    print(
+        f"M5_NDOF_DEPTH_NUMBERED_PATCH_PASS files=3 sha256={digest} "
+        f"rotate_overlay_sha256={rotate_overlay_digest} overlay_sha256={overlay_digest}"
+    )
     return 0
 
 

@@ -18761,7 +18761,7 @@ index 5a625d6790b2b82fce7afd249f616169c365dcdd..fb84ce2e2ae176be997412aa7e53865d
  
  void OBJECT_OT_lightprobe_cache_bake(wmOperatorType *ot)
 diff --git a/source/blender/editors/screen/screendump.cc b/source/blender/editors/screen/screendump.cc
-index c15376a13f7af991cc693bb854f19d3f98f49a77..ea1b16ea474faf30d3218e8cb8570e9be2591d88 100644
+index c15376a13f7af991cc693bb854f19d3f98f49a77..b70ac2d821e64d3b816757930fcf5c7ee08053c4 100644
 --- a/source/blender/editors/screen/screendump.cc
 +++ b/source/blender/editors/screen/screendump.cc
 @@ -54,44 +54,50 @@ struct ScreenshotData {
@@ -18906,7 +18906,7 @@ index c15376a13f7af991cc693bb854f19d3f98f49a77..ea1b16ea474faf30d3218e8cb8570e9b
 +{
 +  ScreenshotData *scd = static_cast<ScreenshotData *>(op->customdata);
 +  if (scd == nullptr || event->type != TIMER || event->customdata != scd->readback_timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  constexpr int max_tick_count = 240;
@@ -20905,7 +20905,7 @@ index 71ce959d8f3721ccbe52f85e6a0b0e3861e71597..182efd25efb6cde63eeec30d92611caa
      MEM_delete(data);
    }
 diff --git a/source/blender/editors/space_view3d/view3d_edit.cc b/source/blender/editors/space_view3d/view3d_edit.cc
-index e99b15152010953073bbda1f1d2dfa179561aebe..7186312b40995d497742f52fb23b462428f8f233 100644
+index e99b15152010953073bbda1f1d2dfa179561aebe..156a8ea1ea4fec7c91e8a8557d710a16ffa71cdb 100644
 --- a/source/blender/editors/space_view3d/view3d_edit.cc
 +++ b/source/blender/editors/space_view3d/view3d_edit.cc
 @@ -896,12 +896,13 @@ void ED_view3d_cursor3d_position(bContext *C,
@@ -21108,7 +21108,7 @@ index e99b15152010953073bbda1f1d2dfa179561aebe..7186312b40995d497742f52fb23b4624
 +    return OPERATOR_CANCELLED | OPERATOR_PASS_THROUGH;
 +  }
 +  if (event->type != TIMER || event->customdata != read->timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  /* Roughly 2.4 seconds at 10 ms. A lost callback must not mutate the cursor late. */
@@ -21121,7 +21121,7 @@ index e99b15152010953073bbda1f1d2dfa179561aebe..7186312b40995d497742f52fb23b4624
 +
 +  const ViewportDepthPickSession::ReadbackState state = read->session.state();
 +  if (state == ViewportDepthPickSession::ReadbackState::Pending) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_RUNNING_MODAL;
 +  }
 +  if (state == ViewportDepthPickSession::ReadbackState::Failed) {
 +    BKE_report(op->reports, RPT_ERROR, "Cursor depth readback failed");
@@ -21857,7 +21857,7 @@ index 32c56d8cef946e2484f1c0cbc2bedd9372fc089b..84c0c5cabafcd9ad56e6bbbe9033c560
  
  /* view3d_navigate_roll.cc */
 diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
-index eb1e6738b024489556d07877e4f818303a7f9bd1..ef305b8804445c0ca976b976f552cefd2db92ec4 100644
+index eb1e6738b024489556d07877e4f818303a7f9bd1..030567079967124b79bbdbb1e0c202b58359fcdf 100644
 --- a/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
 +++ b/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc
 @@ -1,14 +1,19 @@
@@ -22031,7 +22031,7 @@ index eb1e6738b024489556d07877e4f818303a7f9bd1..ef305b8804445c0ca976b976f552cefd
 +    return OPERATOR_CANCELLED;
 +  }
 +  if (event->type != TIMER || event->customdata != read->timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  /* Roughly 2.4 seconds at 10 ms. A lost callback must not move the view late. */
@@ -22044,7 +22044,7 @@ index eb1e6738b024489556d07877e4f818303a7f9bd1..ef305b8804445c0ca976b976f552cefd
 +
 +  const ViewportDepthPickSession::ReadbackState state = read->session.state();
 +  if (state == ViewportDepthPickSession::ReadbackState::Pending) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_RUNNING_MODAL;
 +  }
 +  if (state == ViewportDepthPickSession::ReadbackState::Failed) {
 +    BKE_report(op->reports, RPT_ERROR, "Center depth readback failed");
@@ -22472,7 +22472,7 @@ index 1a6c7de9e4d491e9b43b868b4c7e5ef5634400f2..037ec6be96e7a735673339d262649e21
  
  }  // namespace blender
 diff --git a/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc b/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
-index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1b3e2495a 100644
+index c228244766948210f1cadbdf7d2533562efe0b72..0d9cb994c16ffdc4404b9123d2ae55c42d953422 100644
 --- a/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
 +++ b/source/blender/editors/space_view3d/view3d_navigate_view_ndof.cc
 @@ -1,21 +1,38 @@
@@ -22720,7 +22720,7 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
 +  vod->ndof_depth_read = nullptr;
 +  MEM_delete(read);
 +}
-+
+ 
 +bool view3d_ndof_depth_is_pending(const ViewOpsData *vod)
 +{
 +  return vod != nullptr && vod->ndof_depth_read != nullptr;
@@ -22784,7 +22784,7 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
 +    read->empty_ready = true;
 +    return read;
 +  }
- 
++
 +  const size_t width = size_t(width_signed);
 +  const size_t height = size_t(height_signed);
 +  if (width > std::numeric_limits<size_t>::max() / height ||
@@ -22901,16 +22901,12 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
 +        vod->depsgraph, vod->area, vod->region, vod->ndof_depth_read->min_depth_point);
 +    return NdofOrbitCenterResult::Ready;
 +  }
- 
--  std::optional<float3> center_test = ndof_orbit_center_calc_from_bounds(depsgraph, area, region);
--  if (!center_test.has_value()) {
--    center_test = ndof_orbit_center_calc_from_zbuf(depsgraph, area, region);
++
 +  /* Preserve the stock bounds-first algorithm. Only the fallback rectangle read yields. */
 +  r_center = ndof_orbit_center_calc_from_bounds(vod->depsgraph, vod->area, vod->region);
 +  if (r_center.has_value()) {
 +    return NdofOrbitCenterResult::Ready;
-   }
--  return center_test;
++  }
 +
 +  const rcti sample_rect = ndof_orbit_center_sample_rect(vod->region);
 +  NdofDepthRead *read = ndof_depth_read_create(C, vod, event, sample_rect);
@@ -22918,7 +22914,10 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
 +    return NdofOrbitCenterResult::Failed;
 +  }
 +  vod->ndof_depth_read = read;
-+
+ 
+-  std::optional<float3> center_test = ndof_orbit_center_calc_from_bounds(depsgraph, area, region);
+-  if (!center_test.has_value()) {
+-    center_test = ndof_orbit_center_calc_from_zbuf(depsgraph, area, region);
 +  const eGPUReadbackStatus status = ndof_depth_read_status(read);
 +  if (status == GPU_READBACK_PENDING) {
 +    read->timer = WM_event_timer_add(CTX_wm_manager(C), read->window, TIMER, 0.01f);
@@ -22926,7 +22925,8 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
 +      return NdofOrbitCenterResult::Failed;
 +    }
 +    return NdofOrbitCenterResult::Pending;
-+  }
+   }
+-  return center_test;
 +  if (status != GPU_READBACK_READY ||
 +      !ndof_depth_read_consume(read, read->min_depth_point))
 +  {
@@ -23073,7 +23073,7 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
 +  }
 +
 +  if (event->type != TIMER || event->customdata != read->timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  /* Roughly 2.4 seconds at 10 ms. A lost completion must not move the view late. */
@@ -23138,7 +23138,7 @@ index c228244766948210f1cadbdf7d2533562efe0b72..3800032900a25dc5637758762fe0b9d1
      /*flag*/ VIEWOPS_FLAG_ORBIT_SELECT,
      /*idname*/ "VIEW3D_OT_ndof_orbit",
 diff --git a/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc b/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
-index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a994166b5 100644
+index 505d4bf4404522fdadff19e8111dbd535810bb69..23bc99e01b26d1f91da4fe80f9c03e40046f547c 100644
 --- a/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
 +++ b/source/blender/editors/space_view3d/view3d_navigate_zoom_border.cc
 @@ -1,15 +1,23 @@
@@ -23673,7 +23673,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
 +    return OPERATOR_CANCELLED;
 +  }
 +  if (event->type != TIMER || event->customdata != read->timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  constexpr int max_tick_count = 240;
@@ -23685,7 +23685,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
 +
 +  const eGPUReadbackStatus status = view3d_zoom_border_depth_read_status(read);
 +  if (status == GPU_READBACK_PENDING) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_RUNNING_MODAL;
 +  }
 +  if (status != GPU_READBACK_READY) {
 +    BKE_report(op->reports, RPT_ERROR, "Border depth readback failed");

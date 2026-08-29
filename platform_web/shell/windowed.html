@@ -171,6 +171,11 @@ Fully local / CSP-clean: no external assets.
     #bw-pct {
       font-variant-numeric: tabular-nums;
     }
+    /* Launching has no byte count to show - the ring alone signals activity. */
+    #loader[data-phase="launching"] .bw-track,
+    #loader[data-phase="launching"] .bw-progress-copy {
+      display: none;
+    }
     #bw-legal-footer {
       position: absolute;
       right: 16px;

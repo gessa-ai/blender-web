@@ -268,12 +268,20 @@ function setLoaderPhase(phase) {
   }
 }
 
-function setProgress(fraction) {
+function formatMB(bytes) {
+  return Math.round(bytes / (1024 * 1024)) + " MB";
+}
+
+function setProgress(fraction, curBytes, totBytes) {
   if (loaderPhase !== "downloading" || !fillEl) return;
   const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
   fillEl.style.width = pct + "%";
   if (progressEl) progressEl.setAttribute("aria-valuenow", String(pct));
-  if (pctEl) pctEl.textContent = pct + "%";
+  if (pctEl) {
+    pctEl.textContent = (typeof curBytes === "number" && typeof totBytes === "number")
+      ? formatMB(curBytes) + " / " + formatMB(totBytes)
+      : pct + "%";
+  }
 }
 
 // Emscripten's default setStatus emits strings like "Downloading data... (x/y)".
@@ -286,7 +294,7 @@ function onStatus(s) {
     const cur = parseInt(m[1], 10);
     const tot = parseInt(m[2], 10);
     if (tot > 0) {
-      setProgress(cur / tot);
+      setProgress(cur / tot, cur, tot);
       return;
     }
   }

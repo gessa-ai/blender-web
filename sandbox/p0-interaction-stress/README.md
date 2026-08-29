@@ -285,6 +285,11 @@ slow/sparse producer isolates the exact triggering click, waits one real 650 ms 
 sends one navigation orbit before requiring selection completion. If the continuation still owns
 the modal stack, the evidence requires its replay counter to remain unchanged while the orbit
 reaches the rotate-retirement, native-view, and pixel boundaries before Cube selection completes.
+The modal also uses bare `OPERATOR_PASS_THROUGH` for unrelated timer/custom events. Blender maps
+`OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH` to a breaking modal-handler result; the combined
+return would suppress later event owners even though the selection handler itself must remain
+installed. Bare pass-through preserves that handler and lets the remaining WM handlers receive the
+event. The focused source contract binds both mappings and rejects the breaking return.
 The rapid producer fails on any `WebGPU selection readback failed` report and
 requires queued and recovery orbits to reach the exact rotate retirement boundary.
 `BW_P0_STATE_ONLY=1` is a

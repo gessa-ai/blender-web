@@ -23720,7 +23720,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..17db3a064b9ff0a77a1d27fea05aeb5bdf7fcb1d 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce81dbc70b8 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
 @@ -7,8 +7,14 @@
@@ -24763,7 +24763,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..17db3a064b9ff0a77a1d27fea05aeb5b
 +     * unrelated custom/timer events keep flowing while the owned pick snapshot maps. Retain
 +     * state-changing ordinary input in order until the selection result can be applied. */
 +    if (ISTIMER(event->type) || event->customdata != nullptr) {
-+      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++      return OPERATOR_PASS_THROUGH;
 +    }
 +    if (view3d_select_async_navigation_event(event->type)) {
 +      return OPERATOR_PASS_THROUGH;

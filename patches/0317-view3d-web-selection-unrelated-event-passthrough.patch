@@ -1,0 +1,12 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -4449,7 +4449,7 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const wm
+      * unrelated custom/timer events keep flowing while the owned pick snapshot maps. Retain
+      * state-changing ordinary input in order until the selection result can be applied. */
+     if (ISTIMER(event->type) || event->customdata != nullptr) {
+-      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++      return OPERATOR_PASS_THROUGH;
+     }
+     if (view3d_select_async_navigation_event(event->type)) {
+       return OPERATOR_PASS_THROUGH;

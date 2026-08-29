@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Require pending browser selection to leave viewport navigation responsive."""
+"""Require pending browser selection to leave unrelated event owners responsive."""
 
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 VIEW3D_SELECT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_select.cc"
 WM_EVENT_SYSTEM = ROOT / "upstream/source/blender/windowmanager/intern/wm_event_system.cc"
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
-PATCH = ROOT / "patches/0315-view3d-web-selection-navigation-passthrough.patch"
+NAVIGATION_PATCH = ROOT / "patches/0315-view3d-web-selection-navigation-passthrough.patch"
+EVENT_PATCH = ROOT / "patches/0317-view3d-web-selection-unrelated-event-passthrough.patch"
 SERIES = ROOT / "patches/series"
 
 
@@ -26,7 +27,8 @@ def validate(sources: dict[str, str]) -> None:
     view3d_select = sources["view3d_select"]
     wm_event_system = sources["wm_event_system"]
     producer = sources["producer"]
-    patch = sources["patch"]
+    navigation_patch = sources["navigation_patch"]
+    event_patch = sources["event_patch"]
     series = sources["series"]
 
     helper = (
@@ -46,7 +48,7 @@ def validate(sources: dict[str, str]) -> None:
     require(view3d_select, route)
     custom_route = (
         "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
-        "      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+        "      return OPERATOR_PASS_THROUGH;\n"
         "    }"
     )
     require(view3d_select, custom_route)
@@ -89,7 +91,7 @@ def validate(sources: dict[str, str]) -> None:
         raise ValueError("slow/sparse producer lost selection -> live navigation -> settle order")
 
     require(
-        patch,
+        navigation_patch,
         "diff --git a/source/blender/editors/space_view3d/view3d_select.cc "
         "b/source/blender/editors/space_view3d/view3d_select.cc",
     )
@@ -98,8 +100,19 @@ def validate(sources: dict[str, str]) -> None:
         "+    if (view3d_select_async_navigation_event(event->type)) {",
         "+      return OPERATOR_PASS_THROUGH;",
     ):
-        require(patch, token)
-    require(series, PATCH.name)
+        require(navigation_patch, token)
+    require(
+        event_patch,
+        "diff --git a/source/blender/editors/space_view3d/view3d_select.cc "
+        "b/source/blender/editors/space_view3d/view3d_select.cc",
+    )
+    for token in (
+        "-      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;",
+        "+      return OPERATOR_PASS_THROUGH;",
+    ):
+        require(event_patch, token)
+    require(series, NAVIGATION_PATCH.name)
+    require(series, EVENT_PATCH.name)
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -133,6 +146,15 @@ def self_check(sources: dict[str, str]) -> None:
             "    }\n    if (!view3d_select_async_event_push",
         ),
         (
+            "view3d_select",
+            "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
+            "      return OPERATOR_PASS_THROUGH;\n"
+            "    }",
+            "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
+            "      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "    }",
+        ),
+        (
             "producer",
             '"isolated-selection-navigation-passthrough"',
             '"isolated-selection-navigation-skipped"',
@@ -143,11 +165,17 @@ def self_check(sources: dict[str, str]) -> None:
             "navigationPassedThrough: true",
         ),
         (
-            "patch",
+            "navigation_patch",
             "+    if (view3d_select_async_navigation_event(event->type)) {",
             "+    if (false) {",
         ),
-        ("series", PATCH.name, "0315-missing.patch"),
+        (
+            "event_patch",
+            "+      return OPERATOR_PASS_THROUGH;",
+            "+      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;",
+        ),
+        ("series", NAVIGATION_PATCH.name, "0315-missing.patch"),
+        ("series", EVENT_PATCH.name, "0317-missing.patch"),
     )
     rejected = 0
     for key, old, new in mutations:
@@ -170,7 +198,8 @@ def main() -> int:
         "view3d_select": VIEW3D_SELECT.read_text(),
         "wm_event_system": WM_EVENT_SYSTEM.read_text(),
         "producer": PRODUCER.read_text(),
-        "patch": PATCH.read_text() if PATCH.is_file() else "",
+        "navigation_patch": NAVIGATION_PATCH.read_text() if NAVIGATION_PATCH.is_file() else "",
+        "event_patch": EVENT_PATCH.read_text() if EVENT_PATCH.is_file() else "",
         "series": SERIES.read_text(),
     }
     try:

@@ -121,7 +121,7 @@ def validate(sources: dict[str, str]) -> None:
     require(
         view3d_select,
         "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
-        "      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n    }",
+        "      return OPERATOR_PASS_THROUGH;\n    }",
     )
     require(view3d_select, "view3d_select_async_events_requeue(C, data);", 7)
     require(
@@ -259,9 +259,9 @@ def self_check(sources: dict[str, str]) -> None:
         (
             "view3d_select",
             "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
-            "      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n    }",
+            "      return OPERATOR_PASS_THROUGH;\n    }",
             "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
-            "      return OPERATOR_RUNNING_MODAL;\n    }",
+            "      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n    }",
         ),
         (
             "view3d_select",

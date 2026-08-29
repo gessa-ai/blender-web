@@ -104,6 +104,37 @@ Direct M4 remains red at the Apple pixel binding
 M0 green at 6/6 while M1–M8 retain their named strict, hardware, APPLY, and product boundaries
 (`ledger/buildlogs/20260829T130902-4192334.log`).
 
+## Automatic boundary classification
+
+Implementation commit `6efecd0` turns the six raw lifecycle generations and the existing
+selection-continuation generations into one fail-closed boundary classification on every bounded
+poll. The record retains both raw delta sets plus phase, active state, and queued-event count; it
+does not alter the producer's action timing, product state, or acceptance verdict. Nine executable
+fixtures cover idle, pre-attempt, draw retry, map start, map callback, validation callback, join,
+post-join draw validation, and completed selection.
+
+The source contract failed first before the classifier existed
+(`ledger/buildlogs/20260829T131917-5067.log`). The final fixture, source, mutation, and syntax checks
+are green (`ledger/buildlogs/20260829T132350-8312.log`,
+`ledger/buildlogs/20260829T132350-8313.log`,
+`ledger/buildlogs/20260829T132350-8318.log`, and
+`ledger/buildlogs/20260829T132350-8326.log`). Capture-contract and hardware-gauntlet self-checks
+also remain green (`ledger/buildlogs/20260829T132718-11796.log` and
+`ledger/buildlogs/20260829T132718-11794.log`).
+
+The unchanged exact product completed a fresh isolated-X slow/sparse control
+(`ledger/buildlogs/20260829T132356-8388.log`). Its 29 bounded samples classified as 24
+`not-started`, three `map-callback`, one `draw-validation`, and one `completed`, with no
+`active-unknown`; Cube selection and the independent recovery orbit completed. The first WSLg
+attempt closed its external page/context with no page error and was rejected rather than counted
+(`ledger/buildlogs/20260829T132131-6405.log`). No relink was needed: CAPTURE `.wasm.orig` remains
+`40a21549d0f1`.
+
+Direct M4 remains honestly red at the Apple-pixel binding
+(`ledger/buildlogs/20260829T132502-9720.log`). The authoritative pinned-oracle regression restores
+M0 6/6 while M1–M8 retain their named strict, hardware, APPLY, and product boundaries
+(`ledger/buildlogs/20260829T132507-9776.log`).
+
 ## Closure bar
 
 P0-I/J remain open. The driver must serve this exact inventory and capture the six-counter timeline

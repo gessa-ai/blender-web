@@ -3788,7 +3788,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   target-page closures with empty page-error censuses were rejected rather than counted. This
   changes no runtime byte or hardware verdict: P0-I/J remain open for exact Apple 10/10 plus the
   same-generation P0-E gauntlet. See
-  `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`.
+  `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`. **Automatic readback-boundary
+  classifier verified/pending Apple (`6efecd0`):** every bounded slow/sparse poll now preserves the
+  raw readback/continuation deltas and labels the first unfinished edge from selection admission
+  through map, validation, join, consumption, and modal finish. Nine executable fixtures and the
+  source/mutation contract are green. A fresh unchanged-product control classified 24 idle polls,
+  three map-callback polls, one post-join draw-validation poll, and the terminal completion with no
+  unknown active boundary; Cube selection and the following orbit retired. This is diagnostic-only
+  and required no relink: CAPTURE `.wasm.orig` remains `40a21549d0f1`. P0-I/J remain open for the
+  driver-operated Apple 10/10 plus the same-generation P0-E gauntlet.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

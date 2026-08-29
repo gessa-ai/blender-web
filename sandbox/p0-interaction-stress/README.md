@@ -285,3 +285,10 @@ validation callback, the two-leg join, and final ready-ticket publication. The s
 samples all six on every bounded poll and rejects a product missing any export. A hardware timeout
 can therefore identify one stalled readback boundary instead of collapsing every case into the
 same `Pending` ticket status; only Apple pixels can close the underlying freeze.
+
+Each poll also records `selectionReadbackBoundary`, an automatic classification derived from the
+counter deltas since the pre-action baseline. It preserves those raw deltas and labels the first
+unfinished edge from selection admission through submit, mapping, command validation, join,
+result consumption, and modal finish. Run the nine-case executable fixture with
+`BW_P0_READBACK_CLASSIFIER_SELFCHECK=1`; this classifier is diagnostic and never converts a
+software-adapter run into hardware evidence.

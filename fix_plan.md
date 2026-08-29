@@ -3550,7 +3550,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   census. Exact CAPTURE `.wasm.orig` is `aa374938f2b8` (118,988,326 bytes). The software fallback
   binds no pixel verdict, and its resize probe still fails only the filed legacy `5/2` present-churn
   heuristic despite coherent barriers, so Apple must run the exact freeze discriminator and
-  same-generation gauntlet plus P0-E regression. P0-I/J remain open. See
+  same-generation gauntlet plus P0-E regression. **Frame-bound presentation discriminator
+  implemented/relinked (`430c8f5`):** `presentBackbuffer()` no longer samples a newer global
+  dispatched generation after Blender's frame has already been encoded. `swapBufferAcquire()`
+  binds the generation immediately before `GPU_context_begin_frame()`, and resize-barrier snapshots
+  retain the completed frame's generation until its delayed surface transaction validates. Native/
+  wasm32 behavior proves later dispatch cannot relabel an older frame, and the exact fallback drains
+  at terminal/admitted/dispatched/presented `49/49/49/49` then recovers at `62/62/62/62`, with
+  `frame-bound=1`, balanced input, and zero page/lifecycle errors. The exact 53-step cumulative/
+  modal battery also passes 9/9 workspaces, three same-pose comparisons, and an empty warning/error
+  census. CAPTURE `.wasm.orig` is
+  `025682159147` (118,988,932 bytes). This changes evidence provenance only; Apple must still run
+  the exact deterministic freeze and same-generation gauntlet plus P0-E regression. P0-I/J remain
+  open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

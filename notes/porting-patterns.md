@@ -2106,3 +2106,17 @@ one complete tail. This keeps ordinary input outside the replacement-drawable ba
 continuous motion bounded. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `platform_web/ghost/GHOST_SystemWeb.cc`, and
 `sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.
+
+## Class 142 — bind late presentation evidence to the frame producer
+
+Signature: a monotonic process-global generation is sampled when an asynchronous or barrier-delayed
+surface transaction begins, after the persistent backbuffer frame being copied was encoded. A newer
+input can advance the global counter without contributing to that frame, so a clean present can
+falsely certify the newer input. Snapshot causal provenance at the producer boundary immediately
+before frame encoding, carry it inside any immutable completed-frame/barrier record, and publish
+only that captured generation after validation. Test three distinct transitions: later dispatch
+cannot relabel an already-begun frame, a delayed barrier keeps its completed-frame generation, and
+the next producer frame adopts the new generation. This is an evidence fix, not authorization to
+change redraw policy or promote software-adapter pixels. See
+`platform_web/ghost/GHOST_WebDisplayState.hh`, `platform_web/ghost/GHOST_ContextWGPUWeb.cc`, and
+`sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.

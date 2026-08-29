@@ -864,3 +864,61 @@ Capture/gauntlet self-checks and pinned Node 22.16.0 profile self-check are gree
 (`20260829T012652-3633666`); pinned-container regression restores M0 6/6 while later tiers retain
 their named strict/APPLY/product boundaries (`20260829T012726-3634160`). P0-I/J remain open for the
 exact Apple discriminator and same-generation composed gauntlet.
+
+## Bind terminal presentation evidence to its originating WM frame
+
+The dispatched-to-presented discriminator still had one late-sampling ambiguity. A browser surface
+transaction copied the persistent backbuffer only after Blender had finished drawing, and a resize
+barrier could delay that copy behind a newer WM frame. Sampling the process-global dispatched input
+generation inside `presentBackbuffer()` could therefore label old backbuffer content with an input
+generation dispatched after that content's frame began. A matching terminal/admitted/dispatched/
+presented tuple would then be weaker than it appeared on the exact Apple freeze.
+
+Commit `430c8f5` snapshots the latest fully dispatched input generation in
+`swapBufferAcquire()`, immediately before Blender's `GPU_context_begin_frame()`. The resize trace
+snapshot carries the same generation with the completed frame, and a delayed resize barrier takes
+that immutable value instead of the current context member. A clean surface transaction now
+publishes only this frame-bound generation. The bounded compatibility line retains its established
+prefix and adds `frame-bound=1`. This is diagnostic provenance only: no input callback, recovery
+tail, redraw episode, resize barrier, surface scheduling, receipt rule, or adapter policy changed.
+
+The new contract failed first on the absent provenance class
+(`ledger/buildlogs/20260829T014122-3644112.log`). Final source/mutation checks, the actual Wasm
+GHOST object, and the 90-case native/wasm32 integrated model are green
+(`20260829T015426-3655163`, `20260829T015454-3656637`, and
+`20260829T015426-3655164`). The model proves that a later dispatch cannot relabel an already-begun
+frame, a delayed resize barrier retains its completed frame generation, and the next frame adopts
+the newer dispatch. REUSE 6.2.0 is green (`20260829T015426-3655165`).
+
+The exact committed fallback replay retains the filed rapid samples, then drains in 5,810 ms at
+terminal/admitted/dispatched/presented `49/49/49/49` and repaints an independent orbit in 2,046 ms
+at `62/62/62/62`. Its bounded console evidence carries `frame-bound=1`, GHOST button/key edges are
+balanced, the held mask is zero, and page/lifecycle errors are empty
+(`ledger/buildlogs/20260829T015907-3660655.log`). SwiftShader remains diagnostic software and the
+hardware-only native selection/transform predicate is deliberately not promoted.
+
+The same exact product also passes the complete fallback fidelity battery: 53 steps, 160 native
+states, 803 validated presentations, 9/9 workspace transitions, eight rapid-burst transitions,
+three same-pose comparisons, move/undo, matched DOM/GHOST button coordinates, and zero hard
+warnings or page errors (`ledger/buildlogs/20260829T020143-3662703.log`, consumer
+`20260829T020618-3666228`). This remains software-adapter coverage, not hardware pixel closure.
+
+The final CAPTURE relink and committed-state locked no-work proof are
+`ledger/buildlogs/20260829T015729-3659214.log` and
+`ledger/buildlogs/20260829T020047-3661574.log`. CAPTURE preflight is green
+(`20260829T015907-3660654`). Exact product identities are:
+
+- `blender_browser.js`: `06505f5705bf` (709,920 bytes)
+- `blender_browser.wasm`: `fe50fe1a5bed` (120,337,716 bytes)
+- `blender_browser.wasm.orig`: `025682159147` (118,988,932 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `6d8de4bc40ed` (13,812 bytes)
+
+Resize source/trace contracts remain green (`20260829T015259-3653578/3653580`). The fallback live
+probe retains only its already-filed legacy `5/3` present-churn failure despite coherent resize
+state (`20260829T015304-3653624`), so no P0-E pixel claim is made. Direct M4 remains RED at the
+unsupported Apple-pixel binding (`20260829T015502-3656683`); authoritative container-backed
+regression restores M0 6/6 while M1-M8 retain their named strict/APPLY/hardware/product boundaries
+(`20260829T015653-3658192`). P0-I/J remain open for the exact Apple deterministic-freeze run and
+same-generation composed gauntlet. Final-tree REUSE 6.2.0 is green
+(`20260829T020734-3666676`).

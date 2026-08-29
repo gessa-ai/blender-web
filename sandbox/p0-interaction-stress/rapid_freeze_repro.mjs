@@ -512,6 +512,15 @@ try {
           queryStatus: read("_bw_view3d_select_query_status"),
           combinedStatus: read("_bw_view3d_select_combined_status"),
         },
+        selectionSync: {
+          syncLoops: read("_bw_view3d_select_sync_loop_count"),
+          completedLoops: read("_bw_view3d_select_sync_complete_count"),
+          syncStage: read("_bw_view3d_select_sync_stage"),
+        },
+        selectionShader: {
+          compileKind: read("_bw_select_shader_compile_kind"),
+          compileStage: read("_bw_select_shader_compile_stage"),
+        },
         inputRedraw: {
           published: read("_bw_input_redraw_retry_count"),
           terminal: read("_bw_input_redraw_terminal_count"),
@@ -632,6 +641,8 @@ try {
     current.selectionContinuation.queuedEvents === 0 &&
     current.selectionContinuation.gpuFailures === baseline.selectionContinuation.gpuFailures;
   const nativeSelectionReplayComplete = (current, baseline) =>
+    current.selectionSync.syncLoops > baseline.selectionSync.syncLoops &&
+    current.selectionSync.completedLoops > baseline.selectionSync.completedLoops &&
     current.nativeStateSequence > baseline.nativeStateSequence &&
     baseline.nativeState?.selected_count === 0 && nativeCubeSelected(current) &&
     nativeViewChanged(current, baseline) &&
@@ -658,6 +669,8 @@ try {
     name, baseline, counterBaseline, rotateBaseline, expectedRotates,
     nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
     requireNativeState = hardwareDiagnostic,
+    allowSelectionModal = false,
+    requireInputReceipt = true,
   ) => {
     const started = Date.now();
     drainTimelines[name] = [];
@@ -675,6 +688,8 @@ try {
         selectionReadback: {...current.selectionReadback},
         selectionReadbackBoundary: classifySelectionReadbackBoundary(counterBaseline, current),
         selectionContinuation: {...current.selectionContinuation},
+        selectionSync: {...current.selectionSync},
+        selectionShader: {...current.selectionShader},
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
         wmInput: {...current.wmInput},
@@ -688,18 +703,20 @@ try {
       if ((stateOnlyDiagnostic || current.sha256 !== baseline) &&
           current.ticks > counterBaseline.ticks &&
           current.presents > counterBaseline.presents &&
-          current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal &&
-          current.inputRedraw.admitted >= current.inputRedraw.terminal &&
-          current.inputRedraw.dispatched >= current.inputRedraw.terminal &&
-          current.inputRedraw.presented >= current.inputRedraw.terminal &&
-          current.inputRedraw.contentPresented >= current.inputRedraw.terminal &&
-          current.inputRedraw.episode === counterBaseline.inputRedraw.episode &&
+          (!requireInputReceipt ||
+            (current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal &&
+             current.inputRedraw.admitted >= current.inputRedraw.terminal &&
+             current.inputRedraw.dispatched >= current.inputRedraw.terminal &&
+             current.inputRedraw.presented >= current.inputRedraw.terminal &&
+             current.inputRedraw.contentPresented >= current.inputRedraw.terminal &&
+             current.inputRedraw.episode === counterBaseline.inputRedraw.episode)) &&
           nativeDeliveryComplete(current) &&
           view3dRotateRetired(current, rotateBaseline, expectedRotates) &&
           ghostWindowSettled(current) &&
           (!requireNativeState || nativeStateComplete(current)) &&
           current.nativeModalOperators.every((operator) =>
-            operator === "WM_OT_bwp0r_input_probe")) {
+            operator === "WM_OT_bwp0r_input_probe" ||
+            (allowSelectionModal && operator === "VIEW3D_OT_select"))) {
         return {...current, settleMs: Date.now() - started};
       }
     }
@@ -714,7 +731,12 @@ try {
         splashDismissed.selectionDrawValidation.pending,
         splashDismissed.selectionDrawValidation.failures].every(Number.isFinite) ||
       !Object.values(splashDismissed.selectionReadback).every(Number.isFinite) ||
-      !Object.values(splashDismissed.selectionContinuation).every(Number.isFinite)) {
+      !Object.values(splashDismissed.selectionContinuation).every(Number.isFinite) ||
+      !Number.isFinite(splashDismissed.selectionSync.syncLoops) ||
+      !Number.isFinite(splashDismissed.selectionSync.completedLoops) ||
+      !Number.isFinite(splashDismissed.selectionSync.syncStage) ||
+      !Number.isFinite(splashDismissed.selectionShader.compileKind) ||
+      !Number.isFinite(splashDismissed.selectionShader.compileStage)) {
     throw new Error("selection draw/drop diagnostics are unavailable in the served product");
   }
   steps.push(splashDismissed);
@@ -754,8 +776,8 @@ try {
   let actionDrain;
   let selectionDrain = null;
   let selectionPoint = null;
-  let selectionReplayRequired = null;
-  let selectionInputWasRetained = null;
+  let selectionNavigationPassthroughRequired = null;
+  let selectionNavigationPassedThrough = null;
   let recoveryOrbit;
   let nativeStateContract;
   let retainedActionFramesEqual = null;
@@ -778,8 +800,8 @@ try {
     /* The filed freeze changes the first orbit, then becomes permanent when the following click
      * starts VIEW3D_OT_select. Reproduce its sparse tail instead of avoiding it: after one real
      * 650 ms pause, send exactly one orbit while the asynchronous selection continuation still
-     * owns the modal stack. The completion gate below requires that retained orbit to be replayed
-     * after selection, not a clean orbit sent only after the modal has ended. */
+     * owns the modal stack. Navigation must retire directly instead of waiting in the selection
+     * FIFO and replaying after the pick settles. */
     const selectionBaseline = actionDrain;
     const selectionInputBaseline = selectionBaseline.ghostInput;
     const selectionWmInputBaseline = selectionBaseline.wmInput;
@@ -787,21 +809,52 @@ try {
     await page.mouse.move(selectionPoint.x, selectionPoint.y);
     await page.mouse.click(selectionPoint.x, selectionPoint.y);
     await page.waitForTimeout(Math.max(sampleCadenceMs, 650));
-    const selectionReplayWindow = await sample("isolated-selection-replay-window");
-    steps.push(selectionReplayWindow);
-    selectionReplayRequired =
-      selectionReplayWindow.selectionContinuation.gpuSessions >
+    const selectionPendingWindow = await sample("isolated-selection-pending");
+    steps.push(selectionPendingWindow);
+    selectionNavigationPassthroughRequired =
+      selectionPendingWindow.selectionContinuation.gpuSessions >
         selectionBaseline.selectionContinuation.gpuSessions &&
-      selectionReplayWindow.selectionContinuation.modalFinishes ===
+      selectionPendingWindow.selectionContinuation.modalFinishes ===
         selectionBaseline.selectionContinuation.modalFinishes;
+    const navigationInputBaseline = selectionPendingWindow.ghostInput;
+    const navigationWmInputBaseline = selectionPendingWindow.wmInput;
     await page.mouse.down({button: "middle"});
     await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
     await page.mouse.up({button: "middle"});
+    const selectionNavigationWindow = await waitForActionDrain(
+      "isolated-selection-navigation-passthrough",
+      selectionBaseline.sha256,
+      selectionPendingWindow,
+      selectionBaseline,
+      1,
+      (current) => ghostInputDeliveryComplete(
+        current, navigationInputBaseline, {left: 0, middle: 1, keys: 0}) &&
+        wmInputDeliveryComplete(
+          current, navigationWmInputBaseline, {left: 0, middle: 1, keys: 0}),
+      (current) => hardwareIsolatedOrbitStateComplete(current, selectionBaseline),
+      drainTimeoutMs,
+      true,
+      true,
+      false,
+    );
+    steps.push(selectionNavigationWindow);
+    selectionNavigationPassthroughRequired =
+      selectionNavigationPassthroughRequired ||
+      (selectionNavigationWindow.selectionContinuation.modalBegins >
+         selectionBaseline.selectionContinuation.modalBegins &&
+       selectionNavigationWindow.selectionContinuation.modalFinishes ===
+         selectionBaseline.selectionContinuation.modalFinishes &&
+       selectionNavigationWindow.selectionContinuation.active === 1);
+    selectionNavigationPassedThrough =
+      view3dRotateRetired(selectionNavigationWindow, selectionBaseline, 1) &&
+      nativeViewChanged(selectionNavigationWindow, selectionBaseline) &&
+      selectionNavigationWindow.selectionContinuation.replayedEvents ===
+        selectionBaseline.selectionContinuation.replayedEvents;
     selectionDrain = await waitForActionDrain(
-      "isolated-selection-replay-drain",
+      "isolated-selection-drain",
       selectionBaseline.sha256,
       selectionBaseline,
-      selectionReplayWindow,
+      selectionPendingWindow,
       1,
       (current) => ghostInputDeliveryComplete(
         current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}) &&
@@ -809,24 +862,19 @@ try {
           current, selectionWmInputBaseline, {left: 1, middle: 1, keys: 0}),
       (current) => nativeSelectionReplayComplete(current, selectionBaseline) &&
         selectionContinuationRetired(current, selectionBaseline) &&
-        (!selectionReplayRequired ||
-          current.selectionContinuation.replayedEvents >
-            selectionBaseline.selectionContinuation.replayedEvents),
+        (!selectionNavigationPassthroughRequired || selectionNavigationPassedThrough),
       drainTimeoutMs,
       true,
     );
     steps.push(selectionDrain);
-    selectionInputWasRetained =
-      selectionDrain.selectionContinuation.replayedEvents >
-        selectionBaseline.selectionContinuation.replayedEvents;
-    recoveryOrbit = selectionDrain;
+    recoveryOrbit = selectionNavigationWindow;
     nativeStateContract = {
       enforced: hardwareDiagnostic,
       selectionEnforced: true,
       actionComplete: hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline),
       selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline),
       recoveryComplete: nativeSelectionReplayComplete(selectionDrain, selectionBaseline),
-      retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained,
+      navigationPassedThrough: selectionNavigationPassedThrough,
     };
   }
   else {
@@ -905,8 +953,8 @@ try {
     steps,
     retainedActionFramesEqual,
     selectionPoint,
-    selectionReplayRequired,
-    selectionInputWasRetained,
+    selectionNavigationPassthroughRequired,
+    selectionNavigationPassedThrough,
     actionDrainMs: actionDrain.settleMs,
     selectionDrainMs: selectionDrain?.settleMs ?? null,
     recoveryOrbitMs: recoveryOrbit.settleMs,

@@ -46,8 +46,9 @@ REQUIRED_STEPS = {
     "deselect-all",
     "orbit-before-click",
     "isolated-orbit-drain",
-    "isolated-selection-replay-window",
-    "isolated-selection-replay-drain",
+    "isolated-selection-pending",
+    "isolated-selection-navigation-passthrough",
+    "isolated-selection-drain",
 }
 
 
@@ -155,16 +156,13 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     require(isinstance(contract, dict), "native-state contract is absent")
     for field in (
         "enforced", "selectionEnforced", "actionComplete", "selectionComplete",
-        "recoveryComplete", "retainedReplayExercised",
+        "recoveryComplete", "navigationPassedThrough",
     ):
         require(contract.get(field) is True, f"native-state contract failed: {field}")
-    require(type(document.get("selectionReplayRequired")) is bool,
-            "selection replay classification is absent")
-    require(type(document.get("selectionInputWasRetained")) is bool,
-            "selection retained-input classification is absent")
-    if document["selectionReplayRequired"]:
-        require(document["selectionInputWasRetained"],
-                "pending selection did not replay its retained orbit")
+    require(document.get("selectionNavigationPassthroughRequired") is True,
+            "run did not exercise navigation through a pending selection")
+    require(document.get("selectionNavigationPassedThrough") is True,
+            "pending selection blocked the isolated navigation gesture")
 
     point = document.get("selectionPoint")
     require(isinstance(point, dict) and all(
@@ -188,7 +186,7 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
         require(isinstance(step.get("sha256"), str) and
                 SHA256.fullmatch(step["sha256"]) is not None,
                 f"focused step pixel SHA-256 is invalid: {step.get('name')}")
-    final = next(step for step in steps if step["name"] == "isolated-selection-replay-drain")
+    final = next(step for step in steps if step["name"] == "isolated-selection-drain")
     require(final.get("selectionDrawValidation", {}).get("pending") == 0,
             "selection validation remained pending after the drain")
     continuation = final.get("selectionContinuation")
@@ -198,9 +196,17 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     timelines = document.get("drainTimelines")
     require(isinstance(timelines, dict) and
             all(isinstance(timelines.get(name), list) and timelines[name]
-                for name in ("isolated-orbit-drain", "isolated-selection-replay-drain")),
+                for name in (
+                    "isolated-orbit-drain",
+                    "isolated-selection-navigation-passthrough",
+                    "isolated-selection-drain",
+                )),
             "bounded drain timelines are incomplete")
-    return {"run": run, "product": product, "replay": int(document["selectionReplayRequired"])}
+    return {
+        "run": run,
+        "product": product,
+        "passthrough": int(document["selectionNavigationPassthroughRequired"]),
+    }
 
 
 def validate_series(documents: list[dict[str, Any]]) -> dict[str, Any]:
@@ -218,7 +224,7 @@ def validate_series(documents: list[dict[str, Any]]) -> dict[str, Any]:
                     f"slow/sparse run {index} {field} differs")
     return {
         "runs": REQUIRED_RUNS,
-        "replayRuns": sum(result["replay"] for result in results),
+        "passthroughRuns": sum(result["passthrough"] for result in results),
         "wasmOrigSha256": results[0]["product"]["generation"]["originalWasmSha256"],
     }
 
@@ -260,19 +266,20 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
         },
         "steps": steps,
         "selectionPoint": {"x": 512.0, "y": 360.0},
-        "selectionReplayRequired": True,
-        "selectionInputWasRetained": True,
+        "selectionNavigationPassthroughRequired": True,
+        "selectionNavigationPassedThrough": True,
         "actionDrainMs": 500,
         "selectionDrainMs": 1500,
         "recoveryOrbitMs": 1500,
         "nativeStateContract": {
             "enforced": True, "selectionEnforced": True, "actionComplete": True,
             "selectionComplete": True, "recoveryComplete": True,
-            "retainedReplayExercised": True,
+            "navigationPassedThrough": True,
         },
         "drainTimelines": {
             "isolated-orbit-drain": [{"elapsedMs": 250}],
-            "isolated-selection-replay-drain": [{"elapsedMs": 250}],
+            "isolated-selection-navigation-passthrough": [{"elapsedMs": 250}],
+            "isolated-selection-drain": [{"elapsedMs": 250}],
         },
         "pageErrors": [], "lifecycle": [], "selectionReadbackFailureLines": [],
     }
@@ -281,7 +288,9 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
 def self_check() -> None:
     documents = [synthetic_document(index) for index in range(REQUIRED_RUNS)]
     validate_document(documents[0])
-    validate_series(documents)
+    result = validate_series(documents)
+    require(result["passthroughRuns"] == REQUIRED_RUNS,
+            "positive series lost the navigation-passthrough census")
     mutations: list[Callable[[list[dict[str, Any]]], None]] = [
         lambda docs: docs.pop(),
         lambda docs: docs.__setitem__(1, copy.deepcopy(docs[0])),
@@ -298,13 +307,14 @@ def self_check() -> None:
         lambda docs: docs[1]["productIdentity"]["files"]["blender_browser.data"].__setitem__(
             "sha256", "0" * 64),
         lambda docs: docs[0]["nativeStateContract"].__setitem__("recoveryComplete", False),
-        lambda docs: docs[0].__setitem__("selectionInputWasRetained", False),
+        lambda docs: docs[0].__setitem__("selectionNavigationPassthroughRequired", False),
+        lambda docs: docs[0].__setitem__("selectionNavigationPassedThrough", False),
         lambda docs: docs[0].__setitem__("selectionDrainMs", HARDWARE_TIMEOUT_MS + 1),
         lambda docs: docs[0]["steps"].pop(),
         lambda docs: docs[0]["steps"][-1]["selectionDrawValidation"].__setitem__("pending", 1),
         lambda docs: docs[0].__setitem__("selectionReadbackFailureLines", ["failed"]),
         lambda docs: docs[0]["drainTimelines"].__setitem__(
-            "isolated-selection-replay-drain", []),
+            "isolated-selection-navigation-passthrough", []),
     ]
     rejected = 0
     for mutate in mutations:
@@ -344,7 +354,7 @@ def main() -> int:
     result = validate_series(documents)
     print(
         "P0J_SPARSE_HARDWARE_SERIES_PASS "
-        f"runs={result['runs']} replay_runs={result['replayRuns']} "
+        f"runs={result['runs']} passthrough_runs={result['passthroughRuns']} "
         f"wasm_orig={result['wasmOrigSha256']}"
     )
     return 0

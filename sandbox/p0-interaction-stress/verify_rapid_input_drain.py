@@ -87,6 +87,7 @@ def validate(source: str) -> None:
         "ghostWindowSettled(current)",
         "(!requireNativeState || nativeStateComplete(current))",
         'operator === "WM_OT_bwp0r_input_probe"',
+        '(allowSelectionModal && operator === "VIEW3D_OT_select")',
         'await page.waitForTimeout(sampleCadenceMs);',
         'const hardwareIsolatedOrbitStateComplete = (current, baseline) =>',
         'current.nativeState?.selected_count === baseline.nativeState?.selected_count',
@@ -105,23 +106,25 @@ def validate(source: str) -> None:
         'current.selectionContinuation.active === 0',
         'current.selectionContinuation.queuedEvents === 0',
         'current.selectionContinuation.gpuFailures === baseline.selectionContinuation.gpuFailures',
-        'const selectionReplayWindow = await sample("isolated-selection-replay-window");',
+        'const selectionPendingWindow = await sample("isolated-selection-pending");',
         'await page.waitForTimeout(Math.max(sampleCadenceMs, 650));',
-        'selectionReplayRequired =\n      selectionReplayWindow.selectionContinuation.gpuSessions >',
-        'selectionReplayWindow.selectionContinuation.modalFinishes ===',
-        '(!selectionReplayRequired ||',
-        'selectionInputWasRetained =\n      selectionDrain.selectionContinuation.replayedEvents >',
-        '"isolated-selection-replay-drain",',
+        'selectionNavigationPassthroughRequired =\n'
+        '      selectionPendingWindow.selectionContinuation.gpuSessions >',
+        'selectionPendingWindow.selectionContinuation.modalFinishes ===',
+        'const selectionNavigationWindow = await waitForActionDrain(',
+        '"isolated-selection-navigation-passthrough",',
+        'selectionNavigationPassedThrough =\n',
+        '"isolated-selection-drain",',
         'current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}',
         '(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&',
         'selectionContinuationRetired(current, selectionBaseline)',
-        'current.selectionContinuation.replayedEvents >',
         'selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)',
-        'retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained',
-        'selectionReplayRequired,',
-        '\n    selectionInputWasRetained,\n',
+        'selectionNavigationWindow.selectionContinuation.active === 1',
+        'navigationPassedThrough: selectionNavigationPassedThrough',
+        'selectionNavigationPassthroughRequired,',
+        '\n    selectionNavigationPassedThrough,\n    actionDrainMs:',
         'selectionDrainMs: selectionDrain?.settleMs ?? null',
-        'recoveryOrbit = selectionDrain;',
+        'recoveryOrbit = selectionNavigationWindow;',
         'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
         'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
         'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
@@ -370,8 +373,8 @@ def validate_delivery_sources(
         raise ValueError("producer must sample left and middle GHOST press counters")
     if source.count('readArg("_bw_input_button_release_count"') != 2:
         raise ValueError("producer must sample left and middle GHOST release counters")
-    if source.count("wmInputDeliveryComplete(") != 4:
-        raise ValueError("producer must enforce WM-queue delivery for all four drains")
+    if source.count("wmInputDeliveryComplete(") != 5:
+        raise ValueError("producer must enforce WM-queue delivery for all five drains")
     for token in (
         'keyPresses: read("_bw_input_key_press_count")',
         'keyReleases: read("_bw_input_key_release_count")',
@@ -577,8 +580,8 @@ def self_check(
         ),
         replace_once(
             source,
-            '"isolated-selection-replay-drain",',
-            '"isolated-selection-replay-skipped",',
+            '"isolated-selection-navigation-passthrough",',
+            '"isolated-selection-navigation-skipped",',
         ),
         replace_once(
             source,
@@ -592,8 +595,8 @@ def self_check(
         ),
         replace_once(
             source,
-            'retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained',
-            'retainedReplayExercised: true',
+            'navigationPassedThrough: selectionNavigationPassedThrough',
+            'navigationPassedThrough: true',
         ),
         replace_once(
             source,

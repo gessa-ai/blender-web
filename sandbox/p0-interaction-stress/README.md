@@ -46,10 +46,12 @@ changed native view state, and changed pixels, or exhausts the same 12-second Ap
 rotate invoke/confirm/terminal/active counters sit after GHOST-to-WM delivery, so a failure now
 separates a retained modal operator from a normally retired operator whose frame went stale. Only
 then does it send the filed Cube click. After one more real 650 ms pause it sends exactly one
-recovery orbit without waiting for the asynchronous selection continuation to finish. When that
-modal is still active, the orbit must traverse its bounded FIFO and be replayed after the click
-selects Cube; when selection has already completed, the same orbit remains a normal isolated
-recovery action. The combined drain requires both input stages, a retired selection continuation,
+navigation orbit without waiting for the asynchronous selection continuation to finish. When that
+modal is still active, navigation events return bare `OPERATOR_PASS_THROUGH`, which leaves the
+modal installed while allowing the viewport keymap to invoke and retire `VIEW3D_OT_rotate`
+immediately; they never enter the continuation's retained-input FIFO. State-changing ordinary
+input remains retained until the pick settles. The combined drain requires both input stages, a
+retired selection continuation,
 exactly Cube selected, a changed view rotation, strict content pixels, and an unchanged Cube
 location. The click point is Blender's own projection of the Cube origin into the live `VIEW_3D`
 window, converted from Blender's bottom-left window coordinates to the browser canvas; the producer
@@ -92,7 +94,7 @@ done
   "$evidence"/mac-m4pro-p0j-sparse-{01,02,03,04,05,06,07,08,09,10}.json
 ```
 
-The series consumer reruns every per-document selection, replay, native-state, pixel, timeout,
+The series consumer reruns every per-document selection, navigation, native-state, pixel, timeout,
 page/lifecycle, stack, adapter, and product assertion. It rejects fewer or more than ten runs,
 duplicate labels/timestamps/paths, or any cross-run source, stack, adapter, or product drift. This
 focused 10/10 discriminator complements rather than replaces the broader repeated interaction and
@@ -277,12 +279,13 @@ are read-only diagnostics and bind no Apple pixel verdict by themselves.
 The one-draw selection continuation contract in `verify_select_stream_continuation.py` binds the
 temporary selection output to an ordered `GPU_USAGE_STREAM` resource. Browser validation,
 clear/draw, and exact readback therefore remain in one queue epoch even though the temporary draw
-engine is destroyed on return. While that owned readback is pending, ordinary input is retained in
-a bounded FIFO and replayed in order. The slow/sparse producer now isolates the exact triggering
-click, waits one real 650 ms user pause, then sends one recovery orbit before requiring selection
-completion. If the continuation still owns the modal stack, the evidence requires its replay
-counter to advance and the retained orbit to reach the rotate-retirement and native-view boundaries
-after Cube selection. The rapid producer fails on any `WebGPU selection readback failed` report and
+engine is destroyed on return. While that owned readback is pending, state-changing ordinary input
+is retained in a bounded FIFO and replayed in order, but navigation passes through immediately. The
+slow/sparse producer isolates the exact triggering click, waits one real 650 ms user pause, then
+sends one navigation orbit before requiring selection completion. If the continuation still owns
+the modal stack, the evidence requires its replay counter to remain unchanged while the orbit
+reaches the rotate-retirement, native-view, and pixel boundaries before Cube selection completes.
+The rapid producer fails on any `WebGPU selection readback failed` report and
 requires queued and recovery orbits to reach the exact rotate retirement boundary.
 `BW_P0_STATE_ONLY=1` is a
 software-adapter diagnostic only; Apple hardware mode rejects it, so it cannot satisfy the pixel

@@ -1,0 +1,35 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -4155,6 +4155,13 @@ static void view3d_select_async_web_failure_log(
+   std::fflush(stderr);
+ }
+ 
++static bool view3d_select_async_navigation_event(const short event_type)
++{
++  return ISMOUSE_MOTION(event_type) || event_type == MIDDLEMOUSE ||
++         ISMOUSE_WHEEL(event_type) || ISMOUSE_GESTURE(event_type) ||
++         ISKEYMODIFIER(event_type) || ISNDOF(event_type);
++}
++
+ static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
+ {
+   constexpr int max_queued_events = 512;
+@@ -4446,11 +4453,14 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const wm
+     }
+ #ifdef __EMSCRIPTEN__
+-    /* Browser selection is a continuation, not a blocking UI mode. Retain ordinary key/pointer
+-     * input in order while its owned GPU snapshot maps; let unrelated custom/timer events keep
+-     * flowing to their owners. */
++    /* Browser selection is a continuation, not a blocking UI mode. Let viewport navigation and
++     * unrelated custom/timer events keep flowing while the owned pick snapshot maps. Retain
++     * state-changing ordinary input in order until the selection result can be applied. */
+     if (ISTIMER(event->type) || event->customdata != nullptr) {
+       return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
+     }
++    if (view3d_select_async_navigation_event(event->type)) {
++      return OPERATOR_PASS_THROUGH;
++    }
+     if (!view3d_select_async_event_push(data, event)) {
+       view3d_select_async_web_failure_log("input queue exceeded its bound");
+       view3d_select_async_events_requeue(C, data);

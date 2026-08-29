@@ -148,20 +148,22 @@ def validate(sources: dict[str, str]) -> None:
         "const nativeCubePagePoint = (current, canvasBox) =>",
         "selectionPoint = nativeCubePagePoint(selectionBaseline, box);",
         "await page.mouse.click(selectionPoint.x, selectionPoint.y);",
-        'const selectionReplayWindow = await sample("isolated-selection-replay-window");',
-        '"isolated-selection-replay-drain"',
+        'const selectionPendingWindow = await sample("isolated-selection-pending");',
+        'const selectionNavigationWindow = await waitForActionDrain(',
+        '"isolated-selection-navigation-passthrough"',
+        '"isolated-selection-drain"',
         "current, selectionInputBaseline, {left: 1, middle: 1, keys: 0}",
         "current, selectionWmInputBaseline, {left: 1, middle: 1, keys: 0}",
         "(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&",
         "selectionContinuationRetired(current, selectionBaseline)",
-        "current.selectionContinuation.replayedEvents >",
         "selectionComplete: selectionContinuationRetired(selectionDrain, selectionBaseline)",
-        "selectionReplayRequired =\n      selectionReplayWindow.selectionContinuation.gpuSessions >",
-        "(!selectionReplayRequired ||",
-        "selectionInputWasRetained =\n      selectionDrain.selectionContinuation.replayedEvents >",
-        "retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained",
-        "selectionReplayRequired,",
-        "\n    selectionInputWasRetained,\n",
+        "selectionNavigationPassthroughRequired =\n"
+        "      selectionPendingWindow.selectionContinuation.gpuSessions >",
+        "selectionNavigationPassedThrough =\n",
+        "selectionNavigationWindow.selectionContinuation.active === 1",
+        "navigationPassedThrough: selectionNavigationPassedThrough",
+        "selectionNavigationPassthroughRequired,",
+        "\n    selectionNavigationPassedThrough,\n    actionDrainMs:",
         "view3dRotateRetired(current, rotateBaseline, expectedRotates)",
         "selectionReadbackFailureLines: consoleLines.filter(",
         "evidence.selectionReadbackFailureLines.length !== 0",
@@ -177,10 +179,11 @@ def validate(sources: dict[str, str]) -> None:
     )
     if not (
         producer.index('"isolated-orbit-drain"')
-        < producer.index('"isolated-selection-replay-window"')
-        < producer.index('"isolated-selection-replay-drain"')
+        < producer.index('"isolated-selection-pending"')
+        < producer.index('"isolated-selection-navigation-passthrough"')
+        < producer.index('"isolated-selection-drain"')
     ):
-        raise ValueError("slow/sparse producer lost exact orbit -> selection -> retained-orbit order")
+        raise ValueError("slow/sparse producer lost orbit -> selection -> live-navigation order")
 
     for path in (
         "source/blender/draw/intern/DRW_gpu_wrapper.hh",
@@ -290,8 +293,8 @@ def self_check(sources: dict[str, str]) -> None:
         ),
         (
             "producer",
-            '"isolated-selection-replay-drain"',
-            '"selection-replay-drain-bypassed"',
+            '"isolated-selection-navigation-passthrough"',
+            '"selection-navigation-bypassed"',
         ),
         (
             "producer",
@@ -307,8 +310,8 @@ def self_check(sources: dict[str, str]) -> None:
         ),
         (
             "producer",
-            "retainedReplayExercised: !selectionReplayRequired || selectionInputWasRetained",
-            "retainedReplayExercised: true",
+            "navigationPassedThrough: selectionNavigationPassedThrough",
+            "navigationPassedThrough: true",
         ),
         ("producer", "view3dRotateRetired(current, rotateBaseline, expectedRotates)", "true"),
         ("producer", "evidence.selectionReadbackFailureLines.length !== 0", "false"),

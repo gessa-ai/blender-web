@@ -9737,10 +9737,22 @@ index 9850de8be8b7b57641de279ac0bf4638dc83d907..819ccd1716799f3936791daac614fa00
    /* This generates two vertex buffers and an index buffer, so we need to put a barrier on the
     * vertex attributes and element arrays. */
 diff --git a/source/blender/draw/intern/draw_context.cc b/source/blender/draw/intern/draw_context.cc
-index d5b4a97f272b9362a2c788cd3031e230b02db215..e84f71717ed5295b816be85ff3af3c6fe394aaaa 100644
+index d5b4a97f272b9362a2c788cd3031e230b02db215..f9170b92b784b7ba184cbeb42293e928eb10ffac 100644
 --- a/source/blender/draw/intern/draw_context.cc
 +++ b/source/blender/draw/intern/draw_context.cc
-@@ -17,8 +17,10 @@
+@@ -7,6 +7,11 @@
+  */
+ 
+ #include <cstdio>
++#include <cstdint>
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <emscripten/emscripten.h>
++#endif
+ 
+ #include "CLG_log.h"
+ 
+@@ -17,8 +22,10 @@
  #include "BLI_math_matrix.h"
  #include "BLI_math_matrix_types.hh"
  #include "BLI_math_vector.h"
@@ -9751,7 +9763,7 @@ index d5b4a97f272b9362a2c788cd3031e230b02db215..e84f71717ed5295b816be85ff3af3c6f
  #include "BLI_sys_types.h"
  #include "BLI_task.h"
  #include "BLI_threads.h"
-@@ -107,6 +109,8 @@
+@@ -107,12 +114,46 @@
  #include "DEG_depsgraph.hh"
  #include "DEG_depsgraph_query.hh"
  
@@ -9760,7 +9772,113 @@ index d5b4a97f272b9362a2c788cd3031e230b02db215..e84f71717ed5295b816be85ff3af3c6f
  #include "BLI_time.h"
  
  #include "DRW_select_buffer.hh"
-@@ -1818,6 +1822,31 @@ void DRW_render_to_image(
+ 
+ namespace blender {
+ 
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint64_t> web_select_sync_loop_generation{0};
++std::atomic<uint64_t> web_select_sync_complete_generation{0};
++std::atomic<uint32_t> web_select_sync_stage{0};
++
++}  // namespace
++
++static void web_select_sync_stage_store(const uint32_t stage)
++{
++  web_select_sync_stage.store(stage, std::memory_order_release);
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_sync_loop_count(void)
++{
++  return double(web_select_sync_loop_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_sync_stage(void)
++{
++  return double(web_select_sync_stage.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_sync_complete_count(void)
++{
++  return double(web_select_sync_complete_generation.load(std::memory_order_acquire));
++}
++#else
++static void web_select_sync_stage_store(const uint32_t /*stage*/) {}
++#endif
++
+ thread_local DRWContext *DRWContext::g_context = nullptr;
+ 
+ DRWContext::DRWContext(Mode mode_,
+@@ -1061,42 +1102,67 @@ static void drw_engines_cache_populate(draw::ObjectRef &ref,
+ void DRWContext::sync(iter_callback_t iter_callback)
+ {
+   /* Enable modules and init for next sync. */
++  web_select_sync_stage_store(100u);
+   data->modules_begin_sync();
++  web_select_sync_stage_store(101u);
+ 
+   DupliCacheManager dupli_handler;
+   ExtractionGraph extraction;
+ 
+   /* Custom callback defines the set of object to sync. */
++  web_select_sync_stage_store(102u);
+   iter_callback(dupli_handler, extraction);
++  web_select_sync_stage_store(103u);
+ 
++  web_select_sync_stage_store(104u);
+   dupli_handler.extract_all(extraction);
++  web_select_sync_stage_store(105u);
++  web_select_sync_stage_store(106u);
+   for (Object *object : this->delayed_extraction) {
+     draw::drw_batch_cache_generate_requested_evaluated_mesh_or_curve(object, *extraction.graph);
+   }
+   this->delayed_extraction.clear();
++  web_select_sync_stage_store(107u);
+ 
++  web_select_sync_stage_store(108u);
+   extraction.work_and_wait();
++  web_select_sync_stage_store(109u);
+ 
++  web_select_sync_stage_store(110u);
+   DRW_curves_update(*view_data_active->manager);
++  web_select_sync_stage_store(111u);
+ }
+ 
+ void DRWContext::engines_init_and_sync(iter_callback_t iter_callback)
+ {
+   double start_time = BLI_time_now_seconds();
+ 
++  web_select_sync_stage_store(80u);
+   view_data_active->foreach_enabled_engine([&](DrawEngine &instance) { instance.init(); });
++  web_select_sync_stage_store(81u);
+ 
++  web_select_sync_stage_store(82u);
+   view_data_active->manager->begin_sync(this->obact);
++  web_select_sync_stage_store(83u);
+ 
++  web_select_sync_stage_store(84u);
+   view_data_active->foreach_enabled_engine([&](DrawEngine &instance) { instance.begin_sync(); });
++  web_select_sync_stage_store(85u);
+ 
++  web_select_sync_stage_store(86u);
+   sync(iter_callback);
++  web_select_sync_stage_store(87u);
+ 
++  web_select_sync_stage_store(88u);
+   view_data_active->foreach_enabled_engine([&](DrawEngine &instance) { instance.end_sync(); });
++  web_select_sync_stage_store(89u);
+ 
++  web_select_sync_stage_store(90u);
+   view_data_active->manager->end_sync();
++  web_select_sync_stage_store(91u);
+ 
+   last_sync_time_ = float(BLI_time_now_seconds() - start_time);
++  web_select_sync_stage_store(92u);
+ }
+ 
+ void DRWContext::engines_draw_scene()
+@@ -1818,6 +1884,31 @@ void DRW_render_to_image(
      Depsgraph *depsgraph,
      std::function<void(RenderEngine *, RenderLayer *, const rcti)> render_view_cb,
      std::function<void(RenderResult *)> store_metadata_cb)
@@ -9792,7 +9910,7 @@ index d5b4a97f272b9362a2c788cd3031e230b02db215..e84f71717ed5295b816be85ff3af3c6f
  {
    using namespace blender::draw;
    Scene *scene = DEG_get_evaluated_scene(depsgraph);
-@@ -1849,26 +1878,51 @@ void DRW_render_to_image(
+@@ -1849,26 +1940,51 @@ void DRW_render_to_image(
    /* set default viewport */
    GPU_viewport(0, 0, draw_ctx.size[0], draw_ctx.size[1]);
  
@@ -9861,7 +9979,7 @@ index d5b4a97f272b9362a2c788cd3031e230b02db215..e84f71717ed5295b816be85ff3af3c6f
  
    GPU_framebuffer_restore();
  
-@@ -1879,6 +1933,17 @@ void DRW_render_to_image(
+@@ -1879,6 +1995,17 @@ void DRW_render_to_image(
  
    /* End GPU workload Boundary */
    GPU_render_end();
@@ -9879,6 +9997,89 @@ index d5b4a97f272b9362a2c788cd3031e230b02db215..e84f71717ed5295b816be85ff3af3c6f
  }
  
  void DRW_render_object_iter(
+@@ -1999,6 +2126,10 @@ void DRW_draw_select_loop(Depsgraph *depsgraph,
+                           void *object_filter_user_data)
+ {
+   using namespace blender::draw;
++#ifdef __EMSCRIPTEN__
++  web_select_sync_loop_generation.fetch_add(1u, std::memory_order_relaxed);
++#endif
++  web_select_sync_stage_store(1u);
+   const int viewport_size[2] = {BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)};
+ 
+   const bool use_gpencil = !draw_surface && DRW_render_check_grease_pencil(depsgraph, v3d);
+@@ -2007,9 +2138,16 @@ void DRW_draw_select_loop(Depsgraph *depsgraph,
+                                                       DRWContext::SELECT_OBJECT;
+ 
+   DRWContext draw_ctx(mode, depsgraph, viewport_size, nullptr, region, v3d);
++  web_select_sync_stage_store(2u);
++  web_select_sync_stage_store(3u);
+   draw_ctx.acquire_data();
++  web_select_sync_stage_store(4u);
++  web_select_sync_stage_store(5u);
+   draw_ctx.enable_engines(use_gpencil);
++  web_select_sync_stage_store(6u);
++  web_select_sync_stage_store(7u);
+   draw_ctx.engines_data_validate();
++  web_select_sync_stage_store(8u);
+   draw_ctx.engines_init_and_sync([&](DupliCacheManager &duplis, ExtractionGraph &extraction) {
+     /* When selecting pose-bones in pose mode, check for visibility not select-ability
+      * as pose-bones have their own selection restriction flag. */
+@@ -2060,11 +2198,14 @@ void DRW_draw_select_loop(Depsgraph *depsgraph,
+       drw_engines_cache_populate(ob_ref, duplis, extraction);
+     });
+   });
++  web_select_sync_stage_store(9u);
+ 
+   /* Setup frame-buffer. */
++  web_select_sync_stage_store(10u);
+   draw_select_framebuffer_depth_only_setup(viewport_size);
+   GPU_framebuffer_bind(g_select_buffer.framebuffer_depth_only);
+   GPU_framebuffer_clear_depth(g_select_buffer.framebuffer_depth_only, 1.0f);
++  web_select_sync_stage_store(11u);
+ 
+   /* WORKAROUND: Needed for Select-Next for keeping the same code-flow as Overlay-Next. */
+   /* TODO(pragma37): Some engines retrieve the depth texture before this point (See #132922).
+@@ -2072,24 +2213,39 @@ void DRW_draw_select_loop(Depsgraph *depsgraph,
+   BLI_assert(DRW_context_get()->viewport_texture_list_get()->depth == nullptr);
+   DRW_context_get()->viewport_texture_list_get()->depth = g_select_buffer.texture_depth;
+ 
++  web_select_sync_stage_store(12u);
+   drw_callbacks_pre_scene(draw_ctx);
++  web_select_sync_stage_store(13u);
+   /* Only 1-2 passes. */
+   while (true) {
++    web_select_sync_stage_store(14u);
+     if (!select_pass_fn(DRW_SELECT_PASS_PRE, select_pass_user_data)) {
+       break;
+     }
++    web_select_sync_stage_store(15u);
++    web_select_sync_stage_store(16u);
+     draw_ctx.engines_draw_scene();
++    web_select_sync_stage_store(17u);
++    web_select_sync_stage_store(18u);
+     if (!select_pass_fn(DRW_SELECT_PASS_POST, select_pass_user_data)) {
+       break;
+     }
++    web_select_sync_stage_store(19u);
+   }
+ 
+   /* WORKAROUND: Do not leave ownership to the viewport list. */
+   DRW_context_get()->viewport_texture_list_get()->depth = nullptr;
+ 
++  web_select_sync_stage_store(20u);
+   draw_ctx.release_data();
++  web_select_sync_stage_store(21u);
+ 
++  web_select_sync_stage_store(22u);
+   GPU_framebuffer_restore();
++  web_select_sync_stage_store(23u);
++#ifdef __EMSCRIPTEN__
++  web_select_sync_complete_generation.fetch_add(1u, std::memory_order_release);
++#endif
+ }
+ 
+ void DRW_draw_depth_loop(Depsgraph *depsgraph,
 diff --git a/source/blender/draw/intern/draw_curves.cc b/source/blender/draw/intern/draw_curves.cc
 index 348ed7846de5bdac2dca9a4f8c5213038fef2583..7d34958e651ad256b712d0fb94af744c121ada36 100644
 --- a/source/blender/draw/intern/draw_curves.cc
@@ -23519,7 +23720,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f6fba9996 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..17db3a064b9ff0a77a1d27fea05aeb5bdf7fcb1d 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
 @@ -7,8 +7,14 @@
@@ -24211,7 +24412,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
      gpu->has_bones = (object_only && gpu->hits > 0) ?
                           false :
                           selectbuffer_has_bones(gpu->buffer.storage.as_span().slice(0, gpu->hits));
-@@ -3512,6 +4027,171 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+@@ -3512,6 +4027,178 @@ static bool ed_grease_pencil_select_pick(bContext *C,
    return true;
  }
  
@@ -24343,6 +24544,13 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
 +  std::fflush(stderr);
 +}
 +
++static bool view3d_select_async_navigation_event(const short event_type)
++{
++  return ISMOUSE_MOTION(event_type) || event_type == MIDDLEMOUSE ||
++         ISMOUSE_WHEEL(event_type) || ISMOUSE_GESTURE(event_type) ||
++         ISKEYMODIFIER(event_type) || ISNDOF(event_type);
++}
++
 +static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
 +{
 +  constexpr int max_queued_events = 512;
@@ -24383,7 +24591,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
  static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
  {
    Scene *scene = CTX_data_scene(C);
-@@ -3572,8 +4252,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3572,8 +4259,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
          GPUSelectBuffer buffer;
          const int hits = mixed_bones_object_selectbuffer(
              &vc, &buffer, mval, VIEW3D_SELECT_FILTER_NOP, false, true, false);
@@ -24396,7 +24604,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
        }
        if (!changed) {
          changed = ED_armature_edit_select_pick(C, mval, params);
-@@ -3602,7 +4284,54 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3602,7 +4291,54 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      }
    }
    else if (obact && obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24452,7 +24660,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    }
    else if (obact && BKE_paint_select_face_test(obact)) {
      changed = paintface_mouse_select(C, mval, params, obact);
-@@ -3617,6 +4346,19 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3617,6 +4353,19 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      changed = ed_object_select_pick(C, mval, params, center, enumerate, object_only);
    }
  
@@ -24472,7 +24680,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    /* Pass-through flag may be cleared, see #WM_operator_flag_only_pass_through_on_press. */
  
    /* Pass-through allows tweaks
-@@ -3629,15 +4371,182 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3629,15 +4378,185 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
    return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
  }
  
@@ -24551,11 +24759,14 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
 +      return OPERATOR_CANCELLED;
 +    }
 +#ifdef __EMSCRIPTEN__
-+    /* Browser selection is a continuation, not a blocking UI mode. Retain ordinary key/pointer
-+     * input in order while its owned GPU snapshot maps; let unrelated custom/timer events keep
-+     * flowing to their owners. */
++    /* Browser selection is a continuation, not a blocking UI mode. Let viewport navigation and
++     * unrelated custom/timer events keep flowing while the owned pick snapshot maps. Retain
++     * state-changing ordinary input in order until the selection result can be applied. */
 +    if (ISTIMER(event->type) || event->customdata != nullptr) {
 +      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    }
++    if (view3d_select_async_navigation_event(event->type)) {
++      return OPERATOR_PASS_THROUGH;
 +    }
 +    if (!view3d_select_async_event_push(data, event)) {
 +      view3d_select_async_web_failure_log("input queue exceeded its bound");
@@ -24655,7 +24866,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
  void VIEW3D_OT_select(wmOperatorType *ot)
  {
    PropertyRNA *prop;
-@@ -3650,6 +4559,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
+@@ -3650,6 +4569,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
    /* API callbacks. */
    ot->invoke = view3d_select_invoke;
    ot->exec = view3d_select_exec;
@@ -24664,7 +24875,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    ot->poll = ED_operator_view3d_active;
    ot->get_name = ED_select_pick_get_name;
  
-@@ -4071,6 +4982,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4071,6 +4992,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    view3d_userdata_boxselect_init(&data, vc, rect, sel_op);
  
@@ -24685,7 +24896,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
        EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
-@@ -4087,18 +5012,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4087,18 +5022,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    GPU_matrix_set(vc->rv3d->viewmat);
  
@@ -24704,7 +24915,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -4535,6 +5448,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
+@@ -4535,6 +5458,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
    return do_curves_select_box(vc, object, rect, sel_op);
  }
  
@@ -24720,7 +24931,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
  static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-@@ -4553,6 +5475,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4553,6 +5485,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
    eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
    WM_operator_properties_border_to_rcti(op, &rect);
  
@@ -24751,7 +24962,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    if (vc.obedit) {
      FOREACH_OBJECT_IN_MODE_BEGIN (
          vc.bmain, vc.scene, vc.view_layer, vc.v3d, vc.obedit->type, vc.obedit->mode, ob_iter)
-@@ -4650,7 +5596,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4650,7 +5606,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
        }
      }
      else if (vc.obact && vc.obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24760,7 +24971,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
      }
      else if (vc.obact && ((vc.obact->mode & OB_MODE_POSE) ||
                            ((vc.obact->mode & OB_MODE_WEIGHT_PAINT) &&
-@@ -4671,10 +5617,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4671,10 +5627,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  
    WM_generic_user_data_free(wm_userdata);
  
@@ -24841,7 +25052,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
  }
  
  void VIEW3D_OT_select_box(wmOperatorType *ot)
-@@ -4685,11 +5698,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
+@@ -4685,11 +5708,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
    ot->idname = "VIEW3D_OT_select_box";
  
    /* API callbacks. */
@@ -24856,7 +25067,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
  
    /* flags */
    ot->flag = OPTYPE_UNDO;
-@@ -4803,6 +5816,20 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4803,6 +5826,20 @@ static bool mesh_circle_select(const ViewContext *vc,
    CircleSelectUserData data;
    BLI_assert(vc->em == BKE_editmesh_from_object(vc->obedit));
  
@@ -24877,7 +25088,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    bool changed = false;
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
-@@ -4824,22 +5851,6 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4824,22 +5861,6 @@ static bool mesh_circle_select(const ViewContext *vc,
  
    view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
  
@@ -24900,7 +25111,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        if (esel->select_bitmap != nullptr) {
-@@ -5544,19 +6555,331 @@ static void view3d_circle_select_recalc(void *user_data)
+@@ -5544,19 +6565,331 @@ static void view3d_circle_select_recalc(void *user_data)
    }
  }
  
@@ -25232,7 +25443,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    WM_gesture_circle_cancel(C, op);
    view3d_circle_select_recalc(C);
  }
-@@ -5564,17 +6887,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+@@ -5564,17 +6897,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
  static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
@@ -25275,7 +25486,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
  
    Object *obact = vc.obact;
-@@ -5631,10 +6974,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5631,10 +6984,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
      FOREACH_OBJECT_IN_MODE_END;
    }
    else if (obact && (obact->mode & OB_MODE_PARTICLE_EDIT)) {
@@ -25309,7 +25520,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
    }
    else if (obact && obact->mode & OB_MODE_SCULPT) {
      return OPERATOR_CANCELLED;
-@@ -5662,13 +7025,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5662,13 +7035,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
    }
    else {
      EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
@@ -25358,7 +25569,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..82e7120368801613a154e6f4a421f24f
  }
  
  void VIEW3D_OT_select_circle(wmOperatorType *ot)
-@@ -5677,7 +7071,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+@@ -5677,7 +7081,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
    ot->description = "Select items using circle selection";
    ot->idname = "VIEW3D_OT_select_circle";
  
@@ -26820,10 +27031,21 @@ index c2388a0b29c0cede5d80f0b5455edee46fec75db..84ac7ff4e9b2ac3aa3d68712835dafbd
  
  }  // namespace blender
 diff --git a/source/blender/gpu/intern/gpu_shader.cc b/source/blender/gpu/intern/gpu_shader.cc
-index 3189b897166a1ac400da297db530b58c9c2d9499..e3c7dfabcc5df0913783f1b280e7e8215807f684 100644
+index 3189b897166a1ac400da297db530b58c9c2d9499..97fdaccd28bf48150e6a515fde8055403abc6142 100644
 --- a/source/blender/gpu/intern/gpu_shader.cc
 +++ b/source/blender/gpu/intern/gpu_shader.cc
-@@ -52,9 +52,20 @@ void Shader::dump_source_to_disk(StringRef shader_name,
+@@ -31,6 +31,10 @@
+ 
+ #include <filesystem>
+ #include <string>
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <emscripten/emscripten.h>
++#endif
+ 
+ namespace blender {
+ 
+@@ -52,9 +56,20 @@ void Shader::dump_source_to_disk(StringRef shader_name,
    }
    else if (pattern.startswith("*") && pattern.endswith("*")) {
      std::string sub_str = pattern.substr(1, pattern.size() - 2);
@@ -26844,7 +27066,7 @@ index 3189b897166a1ac400da297db530b58c9c2d9499..e3c7dfabcc5df0913783f1b280e7e821
    }
    else if (pattern.startswith("*")) {
      std::string sub_str = pattern.substr(1);
-@@ -176,6 +187,9 @@ static void standard_defines(Vector<StringRefNull> &sources)
+@@ -176,6 +191,9 @@ static void standard_defines(Vector<StringRefNull> &sources)
      case GPU_BACKEND_VULKAN:
        sources.append("#define GPU_VULKAN\n");
        break;
@@ -26854,6 +27076,156 @@ index 3189b897166a1ac400da297db530b58c9c2d9499..e3c7dfabcc5df0913783f1b280e7e821
      default:
        BLI_assert_msg(false, "Invalid GPU Backend Type");
        break;
+@@ -784,14 +802,67 @@ void Shader::set_framebuffer_srgb_target(int use_srgb_to_linear)
+ /** \name ShaderCompiler
+  * \{ */
+ 
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint32_t> web_select_shader_compile_kind{0};
++std::atomic<uint32_t> web_select_shader_compile_stage{0};
++
++bool web_select_shader_compile_traced(const shader::ShaderCreateInfo &info)
++{
++  return info.name_.rfind("select_id_", 0) == 0 ||
++         (info.name_.size() >= 11 &&
++          info.name_.compare(info.name_.size() - 11, 11, "_selectable") == 0);
++}
++
++void web_select_shader_compile_begin(const shader::ShaderCreateInfo &info)
++{
++  if (!web_select_shader_compile_traced(info)) {
++    return;
++  }
++  const uint32_t kind = info.name_ == "select_id_flat" ? 1u :
++                        info.name_ == "select_id_uniform" ? 2u : 3u;
++  web_select_shader_compile_kind.store(kind, std::memory_order_release);
++  web_select_shader_compile_stage.store(1u, std::memory_order_release);
++}
++
++void web_select_shader_compile_stage_store(const shader::ShaderCreateInfo &info,
++                                           const uint32_t stage)
++{
++  if (web_select_shader_compile_traced(info)) {
++    web_select_shader_compile_stage.store(stage, std::memory_order_release);
++  }
++}
++
++}  // namespace
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_select_shader_compile_kind(void)
++{
++  return double(web_select_shader_compile_kind.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_select_shader_compile_stage(void)
++{
++  return double(web_select_shader_compile_stage.load(std::memory_order_acquire));
++}
++#else
++static void web_select_shader_compile_begin(const shader::ShaderCreateInfo & /*info*/) {}
++static void web_select_shader_compile_stage_store(const shader::ShaderCreateInfo & /*info*/,
++                                                  const uint32_t /*stage*/)
++{
++}
++#endif
++
+ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool is_codegen_only)
+ {
+   using Clock = std::chrono::steady_clock;
+   using TimePoint = Clock::time_point;
+ 
+   using namespace blender::gpu::shader;
++  web_select_shader_compile_begin(orig_info);
+   const_cast<ShaderCreateInfo &>(orig_info).finalize();
+   BLI_assert(orig_info.do_static_compilation_ || orig_info.is_generated_);
++  web_select_shader_compile_stage_store(orig_info, 2u);
+ 
+   TimePoint start_time;
+ 
+@@ -803,10 +874,12 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+   else if (G.profile_gpu) {
+     start_time = Clock::now();
+   }
++  web_select_shader_compile_stage_store(orig_info, 3u);
+ 
+   CLOG_DEBUG(&LOG, "Compiling Shader \"%s\"", orig_info.name_.c_str());
+ 
+   Shader *shader = GPUBackend::get()->shader_alloc(orig_info.name_.c_str());
++  web_select_shader_compile_stage_store(orig_info, 4u);
+ 
+   ShaderCreateInfo specialized_info = orig_info;
+ 
+@@ -840,13 +913,16 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+     std::cerr << error << "\n";
+     return nullptr;
+   }
++  web_select_shader_compile_stage_store(orig_info, 5u);
+ 
+   const shader::ShaderCreateInfo &info = shader->patch_create_info(specialized_info);
++  web_select_shader_compile_stage_store(orig_info, 6u);
+ 
+   /* Needs to be called before init as GL uses the default specialization constants state to insert
+    * default shader inside a map. */
+   shader->specialization_constants_init(info);
+   shader->init(info, is_codegen_only);
++  web_select_shader_compile_stage_store(orig_info, 7u);
+ 
+   shader->fragment_output_bits = 0;
+   for (const shader::ShaderCreateInfo::FragOut &frag_out : info.fragment_outputs_) {
+@@ -879,8 +955,10 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+   }
+ 
+   defines += "#define USE_GPU_SHADER_CREATE_INFO\n";
++  web_select_shader_compile_stage_store(orig_info, 8u);
+ 
+   if (!info.vertex_source_.is_empty()) {
++    web_select_shader_compile_stage_store(orig_info, 9u);
+     Vector<StringRefNull> code = gpu_shader_dependency_get_resolved_source(
+         info.vertex_source_, info.generated_sources, info.name_);
+     std::string interface = shader->vertex_interface_declare(info);
+@@ -902,9 +980,11 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+     }
+ 
+     shader->vertex_shader_from_glsl(info, sources);
++    web_select_shader_compile_stage_store(orig_info, 10u);
+   }
+ 
+   if (!info.fragment_source_.is_empty()) {
++    web_select_shader_compile_stage_store(orig_info, 11u);
+     Vector<StringRefNull> code = gpu_shader_dependency_get_resolved_source(
+         info.fragment_source_, info.generated_sources, info.name_);
+     std::string interface = shader->fragment_interface_declare(info);
+@@ -926,6 +1006,7 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+     }
+ 
+     shader->fragment_shader_from_glsl(info, sources);
++    web_select_shader_compile_stage_store(orig_info, 12u);
+   }
+ 
+   if (!info.geometry_source_.is_empty()) {
+@@ -973,10 +1054,12 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+     shader->compute_shader_from_glsl(info, sources);
+   }
+ 
++  web_select_shader_compile_stage_store(orig_info, 13u);
+   if (!shader->finalize(&info)) {
+     delete shader;
+     shader = nullptr;
+   }
++  web_select_shader_compile_stage_store(orig_info, 14u);
+ 
+   if (Context::get()) {
+     /* Context can be null in Vulkan compilation threads. */
+@@ -993,6 +1076,7 @@ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool
+                                        start_time.time_since_epoch().count(),
+                                        end_time.time_since_epoch().count());
+   }
++  web_select_shader_compile_stage_store(orig_info, 15u);
+ 
+   return shader;
+ }
 diff --git a/source/blender/gpu/intern/gpu_shader_builtin.cc b/source/blender/gpu/intern/gpu_shader_builtin.cc
 index ddd4928dfd79b36d4c23efd6b7b66e976c77c96a..45fd24973760170b010c188dfee38b130a5f7e61 100644
 --- a/source/blender/gpu/intern/gpu_shader_builtin.cc

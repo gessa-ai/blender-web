@@ -1248,3 +1248,9 @@
 # 0314: bind viewport-selection fail-close to elapsed monotonic time instead of scheduler-dependent
 # timer-event delivery, while retaining the event count as read-only lifecycle telemetry.
 0314-view3d-web-selection-wall-timeout.patch
+# 0315: keep viewport navigation live while an asynchronous browser selection snapshot settles;
+# retain only state-changing ordinary input instead of replaying the navigation gesture later.
+0315-view3d-web-selection-navigation-passthrough.patch
+# 0316: expose the synchronous selection-draw stage before async readback begins, so a frozen
+# slow/sparse pick identifies the exact blocking draw phase without another behavior guess.
+0316-gpu-webgpu-select-sync-stage-telemetry.patch

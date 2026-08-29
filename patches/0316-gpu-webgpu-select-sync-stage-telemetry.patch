@@ -1,0 +1,369 @@
+diff --git a/source/blender/draw/intern/draw_context.cc b/source/blender/draw/intern/draw_context.cc
+--- a/source/blender/draw/intern/draw_context.cc
++++ b/source/blender/draw/intern/draw_context.cc
+@@ -7,6 +7,11 @@
+  */
+ 
+ #include <cstdio>
++#include <cstdint>
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <emscripten/emscripten.h>
++#endif
+ 
+ #include "CLG_log.h"
+ 
+@@ -117,6 +122,38 @@
+ 
+ namespace blender {
+ 
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint64_t> web_select_sync_loop_generation{0};
++std::atomic<uint64_t> web_select_sync_complete_generation{0};
++std::atomic<uint32_t> web_select_sync_stage{0};
++
++}  // namespace
++
++static void web_select_sync_stage_store(const uint32_t stage)
++{
++  web_select_sync_stage.store(stage, std::memory_order_release);
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_sync_loop_count(void)
++{
++  return double(web_select_sync_loop_generation.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_sync_stage(void)
++{
++  return double(web_select_sync_stage.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_sync_complete_count(void)
++{
++  return double(web_select_sync_complete_generation.load(std::memory_order_acquire));
++}
++#else
++static void web_select_sync_stage_store(const uint32_t /*stage*/) {}
++#endif
++
+ thread_local DRWContext *DRWContext::g_context = nullptr;
+ 
+ DRWContext::DRWContext(Mode mode_,
+@@ -1065,42 +1096,67 @@
+ void DRWContext::sync(iter_callback_t iter_callback)
+ {
+   /* Enable modules and init for next sync. */
++  web_select_sync_stage_store(100u);
+   data->modules_begin_sync();
++  web_select_sync_stage_store(101u);
+ 
+   DupliCacheManager dupli_handler;
+   ExtractionGraph extraction;
+ 
+   /* Custom callback defines the set of object to sync. */
++  web_select_sync_stage_store(102u);
+   iter_callback(dupli_handler, extraction);
++  web_select_sync_stage_store(103u);
+ 
++  web_select_sync_stage_store(104u);
+   dupli_handler.extract_all(extraction);
++  web_select_sync_stage_store(105u);
++  web_select_sync_stage_store(106u);
+   for (Object *object : this->delayed_extraction) {
+     draw::drw_batch_cache_generate_requested_evaluated_mesh_or_curve(object, *extraction.graph);
+   }
+   this->delayed_extraction.clear();
++  web_select_sync_stage_store(107u);
+ 
++  web_select_sync_stage_store(108u);
+   extraction.work_and_wait();
++  web_select_sync_stage_store(109u);
+ 
++  web_select_sync_stage_store(110u);
+   DRW_curves_update(*view_data_active->manager);
++  web_select_sync_stage_store(111u);
+ }
+ 
+ void DRWContext::engines_init_and_sync(iter_callback_t iter_callback)
+ {
+   double start_time = BLI_time_now_seconds();
+ 
++  web_select_sync_stage_store(80u);
+   view_data_active->foreach_enabled_engine([&](DrawEngine &instance) { instance.init(); });
++  web_select_sync_stage_store(81u);
+ 
++  web_select_sync_stage_store(82u);
+   view_data_active->manager->begin_sync(this->obact);
++  web_select_sync_stage_store(83u);
+ 
++  web_select_sync_stage_store(84u);
+   view_data_active->foreach_enabled_engine([&](DrawEngine &instance) { instance.begin_sync(); });
++  web_select_sync_stage_store(85u);
+ 
++  web_select_sync_stage_store(86u);
+   sync(iter_callback);
++  web_select_sync_stage_store(87u);
+ 
++  web_select_sync_stage_store(88u);
+   view_data_active->foreach_enabled_engine([&](DrawEngine &instance) { instance.end_sync(); });
++  web_select_sync_stage_store(89u);
+ 
++  web_select_sync_stage_store(90u);
+   view_data_active->manager->end_sync();
++  web_select_sync_stage_store(91u);
+ 
+   last_sync_time_ = float(BLI_time_now_seconds() - start_time);
++  web_select_sync_stage_store(92u);
+ }
+ 
+ void DRWContext::engines_draw_scene()
+@@ -2064,6 +2120,10 @@
+                           void *object_filter_user_data)
+ {
+   using namespace blender::draw;
++#ifdef __EMSCRIPTEN__
++  web_select_sync_loop_generation.fetch_add(1u, std::memory_order_relaxed);
++#endif
++  web_select_sync_stage_store(1u);
+   const int viewport_size[2] = {BLI_rcti_size_x(rect), BLI_rcti_size_y(rect)};
+ 
+   const bool use_gpencil = !draw_surface && DRW_render_check_grease_pencil(depsgraph, v3d);
+@@ -2072,9 +2132,16 @@
+                                                       DRWContext::SELECT_OBJECT;
+ 
+   DRWContext draw_ctx(mode, depsgraph, viewport_size, nullptr, region, v3d);
++  web_select_sync_stage_store(2u);
++  web_select_sync_stage_store(3u);
+   draw_ctx.acquire_data();
++  web_select_sync_stage_store(4u);
++  web_select_sync_stage_store(5u);
+   draw_ctx.enable_engines(use_gpencil);
++  web_select_sync_stage_store(6u);
++  web_select_sync_stage_store(7u);
+   draw_ctx.engines_data_validate();
++  web_select_sync_stage_store(8u);
+   draw_ctx.engines_init_and_sync([&](DupliCacheManager &duplis, ExtractionGraph &extraction) {
+     /* When selecting pose-bones in pose mode, check for visibility not select-ability
+      * as pose-bones have their own selection restriction flag. */
+@@ -2125,11 +2192,14 @@
+       drw_engines_cache_populate(ob_ref, duplis, extraction);
+     });
+   });
++  web_select_sync_stage_store(9u);
+ 
+   /* Setup frame-buffer. */
++  web_select_sync_stage_store(10u);
+   draw_select_framebuffer_depth_only_setup(viewport_size);
+   GPU_framebuffer_bind(g_select_buffer.framebuffer_depth_only);
+   GPU_framebuffer_clear_depth(g_select_buffer.framebuffer_depth_only, 1.0f);
++  web_select_sync_stage_store(11u);
+ 
+   /* WORKAROUND: Needed for Select-Next for keeping the same code-flow as Overlay-Next. */
+   /* TODO(pragma37): Some engines retrieve the depth texture before this point (See #132922).
+@@ -2137,24 +2207,39 @@
+   BLI_assert(DRW_context_get()->viewport_texture_list_get()->depth == nullptr);
+   DRW_context_get()->viewport_texture_list_get()->depth = g_select_buffer.texture_depth;
+ 
++  web_select_sync_stage_store(12u);
+   drw_callbacks_pre_scene(draw_ctx);
++  web_select_sync_stage_store(13u);
+   /* Only 1-2 passes. */
+   while (true) {
++    web_select_sync_stage_store(14u);
+     if (!select_pass_fn(DRW_SELECT_PASS_PRE, select_pass_user_data)) {
+       break;
+     }
++    web_select_sync_stage_store(15u);
++    web_select_sync_stage_store(16u);
+     draw_ctx.engines_draw_scene();
++    web_select_sync_stage_store(17u);
++    web_select_sync_stage_store(18u);
+     if (!select_pass_fn(DRW_SELECT_PASS_POST, select_pass_user_data)) {
+       break;
+     }
++    web_select_sync_stage_store(19u);
+   }
+ 
+   /* WORKAROUND: Do not leave ownership to the viewport list. */
+   DRW_context_get()->viewport_texture_list_get()->depth = nullptr;
+ 
++  web_select_sync_stage_store(20u);
+   draw_ctx.release_data();
++  web_select_sync_stage_store(21u);
+ 
++  web_select_sync_stage_store(22u);
+   GPU_framebuffer_restore();
++  web_select_sync_stage_store(23u);
++#ifdef __EMSCRIPTEN__
++  web_select_sync_complete_generation.fetch_add(1u, std::memory_order_release);
++#endif
+ }
+ 
+ void DRW_draw_depth_loop(Depsgraph *depsgraph,
+diff --git a/source/blender/gpu/intern/gpu_shader.cc b/source/blender/gpu/intern/gpu_shader.cc
+--- a/source/blender/gpu/intern/gpu_shader.cc
++++ b/source/blender/gpu/intern/gpu_shader.cc
+@@ -31,6 +31,10 @@
+ 
+ #include <filesystem>
+ #include <string>
++#ifdef __EMSCRIPTEN__
++#  include <atomic>
++#  include <emscripten/emscripten.h>
++#endif
+ 
+ namespace blender {
+ 
+@@ -798,14 +802,67 @@
+ /** \name ShaderCompiler
+  * \{ */
+ 
++#ifdef __EMSCRIPTEN__
++namespace {
++
++std::atomic<uint32_t> web_select_shader_compile_kind{0};
++std::atomic<uint32_t> web_select_shader_compile_stage{0};
++
++bool web_select_shader_compile_traced(const shader::ShaderCreateInfo &info)
++{
++  return info.name_.rfind("select_id_", 0) == 0 ||
++         (info.name_.size() >= 11 &&
++          info.name_.compare(info.name_.size() - 11, 11, "_selectable") == 0);
++}
++
++void web_select_shader_compile_begin(const shader::ShaderCreateInfo &info)
++{
++  if (!web_select_shader_compile_traced(info)) {
++    return;
++  }
++  const uint32_t kind = info.name_ == "select_id_flat" ? 1u :
++                        info.name_ == "select_id_uniform" ? 2u : 3u;
++  web_select_shader_compile_kind.store(kind, std::memory_order_release);
++  web_select_shader_compile_stage.store(1u, std::memory_order_release);
++}
++
++void web_select_shader_compile_stage_store(const shader::ShaderCreateInfo &info,
++                                           const uint32_t stage)
++{
++  if (web_select_shader_compile_traced(info)) {
++    web_select_shader_compile_stage.store(stage, std::memory_order_release);
++  }
++}
++
++}  // namespace
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_select_shader_compile_kind(void)
++{
++  return double(web_select_shader_compile_kind.load(std::memory_order_acquire));
++}
++
++extern "C" EMSCRIPTEN_KEEPALIVE double bw_select_shader_compile_stage(void)
++{
++  return double(web_select_shader_compile_stage.load(std::memory_order_acquire));
++}
++#else
++static void web_select_shader_compile_begin(const shader::ShaderCreateInfo & /*info*/) {}
++static void web_select_shader_compile_stage_store(const shader::ShaderCreateInfo & /*info*/,
++                                                  const uint32_t /*stage*/)
++{
++}
++#endif
++
+ Shader *ShaderCompiler::compile(const shader::ShaderCreateInfo &orig_info, bool is_codegen_only)
+ {
+   using Clock = std::chrono::steady_clock;
+   using TimePoint = Clock::time_point;
+ 
+   using namespace blender::gpu::shader;
++  web_select_shader_compile_begin(orig_info);
+   const_cast<ShaderCreateInfo &>(orig_info).finalize();
+   BLI_assert(orig_info.do_static_compilation_ || orig_info.is_generated_);
++  web_select_shader_compile_stage_store(orig_info, 2u);
+ 
+   TimePoint start_time;
+ 
+@@ -817,10 +872,12 @@
+   else if (G.profile_gpu) {
+     start_time = Clock::now();
+   }
++  web_select_shader_compile_stage_store(orig_info, 3u);
+ 
+   CLOG_DEBUG(&LOG, "Compiling Shader \"%s\"", orig_info.name_.c_str());
+ 
+   Shader *shader = GPUBackend::get()->shader_alloc(orig_info.name_.c_str());
++  web_select_shader_compile_stage_store(orig_info, 4u);
+ 
+   ShaderCreateInfo specialized_info = orig_info;
+ 
+@@ -854,13 +911,16 @@
+     std::cerr << error << "\n";
+     return nullptr;
+   }
++  web_select_shader_compile_stage_store(orig_info, 5u);
+ 
+   const shader::ShaderCreateInfo &info = shader->patch_create_info(specialized_info);
++  web_select_shader_compile_stage_store(orig_info, 6u);
+ 
+   /* Needs to be called before init as GL uses the default specialization constants state to insert
+    * default shader inside a map. */
+   shader->specialization_constants_init(info);
+   shader->init(info, is_codegen_only);
++  web_select_shader_compile_stage_store(orig_info, 7u);
+ 
+   shader->fragment_output_bits = 0;
+   for (const shader::ShaderCreateInfo::FragOut &frag_out : info.fragment_outputs_) {
+@@ -893,8 +953,10 @@
+   }
+ 
+   defines += "#define USE_GPU_SHADER_CREATE_INFO\n";
++  web_select_shader_compile_stage_store(orig_info, 8u);
+ 
+   if (!info.vertex_source_.is_empty()) {
++    web_select_shader_compile_stage_store(orig_info, 9u);
+     Vector<StringRefNull> code = gpu_shader_dependency_get_resolved_source(
+         info.vertex_source_, info.generated_sources, info.name_);
+     std::string interface = shader->vertex_interface_declare(info);
+@@ -916,9 +978,11 @@
+     }
+ 
+     shader->vertex_shader_from_glsl(info, sources);
++    web_select_shader_compile_stage_store(orig_info, 10u);
+   }
+ 
+   if (!info.fragment_source_.is_empty()) {
++    web_select_shader_compile_stage_store(orig_info, 11u);
+     Vector<StringRefNull> code = gpu_shader_dependency_get_resolved_source(
+         info.fragment_source_, info.generated_sources, info.name_);
+     std::string interface = shader->fragment_interface_declare(info);
+@@ -940,6 +1004,7 @@
+     }
+ 
+     shader->fragment_shader_from_glsl(info, sources);
++    web_select_shader_compile_stage_store(orig_info, 12u);
+   }
+ 
+   if (!info.geometry_source_.is_empty()) {
+@@ -987,10 +1052,12 @@
+     shader->compute_shader_from_glsl(info, sources);
+   }
+ 
++  web_select_shader_compile_stage_store(orig_info, 13u);
+   if (!shader->finalize(&info)) {
+     delete shader;
+     shader = nullptr;
+   }
++  web_select_shader_compile_stage_store(orig_info, 14u);
+ 
+   if (Context::get()) {
+     /* Context can be null in Vulkan compilation threads. */
+@@ -1007,6 +1074,7 @@
+                                        start_time.time_since_epoch().count(),
+                                        end_time.time_since_epoch().count());
+   }
++  web_select_shader_compile_stage_store(orig_info, 15u);
+ 
+   return shader;
+ }

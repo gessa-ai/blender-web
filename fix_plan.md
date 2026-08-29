@@ -3675,7 +3675,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   module/pipeline exits. RELINKED CAPTURE `.wasm.orig` is `a42be64bbc1c` (118,997,196 bytes).
   This is fail-closed hardening and software diagnosis, not pixel closure: the driver still must
   pass this exact inventory 10/10 on Apple and compose it with the same-generation P0-E gauntlet.
-  See `notes/p0-selection-draw-admission-20260829.md`.
+  **Exact-generation software stability verified/pending hardware:** `a42be64bbc1c` then completed
+  10/10 fresh slow/sparse software runs: every completed run retired both isolated orbits, selected
+  exactly Cube through the live projected viewport click, and recorded zero page, lifecycle, or
+  selection-readback errors. Action/selection/recovery drains were 317-434/10,918-12,657/732-2,181
+  ms. Four separately rejected WSLg target-page closures had zero page errors; five clean runs used
+  WSLg and five used fresh isolated Xvfb. No runtime byte changed. This binds software stability
+  only; the exact Apple 10/10 pixel and same-generation P0-E gauntlet gates remain unchanged. See
+  `notes/p0-selection-draw-admission-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

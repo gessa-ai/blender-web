@@ -65,6 +65,30 @@ The software adapter evidence is diagnostic only. No hardware receipt, profile, 
 public bundle, tag, result promotion, tolerance, golden, blacklist, deferral, or launch claim was
 created or weakened.
 
+## Exact-generation software stability rerun
+
+The relinked `a42be64bbc1c` CAPTURE generation completed 10/10 fresh slow/sparse software runs.
+Five completed under WSLg and five under fresh isolated Xvfb; four additional WSLg attempts closed
+the target page/context externally with zero page errors and bind no verdict. Every completed run
+retired the first isolated orbit, selected exactly Cube through Blender's live projected viewport
+coordinate, and retired the separately admitted recovery orbit. Action drain was 317-434 ms,
+selection drain was 10,918-12,657 ms, and recovery was 732-2,181 ms. All ten had zero page,
+lifecycle, or selection-readback errors and reported the complete native selection/action/recovery
+state contract.
+
+Completed-run logs:
+`20260829T083709-3977510`, `20260829T083853-3979062`, `20260829T083958-3980135`,
+`20260829T084107-3981104`, `20260829T084149-3982128`, `20260829T084324-3983267`,
+`20260829T084409-3984525`, `20260829T084451-3985052`, `20260829T084532-3985513`, and
+`20260829T084614-3986672`. The admission, adjacent retry, and producer mutation contracts remain
+green (`20260829T084741-3987451/3987452/3987456`), as does pinned REUSE 6.2.0
+(`20260829T084941-3989787`). Direct M4 remains honestly red at the Apple pixel boundary
+(`20260829T084800-3987655`); the authoritative pinned-container regression restores M0 6/6 and
+retains every later strict/APPLY/product boundary (`20260829T084826-3988076`).
+
+This rerun changed no runtime source or product byte and does not replace the mandatory Apple
+10/10 pixel series or same-generation composed P0-E gauntlet.
+
 ## Candidate identity and closure bar
 
 - `blender_browser.js`: `90f60eb449c1`

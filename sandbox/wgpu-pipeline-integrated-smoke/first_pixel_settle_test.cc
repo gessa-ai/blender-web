@@ -148,6 +148,25 @@ int main()
     return 1;
   }
 
+  ghost_web::InputRedrawFrameProvenance input_frame_provenance;
+  input_frame_provenance.begin(second_presented_input);
+  const uint64_t later_dispatched_input = ghost_web::request_input_redraw_retry();
+  ghost_web::note_input_redraw_dispatched(later_dispatched_input);
+  if (!require(input_frame_provenance.generation_for_present(0u) == second_presented_input,
+               "a later dispatch cannot relabel an already-begun WM frame") ||
+      !require(input_frame_provenance.generation_for_present(first_presented_input) ==
+                   first_presented_input,
+               "a delayed resize barrier retains its completed frame generation"))
+  {
+    return 1;
+  }
+  input_frame_provenance.begin(later_dispatched_input);
+  if (!require(input_frame_provenance.generation_for_present(0u) == later_dispatched_input,
+               "the next WM frame adopts the newly dispatched input generation"))
+  {
+    return 1;
+  }
+
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t input_terminal_generation_seen = ghost_web::input_redraw_terminal_count();
@@ -841,9 +860,9 @@ int main()
       "present_settlement=coalesced-wm-retry "
       "present_telemetry=suppressed-wm-replayed "
       "input_delivery=balanced-mask "
-      "input_presentation=monotonic "
+      "input_presentation=monotonic-frame-bound "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 87 ? 0 : 1;
+  return checks == 90 ? 0 : 1;
 }

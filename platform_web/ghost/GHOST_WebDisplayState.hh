@@ -225,6 +225,28 @@ inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
 
 /**
+ * Bind input-redraw evidence to the WM frame that actually reached the GHOST swap boundary.
+ * Sampling the global dispatched counter only inside presentBackbuffer() can misattribute a later
+ * stale surface copy to an input update that was dispatched after that frame began. A resize
+ * barrier carries the older completed frame's own generation and therefore takes precedence.
+ */
+class InputRedrawFrameProvenance {
+ private:
+  uint64_t frame_generation_ = 0;
+
+ public:
+  void begin(const uint64_t dispatched_generation)
+  {
+    frame_generation_ = dispatched_generation;
+  }
+
+  uint64_t generation_for_present(const uint64_t completed_frame_generation) const
+  {
+    return completed_frame_generation != 0u ? completed_frame_generation : frame_generation_;
+  }
+};
+
+/**
  * Episode-scoped draw-plan trace used to diagnose hardware-only resize composition failures.
  * Rendering and presentation both run on the OffscreenCanvas-owning WM worker, so the payload is
  * deliberately a plain single-writer snapshot; only the active flag crosses callback boundaries.
@@ -256,6 +278,7 @@ struct RedrawTracePlan {
 
 struct RedrawTraceSnapshot {
   uint64_t episode_generation = 0;
+  uint64_t input_redraw_generation = 0;
   uint64_t draw_count = 0;
   uint64_t window_draw_count = 0;
   uint64_t frame_draw_count = 0;
@@ -309,6 +332,8 @@ inline void redraw_trace_frame_begin(const uint64_t episode_generation)
   if (!redraw_trace_active(episode_generation)) {
     return;
   }
+  redraw_trace_state.input_redraw_generation =
+      input_redraw_dispatched_generation.load(std::memory_order_acquire);
   redraw_trace_state.frame_draw_count = 0;
   redraw_trace_state.frame_offscreen_draw_count = 0;
   redraw_trace_state.frame_window_draw_count = 0;

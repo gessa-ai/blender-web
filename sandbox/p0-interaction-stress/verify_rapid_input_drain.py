@@ -133,6 +133,14 @@ def validate_delivery_sources(
         "inline std::atomic<uint64_t> input_redraw_admitted_generation{0};",
         "inline std::atomic<uint64_t> input_redraw_dispatched_generation{0};",
         "inline std::atomic<uint64_t> input_redraw_presented_generation{0};",
+        "class InputRedrawFrameProvenance {",
+        "void begin(const uint64_t dispatched_generation)",
+        "frame_generation_ = dispatched_generation;",
+        "uint64_t generation_for_present(const uint64_t completed_frame_generation) const",
+        "return completed_frame_generation != 0u ? completed_frame_generation : frame_generation_;",
+        "uint64_t input_redraw_generation = 0;",
+        "redraw_trace_state.input_redraw_generation =\n"
+        "      input_redraw_dispatched_generation.load(std::memory_order_acquire);",
         "inline uint64_t request_input_redraw_retry()",
         "return input_generation;",
         "inline void note_input_redraw_terminal(const uint64_t input_generation)",
@@ -221,9 +229,13 @@ def validate_delivery_sources(
         "return double(ghost_web::input_redraw_admitted_count());",
         "return double(ghost_web::input_redraw_dispatched_count());",
         "return double(ghost_web::input_redraw_presented_count());",
-        "const uint64_t input_redraw_dispatched_generation =",
-        "ghost_web::note_input_redraw_presented(input_redraw_dispatched_generation)",
+        "input_redraw_frame_provenance_.begin(ghost_web::input_redraw_dispatched_count());",
+        "const uint64_t input_redraw_frame_generation =",
+        "input_redraw_frame_provenance_.generation_for_present(",
+        "barrier_redraw_trace.input_redraw_generation",
+        "ghost_web::note_input_redraw_presented(input_redraw_frame_generation)",
         '"[bw] GHOST-input-redraw presented input=%llu terminal=%llu "',
+        '"frame-bound=1 present=%llu\\n"',
     ):
         require_once(context_source, token)
     if source.count('readArg("_bw_input_button_press_count"') != 2:
@@ -487,7 +499,7 @@ def self_check(
         ), system_header, system_source, event_bridge, context_source),
         (source, display, system_header, system_source, event_bridge, replace_once(
             context_source,
-            "ghost_web::note_input_redraw_presented(input_redraw_dispatched_generation)",
+            "ghost_web::note_input_redraw_presented(input_redraw_frame_generation)",
             "false",
         )),
         (source, display, system_header, system_source, event_bridge, replace_once(
@@ -495,6 +507,21 @@ def self_check(
             "return double(ghost_web::input_redraw_presented_count());",
             "return double(ghost_web::input_redraw_admitted_count());",
         )),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            "input_redraw_frame_provenance_.begin(ghost_web::input_redraw_dispatched_count());",
+            "input_redraw_frame_provenance_.begin(0u);",
+        )),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            "barrier_redraw_trace.input_redraw_generation",
+            "0u",
+        )),
+        (source, replace_once(
+            display,
+            "return completed_frame_generation != 0u ? completed_frame_generation : frame_generation_;",
+            "return input_redraw_dispatched_generation.load(std::memory_order_acquire);",
+        ), system_header, system_source, event_bridge, context_source),
     )
     delivery_rejected = 0
     for mutation in delivery_mutations:

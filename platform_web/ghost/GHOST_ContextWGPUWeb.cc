@@ -450,7 +450,14 @@ GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferAcquire()
   if (!owner_execution) {
     return GHOST_kFailure;
   }
-  return deviceIsUsable() ? GHOST_kSuccess : GHOST_kFailure;
+  if (!deviceIsUsable()) {
+    return GHOST_kFailure;
+  }
+  /* This is the WM frame boundary immediately before GPU_context_begin_frame(). Bind the latest
+   * fully dispatched synthetic input update now, rather than sampling a newer global generation
+   * later when the persistent backbuffer is copied to the browser surface. */
+  input_redraw_frame_provenance_.begin(ghost_web::input_redraw_dispatched_count());
+  return GHOST_kSuccess;
 }
 
 GHOST_TSuccess GHOST_ContextWGPUWeb::swapBufferRelease()
@@ -1159,8 +1166,9 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint32_t requested_height = requested_height_;
   const uint32_t backbuffer_width = backbuffer_w_;
   const uint32_t backbuffer_height = backbuffer_h_;
-  const uint64_t input_redraw_dispatched_generation =
-      ghost_web::input_redraw_dispatched_count();
+  const uint64_t input_redraw_frame_generation =
+      input_redraw_frame_provenance_.generation_for_present(
+          barrier_redraw_trace_available ? barrier_redraw_trace.input_redraw_generation : 0u);
   if (validate_transaction) {
     present_settlement_.begin();
   }
@@ -1241,7 +1249,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            requested_height,
            backbuffer_width,
            backbuffer_height,
-           input_redraw_dispatched_generation,
+           input_redraw_frame_generation,
            validate_transaction](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
               const bool retry_after_settlement =
@@ -1365,19 +1373,19 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
               {
                 std::printf("WGPUWeb: validated VIEW_3D content presented\n");
               }
-              if (input_redraw_dispatched_generation != 0u &&
-                  ghost_web::note_input_redraw_presented(input_redraw_dispatched_generation))
+              if (input_redraw_frame_generation != 0u &&
+                  ghost_web::note_input_redraw_presented(input_redraw_frame_generation))
               {
                 const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
                 static uint32_t input_redraw_presented_log_count = 0;
                 if (terminal_generation != 0u &&
-                    input_redraw_dispatched_generation >= terminal_generation &&
+                    input_redraw_frame_generation >= terminal_generation &&
                     input_redraw_presented_log_count < 64)
                 {
                   std::printf("[bw] GHOST-input-redraw presented input=%llu terminal=%llu "
-                              "present=%llu\n",
+                              "frame-bound=1 present=%llu\n",
                               static_cast<unsigned long long>(
-                                  input_redraw_dispatched_generation),
+                                  input_redraw_frame_generation),
                               static_cast<unsigned long long>(terminal_generation),
                               static_cast<unsigned long long>(ghost_web::present_count() + 1u));
                   input_redraw_presented_log_count++;

@@ -256,6 +256,7 @@ class GHOST_ContextWGPUWeb : public GHOST_Context {
   wgpu::BindGroupLayout present_bgl_;
   bool present_pipeline_pending_ = false;
   ghost_web::PresentSettlementLatch present_settlement_;
+  ghost_web::InputRedrawFrameProvenance input_redraw_frame_provenance_;
   ReadyCallback on_ready_;
   bool ready_ = false;
   bool initialization_settled_ = false;

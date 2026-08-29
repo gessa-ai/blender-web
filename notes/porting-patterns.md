@@ -2242,3 +2242,17 @@ Exercise both directions explicitly: many rapidly delivered events must not canc
 deadline, and a sparsely delivered timer must still cancel after it. See
 `upstream/source/blender/editors/space_view3d/view3d_select.cc` and
 `sandbox/p0-interaction-stress/verify_select_wall_timeout.py`.
+
+## Class 152 — combined modal pass-through still breaks later handlers
+
+Signature: an asynchronous browser continuation intends to stay installed while letting an event
+reach its real owner, so it returns `OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH`. Blender maps
+that exact pair to `WM_HANDLER_BREAK | WM_HANDLER_MODAL`; the event never reaches a later keymap or
+modal handler. Return bare `OPERATOR_PASS_THROUGH` for non-owned events. The absence of finish or
+cancel bits keeps the continuation installed, while WM returns `WM_HANDLER_CONTINUE`. Reserve
+`OPERATOR_RUNNING_MODAL` for an event the continuation actually owns and consumes. Audit sibling
+continuations as a class: click, bitmap-gesture, and particle-gesture browser selection had the
+same contradictory return. Mutation-test the actual WM mapping as well as every continuation
+branch. See `upstream/source/blender/windowmanager/intern/wm_event_system.cc`,
+`upstream/source/blender/editors/space_view3d/view3d_select.cc`, and
+`sandbox/p0-interaction-stress/verify_select_navigation_passthrough.py`.

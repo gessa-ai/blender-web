@@ -1,0 +1,14 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -1814,4 +1814,4 @@ static wmOperatorStatus view3d_particle_gesture_async_modal(
+       event->customdata != data->timer)
+   {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }
+@@ -1891,3 +1891,3 @@ static wmOperatorStatus view3d_gesture_bitmap_async_modal(bContext *C,
+   if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {
+-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
+   }

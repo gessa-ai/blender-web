@@ -23720,7 +23720,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce81dbc70b8 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..c0e1a55825c5bf498c80b874258438b1136dd7a0 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
 @@ -7,8 +7,14 @@
@@ -24118,7 +24118,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce8
 +  if (data == nullptr || data->particle_depth_session == nullptr || event->type != TIMER ||
 +      event->customdata != data->timer)
 +  {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  constexpr int max_tick_count = 240;
@@ -24194,7 +24194,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce8
 +    return OPERATOR_CANCELLED;
 +  }
 +  if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {
-+    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
++    return OPERATOR_PASS_THROUGH;
 +  }
 +
 +  constexpr int max_tick_count = 240;
@@ -24412,13 +24412,20 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce8
      gpu->has_bones = (object_only && gpu->hits > 0) ?
                           false :
                           selectbuffer_has_bones(gpu->buffer.storage.as_span().slice(0, gpu->hits));
-@@ -3512,6 +4027,178 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+@@ -3512,68 +4027,242 @@ static bool ed_grease_pencil_select_pick(bContext *C,
    return true;
  }
  
+-static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+-{
+-  Scene *scene = CTX_data_scene(C);
+-  Object *obedit = CTX_data_edit_object(C);
+-  Object *obact = CTX_data_active_object(C);
 +#ifdef __EMSCRIPTEN__
 +namespace {
-+
+ 
+-  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
+-  const ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
 +std::atomic<uint64_t> web_view3d_select_continuation_begin_count{0};
 +std::atomic<uint64_t> web_view3d_select_continuation_finish_count{0};
 +std::atomic<uint64_t> web_view3d_select_replayed_event_count{0};
@@ -24428,44 +24435,86 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce8
 +std::atomic<uint32_t> web_view3d_select_gpu_status{uint32_t(GPU_READBACK_INVALID)};
 +std::atomic<uint32_t> web_view3d_select_query_status{uint32_t(GPU_READBACK_INVALID)};
 +std::atomic<uint32_t> web_view3d_select_combined_status{uint32_t(GPU_READBACK_INVALID)};
-+
+ 
+-  const SelectPick_Params params = ED_select_pick_params_from_operator(op->ptr);
 +}  // namespace
-+
+ 
+-  bool center = RNA_boolean_get(op->ptr, "center");
+-  bool enumerate = RNA_boolean_get(op->ptr, "enumerate");
+-  /* Only force object select for edit-mode to support vertex parenting,
+-   * or paint-select to allow pose bone select with vert/face select. */
+-  bool object_only = (RNA_boolean_get(op->ptr, "object") &&
+-                      (obedit || BKE_paint_select_elem_test(obact) ||
+-                       /* so its possible to select bones in weight-paint mode (LMB select) */
+-                       (obact && (obact->mode & OB_MODE_ALL_WEIGHT_PAINT) &&
+-                        BKE_object_pose_armature_get(obact))));
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_continuation_begin_count(void)
 +{
 +  return double(web_view3d_select_continuation_begin_count.load(std::memory_order_acquire));
 +}
-+
+ 
+-  /* This could be called "changed_or_found" since this is true when there is an element
+-   * under the cursor to select, even if it happens that the selection & active state doesn't
+-   * actually change. This is important so undo pushes are predictable. */
+-  bool changed = false;
+-  int mval[2];
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_continuation_finish_count(void)
 +{
 +  return double(web_view3d_select_continuation_finish_count.load(std::memory_order_acquire));
 +}
-+
+ 
+-  if (object_only) {
+-    obedit = nullptr;
+-    obact = nullptr;
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_replayed_event_count(void)
 +{
 +  return double(web_view3d_select_replayed_event_count.load(std::memory_order_acquire));
 +}
-+
+ 
+-    /* ack, this is incorrect but to do this correctly we would need an
+-     * alternative edit-mode/object-mode keymap, this copies the functionality
+-     * from 2.4x where Ctrl+Select in edit-mode does object select only. */
+-    center = false;
+-  }
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_continuation_active(void)
 +{
 +  return double(web_view3d_select_continuation_active.load(std::memory_order_acquire));
 +}
-+
+ 
+-  if (obedit && enumerate) {
+-    /* Enumerate makes no sense in edit-mode unless also explicitly picking objects or bones.
+-     * Pass the event through so the event may be handled by loop-select for example. See: #100204.
+-     */
+-    if (obedit->type != OB_ARMATURE) {
+-      return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
+-    }
+-  }
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_queued_event_count(void)
 +{
 +  return double(web_view3d_select_queued_event_count.load(std::memory_order_acquire));
 +}
-+
+ 
+-  RNA_int_get_array(op->ptr, "location", mval);
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_modal_tick_count(void)
 +{
 +  return double(web_view3d_select_modal_tick_count.load(std::memory_order_acquire));
 +}
-+
+ 
+-  view3d_operator_needs_gpu(C);
+-  BKE_object_update_select_id(CTX_data_main(C));
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_gpu_status(void)
 +{
 +  return double(web_view3d_select_gpu_status.load(std::memory_order_acquire));
 +}
-+
+ 
+-  if (obedit && object_only == false) {
+-    if (obedit->type == OB_MESH) {
+-      changed = EDBM_select_pick(C, mval, params);
+-    }
+-    else if (obedit->type == OB_ARMATURE) {
+-      if (enumerate) {
+-        GPUSelectBuffer buffer;
+-        const int hits = mixed_bones_object_selectbuffer(
 +extern "C" EMSCRIPTEN_KEEPALIVE double bw_view3d_select_query_status(void)
 +{
 +  return double(web_view3d_select_query_status.load(std::memory_order_acquire));
@@ -24588,12 +24637,65 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..36cced65a02fdb91d7a8dd3c7eb74ce8
 +}
 +#endif
 +
- static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
- {
-   Scene *scene = CTX_data_scene(C);
-@@ -3572,8 +4259,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
-         GPUSelectBuffer buffer;
-         const int hits = mixed_bones_object_selectbuffer(
++static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
++{
++  Scene *scene = CTX_data_scene(C);
++  Object *obedit = CTX_data_edit_object(C);
++  Object *obact = CTX_data_active_object(C);
++
++  Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
++  const ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
++
++  const SelectPick_Params params = ED_select_pick_params_from_operator(op->ptr);
++
++  bool center = RNA_boolean_get(op->ptr, "center");
++  bool enumerate = RNA_boolean_get(op->ptr, "enumerate");
++  /* Only force object select for edit-mode to support vertex parenting,
++   * or paint-select to allow pose bone select with vert/face select. */
++  bool object_only = (RNA_boolean_get(op->ptr, "object") &&
++                      (obedit || BKE_paint_select_elem_test(obact) ||
++                       /* so its possible to select bones in weight-paint mode (LMB select) */
++                       (obact && (obact->mode & OB_MODE_ALL_WEIGHT_PAINT) &&
++                        BKE_object_pose_armature_get(obact))));
++
++  /* This could be called "changed_or_found" since this is true when there is an element
++   * under the cursor to select, even if it happens that the selection & active state doesn't
++   * actually change. This is important so undo pushes are predictable. */
++  bool changed = false;
++  int mval[2];
++
++  if (object_only) {
++    obedit = nullptr;
++    obact = nullptr;
++
++    /* ack, this is incorrect but to do this correctly we would need an
++     * alternative edit-mode/object-mode keymap, this copies the functionality
++     * from 2.4x where Ctrl+Select in edit-mode does object select only. */
++    center = false;
++  }
++
++  if (obedit && enumerate) {
++    /* Enumerate makes no sense in edit-mode unless also explicitly picking objects or bones.
++     * Pass the event through so the event may be handled by loop-select for example. See: #100204.
++     */
++    if (obedit->type != OB_ARMATURE) {
++      return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
++    }
++  }
++
++  RNA_int_get_array(op->ptr, "location", mval);
++
++  view3d_operator_needs_gpu(C);
++  BKE_object_update_select_id(CTX_data_main(C));
++
++  if (obedit && object_only == false) {
++    if (obedit->type == OB_MESH) {
++      changed = EDBM_select_pick(C, mval, params);
++    }
++    else if (obedit->type == OB_ARMATURE) {
++      if (enumerate) {
++        GPUSelectBuffer buffer;
++        const int hits = mixed_bones_object_selectbuffer(
              &vc, &buffer, mval, VIEW3D_SELECT_FILTER_NOP, false, true, false);
 -        changed = bone_mouse_select_menu(
 -            C, buffer.storage.as_span().take_front(hits), true, params);

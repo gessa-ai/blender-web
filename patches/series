@@ -1257,3 +1257,6 @@
 # 0317: let unrelated timer/custom events reach their owners while browser selection is pending;
 # bare pass-through keeps the selection modal installed without breaking later WM handlers.
 0317-view3d-web-selection-unrelated-event-passthrough.patch
+# 0318: apply the same WM return-code contract to pending particle and bitmap gesture selection;
+# bare pass-through retains each continuation while allowing later event owners to run.
+0318-view3d-web-gesture-selection-passthrough.patch

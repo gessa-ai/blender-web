@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Require pending browser selection to leave unrelated event owners responsive."""
+"""Require pending browser selection continuations to leave later event owners responsive."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ WM_EVENT_SYSTEM = ROOT / "upstream/source/blender/windowmanager/intern/wm_event_
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
 NAVIGATION_PATCH = ROOT / "patches/0315-view3d-web-selection-navigation-passthrough.patch"
 EVENT_PATCH = ROOT / "patches/0317-view3d-web-selection-unrelated-event-passthrough.patch"
+GESTURE_PATCH = ROOT / "patches/0318-view3d-web-gesture-selection-passthrough.patch"
 SERIES = ROOT / "patches/series"
 
 
@@ -29,6 +30,7 @@ def validate(sources: dict[str, str]) -> None:
     producer = sources["producer"]
     navigation_patch = sources["navigation_patch"]
     event_patch = sources["event_patch"]
+    gesture_patch = sources["gesture_patch"]
     series = sources["series"]
 
     helper = (
@@ -52,6 +54,20 @@ def validate(sources: dict[str, str]) -> None:
         "    }"
     )
     require(view3d_select, custom_route)
+    particle_gesture_route = (
+        "if (data == nullptr || data->particle_depth_session == nullptr || event->type != TIMER ||\n"
+        "      event->customdata != data->timer)\n"
+        "  {\n"
+        "    return OPERATOR_PASS_THROUGH;\n"
+        "  }"
+    )
+    require(view3d_select, particle_gesture_route)
+    bitmap_gesture_route = (
+        "if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {\n"
+        "    return OPERATOR_PASS_THROUGH;\n"
+        "  }"
+    )
+    require(view3d_select, bitmap_gesture_route)
     require(
         wm_event_system,
         "if (retval == (OPERATOR_PASS_THROUGH | OPERATOR_RUNNING_MODAL)) {\n"
@@ -111,8 +127,16 @@ def validate(sources: dict[str, str]) -> None:
         "+      return OPERATOR_PASS_THROUGH;",
     ):
         require(event_patch, token)
+    for token in (
+        "view3d_particle_gesture_async_modal",
+        "view3d_gesture_bitmap_async_modal",
+    ):
+        require(gesture_patch, token)
+    require(gesture_patch, "-    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;", 2)
+    require(gesture_patch, "+    return OPERATOR_PASS_THROUGH;", 2)
     require(series, NAVIGATION_PATCH.name)
     require(series, EVENT_PATCH.name)
+    require(series, GESTURE_PATCH.name)
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -155,6 +179,30 @@ def self_check(sources: dict[str, str]) -> None:
             "    }",
         ),
         (
+            "view3d_select",
+            "if (data == nullptr || data->particle_depth_session == nullptr || "
+            "event->type != TIMER ||\n"
+            "      event->customdata != data->timer)\n"
+            "  {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (data == nullptr || data->particle_depth_session == nullptr || "
+            "event->type != TIMER ||\n"
+            "      event->customdata != data->timer)\n"
+            "  {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
+            "view3d_select",
+            "if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {\n"
+            "    return OPERATOR_PASS_THROUGH;\n"
+            "  }",
+            "if (data == nullptr || event->type != TIMER || event->customdata != data->timer) {\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "  }",
+        ),
+        (
             "producer",
             '"isolated-selection-navigation-passthrough"',
             '"isolated-selection-navigation-skipped"',
@@ -176,6 +224,8 @@ def self_check(sources: dict[str, str]) -> None:
         ),
         ("series", NAVIGATION_PATCH.name, "0315-missing.patch"),
         ("series", EVENT_PATCH.name, "0317-missing.patch"),
+        ("gesture_patch", "view3d_particle_gesture_async_modal", "missing_particle_modal"),
+        ("series", GESTURE_PATCH.name, "0318-missing.patch"),
     )
     rejected = 0
     for key, old, new in mutations:
@@ -200,6 +250,7 @@ def main() -> int:
         "producer": PRODUCER.read_text(),
         "navigation_patch": NAVIGATION_PATCH.read_text() if NAVIGATION_PATCH.is_file() else "",
         "event_patch": EVENT_PATCH.read_text() if EVENT_PATCH.is_file() else "",
+        "gesture_patch": GESTURE_PATCH.read_text() if GESTURE_PATCH.is_file() else "",
         "series": SERIES.read_text(),
     }
     try:

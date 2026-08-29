@@ -851,7 +851,9 @@ def validate(sources: dict[str, str]) -> dict[str, object]:
         view_select, "static wmOperatorStatus view3d_select_modal(", "select modal"
     )
     for needle in (
-        "constexpr int max_tick_count = 240;",
+        "constexpr double max_wait_seconds = 30.0;",
+        "data->tick_count++;",
+        "(BLI_time_now_seconds() - data->start_time) > max_wait_seconds",
         "view3d_select_async_status();",
         "if (status == GPU_READBACK_PENDING)",
         "view3d_select_exec(C, op);",
@@ -2078,11 +2080,8 @@ def run_selfcheck(sources: dict[str, str]) -> None:
         ),
         (
             "source/blender/editors/space_view3d/view3d_select.cc",
-            "  /* Fail closed instead of retaining a modal operator forever after device\n"
-            "   * loss or an undelivered browser callback (roughly 2.4 seconds at 10 ms). */\n"
-            "  constexpr int max_tick_count = 240;",
-            "  /* Bound removed. */\n"
-            "  constexpr int max_tick_count = 0;",
+            "  constexpr double max_wait_seconds = 30.0;",
+            "  constexpr double max_wait_seconds = 0.0;",
             "bounded continuation",
         ),
         (

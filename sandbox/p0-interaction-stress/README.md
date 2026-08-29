@@ -290,6 +290,9 @@ The modal also uses bare `OPERATOR_PASS_THROUGH` for unrelated timer/custom even
 return would suppress later event owners even though the selection handler itself must remain
 installed. Bare pass-through preserves that handler and lets the remaining WM handlers receive the
 event. The focused source contract binds both mappings and rejects the breaking return.
+The same invariant covers the post-gesture particle-depth and bitmap-selection continuations:
+while their owned timer remains modal, every non-owned event uses bare pass-through so a pending
+box/lasso-style readback cannot suppress the rest of the window's handlers.
 The rapid producer fails on any `WebGPU selection readback failed` report and
 requires queued and recovery orbits to reach the exact rotate retirement boundary.
 `BW_P0_STATE_ONLY=1` is a

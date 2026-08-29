@@ -11,7 +11,7 @@
     "source_real_index_pristine": true,
     "source_repository_operation_idle": true
   },
-  "created_utc": "2026-08-29T16:47:40.745730Z",
+  "created_utc": "2026-08-29T17:26:36.839163Z",
   "expected_pin": "fbe6228777e7d9afefcd61a413844e790ae75db7",
   "git_version": "git version 2.53.0",
   "ignored_worktree_paths": {
@@ -23,12 +23,12 @@
     "bytes": 3477344,
     "entries": 20258,
     "path": "live.manifest.jsonl",
-    "sha256": "2403c00e4a4c9715b83e1b10ed212e937d5727b12ac8e0c777cbce9268039123"
+    "sha256": "b00e1e4053b20dad9f857552e63308fd911c7830268bebaa533473b50ebbf7ea"
   },
   "patch": {
-    "bytes": 2442176,
+    "bytes": 2446747,
     "path": "canonical-source.patch",
-    "sha256": "6a6ebea1252e41f5817fb87f32c6a51e229cf6e07509c4c22037e02183a317c6"
+    "sha256": "447beacd1c93566085287ab605a35ee9f1225ebfcbcf129833db47653aa5d7db"
   },
   "recorded_pin_file": {
     "path": "/home/pc/gessa/blender-web/oracle/PIN",
@@ -38,7 +38,7 @@
     "bytes": 3477344,
     "entries": 20258,
     "path": "replay.manifest.jsonl",
-    "sha256": "2403c00e4a4c9715b83e1b10ed212e937d5727b12ac8e0c777cbce9268039123"
+    "sha256": "b00e1e4053b20dad9f857552e63308fd911c7830268bebaa533473b50ebbf7ea"
   },
   "schema": 1,
   "source": "/home/pc/gessa/blender-web/upstream",

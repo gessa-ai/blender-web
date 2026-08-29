@@ -14,6 +14,7 @@ PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
 DISPLAY_STATE = ROOT / "platform_web/ghost/GHOST_WebDisplayState.hh"
 SYSTEM_HEADER = ROOT / "platform_web/ghost/GHOST_SystemWeb.hh"
 SYSTEM_SOURCE = ROOT / "platform_web/ghost/GHOST_SystemWeb.cc"
+WINDOW_SOURCE = ROOT / "platform_web/ghost/GHOST_WindowWeb.cc"
 EVENT_BRIDGE = ROOT / "platform_web/ghost/GHOST_EventBridgeWeb.cc"
 CONTEXT_SOURCE = ROOT / "platform_web/ghost/GHOST_ContextWGPUWeb.cc"
 
@@ -62,6 +63,7 @@ def validate(source: str) -> None:
         "current.inputRedraw.contentPresented >= current.inputRedraw.terminal",
         "current.inputRedraw.episode === counterBaseline.inputRedraw.episode",
         "nativeDeliveryComplete(current)",
+        "ghostWindowSettled(current)",
         "(!hardwareDiagnostic || nativeStateComplete(current))",
         'operator === "WM_OT_bwp0r_input_probe"',
         'await page.waitForTimeout(sampleCadenceMs);',
@@ -297,6 +299,64 @@ def validate_delivery_sources(
         require_once(source, token)
 
 
+def validate_worker_state_sources(
+    source: str,
+    display: str,
+    system_source: str,
+    window_source: str,
+) -> None:
+    """Bind sparse failures to the WM worker's focus and cursor-grab ownership."""
+    for token in (
+        'browserFocusActive: read("_bw_browser_focus_active")',
+        'pointerLockState: read("_bw_pointer_lock_state")',
+        'pointerLockRequestedMode: read("_bw_pointer_lock_requested_mode")',
+        'cursorGrabMode: read("_bw_cursor_grab_mode")',
+        'ghostWindow: {...current.ghostWindow},',
+        'const ghostWindowSettled = (current) =>',
+        'current.ghostWindow.browserFocusActive === 1',
+        'current.ghostWindow.pointerLockState === 0',
+        'current.ghostWindow.pointerLockRequestedMode === 0',
+        'current.ghostWindow.cursorGrabMode === 0',
+    ):
+        require_once(source, token)
+    for token in (
+        "inline std::atomic<int32_t> browser_focus_active_state{-1};",
+        "inline std::atomic<int32_t> pointer_lock_state{-1};",
+        "inline std::atomic<int32_t> pointer_lock_requested_mode{-1};",
+        "inline std::atomic<int32_t> cursor_grab_mode{-1};",
+        "inline void publish_browser_focus_active(const bool active)",
+        "inline void publish_cursor_grab_state(",
+        "cursor_grab_mode.store(effective_mode, std::memory_order_release);",
+        "inline int32_t browser_focus_active()",
+        "inline int32_t pointer_lock_state_value()",
+        "inline int32_t pointer_lock_requested_mode_value()",
+        "inline int32_t cursor_grab_mode_value()",
+    ):
+        require_once(display, token)
+    for token in (
+        "bw_browser_focus_active(void)",
+        "bw_pointer_lock_state(void)",
+        "bw_pointer_lock_requested_mode(void)",
+        "bw_cursor_grab_mode(void)",
+        "return double(ghost_web::browser_focus_active());",
+        "return double(ghost_web::pointer_lock_state_value());",
+        "return double(ghost_web::pointer_lock_requested_mode_value());",
+        "return double(ghost_web::cursor_grab_mode_value());",
+    ):
+        require_once(system_source, token)
+    if system_source.count(
+        "ghost_web::publish_browser_focus_active(browser_focus_active_);"
+    ) != 3:
+        raise ValueError("browser focus publication must cover seed, transition, and retirement")
+    for token in (
+        "void GHOST_WindowWeb::publishCursorGrabDiagnostic() const",
+        "ghost_web::publish_cursor_grab_state(",
+        "publishCursorGrabDiagnostic();",
+    ):
+        if token not in window_source:
+            raise ValueError(f"missing WM cursor-grab diagnostic boundary {token!r}")
+
+
 def replace_once(source: str, old: str, new: str) -> str:
     if source.count(old) != 1:
         raise ValueError(f"mutation input count differs for {old!r}")
@@ -308,6 +368,7 @@ def self_check(
     display: str,
     system_header: str,
     system_source: str,
+    window_source: str,
     event_bridge: str,
     context_source: str,
 ) -> None:
@@ -315,6 +376,7 @@ def self_check(
     validate_delivery_sources(
         source, display, system_header, system_source, event_bridge, context_source
     )
+    validate_worker_state_sources(source, display, system_source, window_source)
     mutations = (
         replace_once(source, 'timeoutMs = 12000', 'timeoutMs = 120000'),
         replace_once(source, "current.sha256 !== baseline", "current.sha256 === baseline"),
@@ -364,6 +426,7 @@ def self_check(
             "current.inputRedraw.episode !== counterBaseline.inputRedraw.episode",
         ),
         replace_once(source, "nativeDeliveryComplete(current)", "true"),
+        replace_once(source, "ghostWindowSettled(current)", "true"),
         replace_once(
             source,
             "(!hardwareDiagnostic || nativeStateComplete(current))",
@@ -623,9 +686,44 @@ def self_check(
         raise ValueError(
             f"delivery mutation self-check rejected {delivery_rejected}/{len(delivery_mutations)}"
         )
+
+    worker_state_mutations = (
+        (replace_once(
+            source,
+            'pointerLockState: read("_bw_pointer_lock_state")',
+            'pointerLockState: null',
+        ), display, system_source, window_source),
+        (source, replace_once(
+            display,
+            "cursor_grab_mode.store(effective_mode, std::memory_order_release);",
+            "cursor_grab_mode.store(requested_mode, std::memory_order_release);",
+        ), system_source, window_source),
+        (source, display, replace_once(
+            system_source,
+            "return double(ghost_web::browser_focus_active());",
+            "return -1.0;",
+        ), window_source),
+        (source, display, system_source, replace_once(
+            window_source,
+            "ghost_web::publish_cursor_grab_state(",
+            "ghost_web::publish_cursor_grab_state_disabled(",
+        )),
+    )
+    worker_state_rejected = 0
+    for mutation in worker_state_mutations:
+        try:
+            validate_worker_state_sources(*mutation)
+        except ValueError:
+            worker_state_rejected += 1
+    if worker_state_rejected != len(worker_state_mutations):
+        raise ValueError(
+            "worker-state mutation self-check rejected "
+            f"{worker_state_rejected}/{len(worker_state_mutations)}"
+        )
     print(
         "P0J_RAPID_INPUT_DRAIN_SELFCHECK_PASS "
-        f"mutations={rejected + delivery_rejected} delivery={delivery_rejected}"
+        f"mutations={rejected + delivery_rejected + worker_state_rejected} "
+        f"delivery={delivery_rejected} worker_state={worker_state_rejected}"
     )
 
 
@@ -637,18 +735,28 @@ def main() -> int:
     display = DISPLAY_STATE.read_text(encoding="utf-8")
     system_header = SYSTEM_HEADER.read_text(encoding="utf-8")
     system_source = SYSTEM_SOURCE.read_text(encoding="utf-8")
+    window_source = WINDOW_SOURCE.read_text(encoding="utf-8")
     event_bridge = EVENT_BRIDGE.read_text(encoding="utf-8")
     context_source = CONTEXT_SOURCE.read_text(encoding="utf-8")
     if args.self_check:
-        self_check(source, display, system_header, system_source, event_bridge, context_source)
+        self_check(
+            source,
+            display,
+            system_header,
+            system_source,
+            window_source,
+            event_bridge,
+            context_source,
+        )
     else:
         validate(source)
         validate_delivery_sources(
             source, display, system_header, system_source, event_bridge, context_source
         )
+        validate_worker_state_sources(source, display, system_source, window_source)
         print(
             "P0J_RAPID_INPUT_DRAIN_SOURCE_PASS "
-            "bound_ms=12000 counters=wm,present,retry,ghost-input"
+            "bound_ms=12000 counters=wm,present,retry,ghost-input,focus,grab"
         )
     return 0
 

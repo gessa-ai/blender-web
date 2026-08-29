@@ -549,6 +549,28 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_shell_focus_loss_generation()
   return double(g_browser_focus_loss_generation.load(std::memory_order_acquire));
 }
 
+/* Read-only worker-ownership diagnostics. These load shared atomics published by the WM worker;
+ * browser harnesses never dereference GHOST objects from the main runtime thread. */
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_browser_focus_active(void)
+{
+  return double(ghost_web::browser_focus_active());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_pointer_lock_state(void)
+{
+  return double(ghost_web::pointer_lock_state_value());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_pointer_lock_requested_mode(void)
+{
+  return double(ghost_web::pointer_lock_requested_mode_value());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_cursor_grab_mode(void)
+{
+  return double(ghost_web::cursor_grab_mode_value());
+}
+
 /* Shell -> WM-worker idle-keepalive control (ghost-keepalive). Called by the shell from
  * preRun on the browser MAIN thread (relaxed atomic stores only, so it is race-free before
  * __wasm_call_ctors, exactly like bw_shell_set_display). \a enabled != 0 turns the setTimeout
@@ -1298,6 +1320,7 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
         browser_focus_loss_generation_ =
             g_browser_focus_loss_generation.load(std::memory_order_acquire);
         browser_focus_active_ = browserFocusIsOwned();
+        ghost_web::publish_browser_focus_active(browser_focus_active_);
       });
   return registration_succeeded;
 }
@@ -1305,6 +1328,7 @@ bool GHOST_SystemWeb::registerCanvasCallbacks()
 void GHOST_SystemWeb::unregisterCanvasCallbacks()
 {
   browser_focus_active_ = false;
+  ghost_web::publish_browser_focus_active(browser_focus_active_);
   if (!callbacks_registered_) {
     return;
   }
@@ -1841,6 +1865,7 @@ bool GHOST_SystemWeb::transitionBrowserFocus(const bool focused)
     return false;
   }
   browser_focus_active_ = focused;
+  ghost_web::publish_browser_focus_active(browser_focus_active_);
   return true;
 }
 

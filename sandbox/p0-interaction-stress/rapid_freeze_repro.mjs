@@ -228,6 +228,12 @@ try {
         suppressed: read("_bw_present_suppressed_count"),
         replays: read("_bw_present_replay_count"),
         pointerLock: window.__bwPointerLockBridge?.snapshot?.() || null,
+        ghostWindow: {
+          browserFocusActive: read("_bw_browser_focus_active"),
+          pointerLockState: read("_bw_pointer_lock_state"),
+          pointerLockRequestedMode: read("_bw_pointer_lock_requested_mode"),
+          cursorGrabMode: read("_bw_cursor_grab_mode"),
+        },
         activeElement: document.activeElement?.id || document.activeElement?.tagName || null,
         ghostInput: {
           leftPresses: readArg("_bw_input_button_press_count", 0),
@@ -287,6 +293,11 @@ try {
     current.nativeState?.selected_count === baseline.nativeState?.selected_count &&
     nativeViewChanged(current, baseline) &&
     JSON.stringify(current.nativeState?.location) === JSON.stringify(baseline.nativeState?.location);
+  const ghostWindowSettled = (current) =>
+    current.ghostWindow.browserFocusActive === 1 &&
+    current.ghostWindow.pointerLockState === 0 &&
+    current.ghostWindow.pointerLockRequestedMode === 0 &&
+    current.ghostWindow.cursorGrabMode === 0;
   const waitForActionDrain = async (
     name, baseline, counterBaseline, nativeDeliveryComplete, nativeStateComplete, timeoutMs = 12000,
   ) => {
@@ -303,6 +314,7 @@ try {
         retries: current.retries,
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},
+        ghostWindow: {...current.ghostWindow},
         nativeInputSequence: current.nativeInputSequence,
         nativeStateSequence: current.nativeStateSequence,
         nativeState: current.nativeState ? {...current.nativeState} : null,
@@ -319,6 +331,7 @@ try {
           current.inputRedraw.contentPresented >= current.inputRedraw.terminal &&
           current.inputRedraw.episode === counterBaseline.inputRedraw.episode &&
           nativeDeliveryComplete(current) &&
+          ghostWindowSettled(current) &&
           (!hardwareDiagnostic || nativeStateComplete(current)) &&
           current.nativeModalOperators.every((operator) =>
             operator === "WM_OT_bwp0r_input_probe")) {

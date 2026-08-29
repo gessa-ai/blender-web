@@ -168,6 +168,52 @@ inline uint32_t input_buttons_held_mask()
 }
 
 /**
+ * WM-worker ownership state for the deterministic sparse-input discriminator. Browser-main
+ * diagnostics can observe DOM focus and requestPointerLock rejection, but neither proves that the
+ * proxied outcome retired GHOST's own pending grab or published window activation. Keep the four
+ * enum-sized values in shared atomics so a timeout can distinguish that teardown boundary without
+ * reading worker-owned C++ objects cross-thread. -1 means no web window has published the state.
+ */
+inline std::atomic<int32_t> browser_focus_active_state{-1};
+inline std::atomic<int32_t> pointer_lock_state{-1};
+inline std::atomic<int32_t> pointer_lock_requested_mode{-1};
+inline std::atomic<int32_t> cursor_grab_mode{-1};
+
+inline void publish_browser_focus_active(const bool active)
+{
+  browser_focus_active_state.store(active ? 1 : 0, std::memory_order_release);
+}
+
+inline void publish_cursor_grab_state(const int32_t lock_state,
+                                      const int32_t requested_mode,
+                                      const int32_t effective_mode)
+{
+  pointer_lock_state.store(lock_state, std::memory_order_relaxed);
+  pointer_lock_requested_mode.store(requested_mode, std::memory_order_relaxed);
+  cursor_grab_mode.store(effective_mode, std::memory_order_release);
+}
+
+inline int32_t browser_focus_active()
+{
+  return browser_focus_active_state.load(std::memory_order_acquire);
+}
+
+inline int32_t pointer_lock_state_value()
+{
+  return pointer_lock_state.load(std::memory_order_acquire);
+}
+
+inline int32_t pointer_lock_requested_mode_value()
+{
+  return pointer_lock_requested_mode.load(std::memory_order_acquire);
+}
+
+inline int32_t cursor_grab_mode_value()
+{
+  return cursor_grab_mode.load(std::memory_order_acquire);
+}
+
+/**
  * Bounded diagnosis for the stock dashed-line immediate shader used by the camera frame and
  * transform guides. Each stage is monotonic and diagnostic-only. A browser receipt can therefore
  * distinguish a draw that was never retried from one that encoded but later failed validation,

@@ -117,6 +117,7 @@ GHOST_WindowWeb::GHOST_WindowWeb(const char *title,
    * → GHOST_ContextWGPUWeb::initializeDrawingContext(). */
   valid_ = ghost_web::drawing_context_initialize_if_valid(
       GHOST_kSuccess, [&]() { return setDrawingContextType(type); });
+  publishCursorGrabDiagnostic();
 }
 
 void GHOST_WindowWeb::setTitle(const char *title)
@@ -423,6 +424,13 @@ GHOST_TSuccess GHOST_WindowWeb::setWindowCursorVisibility(bool visible)
   return GHOST_kSuccess;
 }
 
+void GHOST_WindowWeb::publishCursorGrabDiagnostic() const
+{
+  ghost_web::publish_cursor_grab_state(int32_t(pointer_lock_state_),
+                                       int32_t(pointer_lock_requested_mode_),
+                                       int32_t(cursor_grab_));
+}
+
 void GHOST_WindowWeb::applyCursorGrabState(const GHOST_TGrabCursorMode mode,
                                            const GHOST_TAxisFlag wrap_axis,
                                            const GHOST_Rect *bounds,
@@ -444,6 +452,7 @@ void GHOST_WindowWeb::applyCursorGrabState(const GHOST_TGrabCursorMode mode,
   }
   cursor_grab_ = mode;
   cursor_grab_axis_ = wrap_axis;
+  publishCursorGrabDiagnostic();
 }
 
 void GHOST_WindowWeb::retirePointerLock(const bool request_browser_exit)
@@ -464,6 +473,7 @@ void GHOST_WindowWeb::retirePointerLock(const bool request_browser_exit)
   if (cursor_grab_ == GHOST_kGrabWrap || cursor_grab_ == GHOST_kGrabHide) {
     applyCursorGrabState(GHOST_kGrabDisable, GHOST_kAxisNone, nullptr, nullptr);
   }
+  publishCursorGrabDiagnostic();
 }
 
 GHOST_TSuccess GHOST_WindowWeb::setCursorGrab(const GHOST_TGrabCursorMode mode,
@@ -495,17 +505,20 @@ GHOST_TSuccess GHOST_WindowWeb::setCursorGrab(const GHOST_TGrabCursorMode mode,
         return GHOST_kSuccess;
       }
       if (pointer_lock_state_ == PointerLockState::Pending) {
+        publishCursorGrabDiagnostic();
         return GHOST_kSuccess;
       }
 
       const GHOST_TSuccess accepted = setWindowCursorGrab(mode);
       if (accepted == GHOST_kSuccess) {
         pointer_lock_state_ = PointerLockState::Pending;
+        publishCursorGrabDiagnostic();
         return GHOST_kSuccess;
       }
       pointer_lock_requested_mode_ = GHOST_kGrabDisable;
       pointer_lock_requested_axis_ = GHOST_kAxisNone;
       pointer_lock_requested_bounds_valid_ = false;
+      publishCursorGrabDiagnostic();
       return GHOST_kFailure;
     }
     case GHOST_kGrabDisable:
@@ -577,6 +590,7 @@ void GHOST_WindowWeb::onPointerLockChange(const bool is_active)
   /* A canceled deferred request may win a race with exitPointerLock. Never
    * publish that stale browser lock as a live GHOST grab. */
   (void)emscripten_exit_pointerlock();
+  publishCursorGrabDiagnostic();
 }
 
 void GHOST_WindowWeb::onPointerLockError()

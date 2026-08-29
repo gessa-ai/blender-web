@@ -150,6 +150,7 @@ class GHOST_WindowWeb : public GHOST_Window {
                             GHOST_TAxisFlag wrap_axis,
                             const GHOST_Rect *bounds,
                             const int32_t mouse_ungrab_xy[2]);
+  void publishCursorGrabDiagnostic() const;
   void retirePointerLock(bool request_browser_exit);
 
   std::string canvas_selector_;

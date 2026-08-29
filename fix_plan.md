@@ -3841,11 +3841,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   returns bare `OPERATOR_PASS_THROUGH`, leaving the selection modal installed while allowing the
   rotate operator to invoke and retire immediately; state-changing ordinary input remains in the
   bounded FIFO. Monotonic selection-loop completion plus bounded sync/shader stages make this edge
-  fail-closed in the hardware producer. Five consecutive exact SwiftShader controls pass, including
-  one with the selection modal provably active during orbit: rotate invokes/terminals `1 -> 2`, no
-  navigation replay, loop start/complete `5/5`, Cube selected, and zero selection/page/lifecycle
-  errors. Focused/adjacent mutation suites, CAPTURE preflight, locked committed-state no-work,
-  20,258-entry canonical replay (`ee7ae6b5d52b`), and REUSE 6.2.0 are green. RELINKED CAPTURE
+  fail-closed in the hardware producer. Fifteen completed exact SwiftShader controls pass: five
+  implementation runs plus ten fresh committed-state replays. Every fresh replay required the
+  selection modal during orbit, passed navigation without FIFO replay, retired rotate and selection
+  at `2/2` and `1/1`, completed selection loops `5/5`, selected exactly Cube, and recorded zero
+  selection/page/lifecycle errors; first-orbit and selection drains were 317-586 ms and
+  1,894-5,202 ms. Eight separately rejected WSLg target closures had empty page-error censuses and
+  bind no product verdict. Focused/adjacent mutation suites, CAPTURE preflight, locked
+  committed-state no-work, 20,258-entry canonical replay (`ee7ae6b5d52b`), and REUSE 6.2.0 are
+  green. RELINKED CAPTURE
   `.wasm.orig` is `82f6254700cc` (119,031,238 bytes); JS/Wasm/data/manifest are
   `bba3f480bb3b`/`d09c9c6a5cee`/`095d0ba748c3`/`53076509e2b2`. Direct M4 remains red at the unchanged
   Apple pixel boundary. P0-I/J stay open until this exact generation passes the driver's 10/10

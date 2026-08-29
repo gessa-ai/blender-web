@@ -472,6 +472,12 @@ require_fixed_count 1 \
   'webgpu::WGPUPipelinePool &batch_pipeline_pool_get()' \
   "$WEBGPU_SOURCE/wgpu_context.hh"
 require_fixed_count 1 \
+  'ghost_web::input_redraw_trace_frame_begin(ghost_web::input_redraw_dispatched_count(),' \
+  "$WEBGPU_SOURCE/wgpu_context.cc"
+require_fixed_count 1 \
+  'ghost_web::input_redraw_trace_note(pass,' \
+  "$WEBGPU_SOURCE/wgpu_framebuffer.cc"
+require_fixed_count 1 \
   'webgpu::WGPUPipelinePool &immediate_pipeline_pool_get()' \
   "$WEBGPU_SOURCE/wgpu_context.hh"
 require_fixed_count 1 \
@@ -2411,7 +2417,7 @@ FIRST_PIXEL_WASM_STDERR="$OUT/first-pixel-wasm.stderr"
   >"$FIRST_PIXEL_NATIVE_STDOUT" 2>"$FIRST_PIXEL_NATIVE_STDERR"
 "$NODE" "$WASM_BUILD/ghost_first_pixel_settle.js" \
   >"$FIRST_PIXEL_WASM_STDOUT" 2>"$FIRST_PIXEL_WASM_STDERR"
-FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=90 periodic=15 late=immediate drops=bounded readiness=rearmed input=bounded-burst+terminal-tail resize_commit=fresh present_settlement=coalesced-wm-retry present_telemetry=suppressed-wm-replayed input_delivery=balanced-mask input_presentation=monotonic-frame-bound present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
+FIRST_PIXEL_VERDICT='CONTRACT ghost_redraw_recovery PASS cases=96 periodic=15 late=immediate drops=bounded readiness=rearmed input=bounded-burst+terminal-tail resize_commit=fresh present_settlement=coalesced-wm-retry present_telemetry=suppressed-wm-replayed input_delivery=balanced-mask input_presentation=monotonic-frame-bound+view3d-content present_barrier=ordered-sync-commit-superseded trace=bounded-exact viewport_ready=grid-validated-one-shot wrap=rearmed'
 for first_pixel_stdout in "$FIRST_PIXEL_NATIVE_STDOUT" "$FIRST_PIXEL_WASM_STDOUT"; do
   if ! grep -qx "$FIRST_PIXEL_VERDICT" "$first_pixel_stdout"; then
     echo "ERROR: first-pixel settle evidence differs: $first_pixel_stdout" >&2

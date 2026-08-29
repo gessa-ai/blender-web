@@ -36552,10 +36552,10 @@ index 0000000000000000000000000000000000000000..5b8a025052f09fc8645bc20cdeb353db
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_context.cc b/source/blender/gpu/webgpu/wgpu_context.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..d2ea7b1fbeea30d6775e8d7f528ff90f6c373d82
+index 0000000000000000000000000000000000000000..a353b8c741bbd9d81200f9d606daf8d754fc23ce
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_context.cc
-@@ -0,0 +1,1460 @@
+@@ -0,0 +1,1464 @@
 +/* SPDX-FileCopyrightText: 2024 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -37951,6 +37951,10 @@ index 0000000000000000000000000000000000000000..d2ea7b1fbeea30d6775e8d7f528ff90f
 +  /* Activation already adopted this frame's backbuffer episode. Reset its semantic trace once at
 +   * the real WM frame boundary; later context reactivations must not erase earlier region draws. */
 +  ghost_web::redraw_trace_frame_begin(redraw_present_frame_episode_);
++  /* Bind strict post-input content evidence to this same WM frame. A terminal callback is eligible
++   * only after its synthetic WindowUpdate has crossed Blender's GHOST consumer. */
++  ghost_web::input_redraw_trace_frame_begin(ghost_web::input_redraw_dispatched_count(),
++                                            ghost_web::input_redraw_terminal_count());
 +#endif
 +  queue_scheduler_.begin_epoch();
 +}
@@ -38801,10 +38805,10 @@ index 0000000000000000000000000000000000000000..a936c747e2bd9ef666c404d5533a8903
 +}  // namespace blender::gpu::webgpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.cc b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7d10bd581afd9e02afa91af28867c277540c8658
+index 0000000000000000000000000000000000000000..b31171bb35c53e699214e4f83064555d1cba10ea
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.cc
-@@ -0,0 +1,2022 @@
+@@ -0,0 +1,2048 @@
 +/* SPDX-FileCopyrightText: 2022 Blender Authors
 + * SPDX-FileCopyrightText: 2026 blender-web contributors
 + *
@@ -40031,7 +40035,10 @@ index 0000000000000000000000000000000000000000..7d10bd581afd9e02afa91af28867c277
 +void WGPUFrameBuffer::debug_note_draw(const char *shader_name) const
 +{
 +#ifdef __EMSCRIPTEN__
-+  if (!ghost_web::redraw_trace_capturing() || multi_viewport_) {
++  if ((!ghost_web::redraw_trace_capturing() &&
++       !ghost_web::input_redraw_trace_capturing()) ||
++      multi_viewport_)
++  {
 +    return;
 +  }
 +  webgpu::FramebufferViewportPlan draw_viewport;
@@ -40049,19 +40056,42 @@ index 0000000000000000000000000000000000000000..7d10bd581afd9e02afa91af28867c277
 +    pass = ghost_web::RedrawTracePass::OcioDisplay;
 +  }
 +  WGPUContext *wctx = active_context();
++  const bool window_target = wctx != nullptr && wctx->is_window_backbuffer(this);
++  const int32_t viewport_x = draw_viewport.viewport.viewport_x;
++  const int32_t viewport_y = draw_viewport.viewport.viewport_y;
++  const uint32_t viewport_width = draw_viewport.viewport.viewport_width;
++  const uint32_t viewport_height = draw_viewport.viewport.viewport_height;
++  const bool scissor_enabled = draw_viewport.scissor_enabled;
++  const uint32_t scissor_x = draw_viewport.scissor_x;
++  const uint32_t scissor_y = draw_viewport.scissor_y;
++  const uint32_t scissor_width = draw_viewport.scissor_width;
++  const uint32_t scissor_height = draw_viewport.scissor_height;
 +  ghost_web::redraw_trace_note(pass,
-+                               wctx != nullptr && wctx->is_window_backbuffer(this),
++                               window_target,
 +                               width_,
 +                               height_,
-+                               draw_viewport.viewport.viewport_x,
-+                               draw_viewport.viewport.viewport_y,
-+                               draw_viewport.viewport.viewport_width,
-+                               draw_viewport.viewport.viewport_height,
-+                               draw_viewport.scissor_enabled,
-+                               draw_viewport.scissor_x,
-+                               draw_viewport.scissor_y,
-+                               draw_viewport.scissor_width,
-+                               draw_viewport.scissor_height);
++                               viewport_x,
++                               viewport_y,
++                               viewport_width,
++                               viewport_height,
++                               scissor_enabled,
++                               scissor_x,
++                               scissor_y,
++                               scissor_width,
++                               scissor_height);
++  ghost_web::input_redraw_trace_note(pass,
++                                     window_target,
++                                     width_,
++                                     height_,
++                                     viewport_x,
++                                     viewport_y,
++                                     viewport_width,
++                                     viewport_height,
++                                     scissor_enabled,
++                                     scissor_x,
++                                     scissor_y,
++                                     scissor_width,
++                                     scissor_height);
 +#else
 +  (void)shader_name;
 +#endif
@@ -40829,7 +40859,7 @@ index 0000000000000000000000000000000000000000..7d10bd581afd9e02afa91af28867c277
 +}  // namespace blender::gpu
 diff --git a/source/blender/gpu/webgpu/wgpu_framebuffer.hh b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 new file mode 100644
-index 0000000000000000000000000000000000000000..6abe2abef618e9aeeee9e91917c235abc0e3a3f0
+index 0000000000000000000000000000000000000000..21c2e8efdb0c6ac77224c0df39353c524741d031
 --- /dev/null
 +++ b/source/blender/gpu/webgpu/wgpu_framebuffer.hh
 @@ -0,0 +1,222 @@
@@ -40939,9 +40969,9 @@ index 0000000000000000000000000000000000000000..6abe2abef618e9aeeee9e91917c235ab
 +                                              webgpu::FramebufferLoadActionTransaction> &load_action,
 +                                          int force_layer = -1);
 +
-+  /** During a bounded browser-resize recovery episode, record the exact target and resolved
-+   * viewport/scissor used by a successfully recorded draw. Native and steady-state paths are
-+   * no-ops. */
++  /** During a bounded browser-resize or pending terminal-input trace, record the exact target and
++   * resolved viewport/scissor used by a successfully recorded draw. Native and steady-state paths
++   * are no-ops. */
 +  void debug_note_draw(const char *shader_name) const;
 +
 +  /* --- Multi-viewport / layered emulation (M3.F7), read by wgpu_batch --- */

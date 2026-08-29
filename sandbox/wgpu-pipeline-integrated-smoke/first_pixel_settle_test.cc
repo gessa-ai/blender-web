@@ -167,6 +167,63 @@ int main()
     return 1;
   }
 
+  /* A generic valid surface copy can still carry stale persistent-backbuffer content. Bind a
+   * second monotonic edge to the exact input frame's strict VIEW_3D draw shape. */
+  ghost_web::note_input_redraw_terminal(later_dispatched_input);
+  ghost_web::input_redraw_trace_frame_begin(later_dispatched_input, later_dispatched_input);
+  if (!require(ghost_web::input_redraw_trace_capturing(),
+               "a dispatched terminal input opens a bounded content trace"))
+  {
+    return 1;
+  }
+  const auto note_input_draw = [](const ghost_web::RedrawTracePass pass,
+                                  const bool window_target) {
+    ghost_web::input_redraw_trace_note(pass,
+                                       window_target,
+                                       1280,
+                                       720,
+                                       0,
+                                       0,
+                                       1280,
+                                       720,
+                                       false,
+                                       0,
+                                       0,
+                                       1280,
+                                       720);
+  };
+  note_input_draw(ghost_web::RedrawTracePass::OverlayBackground, false);
+  ghost_web::RedrawTraceSnapshot input_content_trace =
+      ghost_web::input_redraw_trace_snapshot();
+  if (!require(!ghost_web::input_redraw_content_trace_complete(
+                   input_content_trace, later_dispatched_input),
+               "a background-only input frame cannot certify scene content"))
+  {
+    return 1;
+  }
+  note_input_draw(ghost_web::RedrawTracePass::OverlayGrid, false);
+  note_input_draw(ghost_web::RedrawTracePass::OcioDisplay, true);
+  input_content_trace = ghost_web::input_redraw_trace_snapshot();
+  if (!require(ghost_web::input_redraw_content_trace_complete(
+                   input_content_trace, later_dispatched_input),
+               "background, grid, and final display complete the exact input frame") ||
+      !require(ghost_web::note_input_redraw_content_presented(
+                   input_content_trace, later_dispatched_input) &&
+                   ghost_web::input_redraw_content_presented_count() == later_dispatched_input,
+               "a validated strict input frame publishes content presentation") ||
+      !require(!ghost_web::note_input_redraw_content_presented(
+                   input_content_trace, later_dispatched_input),
+               "duplicate validation cannot republish input content"))
+  {
+    return 1;
+  }
+  ghost_web::input_redraw_trace_frame_begin(later_dispatched_input, later_dispatched_input);
+  if (!require(!ghost_web::input_redraw_trace_capturing(),
+               "a content-presented terminal generation does not retain steady-state tracing"))
+  {
+    return 1;
+  }
+
   uint64_t retry_generation_seen = ghost_web::redraw_retry_generation();
   uint64_t input_retry_generation_seen = ghost_web::input_redraw_retry_generation();
   uint64_t input_terminal_generation_seen = ghost_web::input_redraw_terminal_count();
@@ -860,9 +917,9 @@ int main()
       "present_settlement=coalesced-wm-retry "
       "present_telemetry=suppressed-wm-replayed "
       "input_delivery=balanced-mask "
-      "input_presentation=monotonic-frame-bound "
+      "input_presentation=monotonic-frame-bound+view3d-content "
       "present_barrier=ordered-sync-commit-superseded trace=bounded-exact "
       "viewport_ready=grid-validated-one-shot wrap=rearmed\n",
       checks);
-  return checks == 90 ? 0 : 1;
+  return checks == 96 ? 0 : 1;
 }

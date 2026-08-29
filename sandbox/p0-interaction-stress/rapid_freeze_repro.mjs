@@ -219,6 +219,7 @@ try {
           admitted: read("_bw_input_redraw_admitted_count"),
           dispatched: read("_bw_input_redraw_dispatched_count"),
           presented: read("_bw_input_redraw_presented_count"),
+          contentPresented: read("_bw_input_redraw_content_presented_count"),
           episode: read("_bw_redraw_episode_count"),
         },
         suppressed: read("_bw_present_suppressed_count"),
@@ -293,6 +294,7 @@ try {
           current.inputRedraw.admitted >= current.inputRedraw.terminal &&
           current.inputRedraw.dispatched >= current.inputRedraw.terminal &&
           current.inputRedraw.presented >= current.inputRedraw.terminal &&
+          current.inputRedraw.contentPresented >= current.inputRedraw.terminal &&
           current.inputRedraw.episode === counterBaseline.inputRedraw.episode &&
           nativeDeliveryComplete(current) &&
           (!hardwareDiagnostic || nativeStateComplete(current)) &&

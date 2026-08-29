@@ -128,6 +128,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_presented_count(void)
   return double(ghost_web::input_redraw_presented_count());
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_content_presented_count(void)
+{
+  return double(ghost_web::input_redraw_content_presented_count());
+}
+
 /* Proxied-callback delivery evidence for the rapid-input freeze diagnostic. Button ordinals are
  * GHOST_TButton values (left=0, middle=1, right=2, ...). Counts advance only when the WM worker's
  * tracked state changes; the mask exposes a terminal press whose matching release never arrived. */
@@ -1169,6 +1174,10 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint64_t input_redraw_frame_generation =
       input_redraw_frame_provenance_.generation_for_present(
           barrier_redraw_trace_available ? barrier_redraw_trace.input_redraw_generation : 0u);
+  const ghost_web::RedrawTraceSnapshot input_redraw_trace =
+      ghost_web::input_redraw_trace_snapshot();
+  const bool input_redraw_trace_available =
+      input_redraw_trace.input_redraw_generation == input_redraw_frame_generation;
   if (validate_transaction) {
     present_settlement_.begin();
   }
@@ -1250,6 +1259,8 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            backbuffer_width,
            backbuffer_height,
            input_redraw_frame_generation,
+           input_redraw_trace_available,
+           input_redraw_trace,
            validate_transaction](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
               const bool retry_after_settlement =
@@ -1389,6 +1400,30 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
                               static_cast<unsigned long long>(terminal_generation),
                               static_cast<unsigned long long>(ghost_web::present_count() + 1u));
                   input_redraw_presented_log_count++;
+                }
+              }
+              if (input_redraw_trace_available &&
+                  ghost_web::note_input_redraw_content_presented(
+                      input_redraw_trace, input_redraw_frame_generation))
+              {
+                const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
+                static uint32_t input_redraw_content_log_count = 0;
+                if (terminal_generation != 0u &&
+                    input_redraw_frame_generation >= terminal_generation &&
+                    input_redraw_content_log_count < 64)
+                {
+                  std::printf("[bw] GHOST-input-redraw content input=%llu terminal=%llu "
+                              "draws=%llu offscreen=%llu window=%llu present=%llu\n",
+                              static_cast<unsigned long long>(input_redraw_frame_generation),
+                              static_cast<unsigned long long>(terminal_generation),
+                              static_cast<unsigned long long>(
+                                  input_redraw_trace.frame_draw_count),
+                              static_cast<unsigned long long>(
+                                  input_redraw_trace.frame_offscreen_draw_count),
+                              static_cast<unsigned long long>(
+                                  input_redraw_trace.frame_window_draw_count),
+                              static_cast<unsigned long long>(ghost_web::present_count() + 1u));
+                  input_redraw_content_log_count++;
                 }
               }
               /* ghost-keepalive advances only after the submission scope completes cleanly. */

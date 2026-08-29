@@ -69,8 +69,9 @@ def validate(sources: dict[str, str]) -> None:
         "inline bool note_viewport_content_presented(",
     ):
         require_once(display, token, "shared VIEW_3D readiness state")
+    resize_note = method(display, "inline void redraw_trace_note(")
     require_once(
-        display,
+        resize_note,
         "pass == RedrawTracePass::OverlayGrid",
         "successful grid-plan capture",
     )

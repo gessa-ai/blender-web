@@ -1212,3 +1212,6 @@
 # 0302: trace every early-return, encode, and validation stage for the stock dashed-line immediate
 # shader so a camera-frame stale draw can be diagnosed from exact counters rather than pixels alone.
 0302-gpu-webgpu-immediate-dashed-stage-trace.patch
+# 0303: bind a terminal-input surface receipt to the exact WM frame that encoded the VIEW_3D
+# background, grid, and final display, distinguishing a stale valid copy from complete content.
+0303-gpu-webgpu-input-frame-content-trace.patch

@@ -221,6 +221,7 @@ inline std::atomic<uint64_t> input_redraw_terminal_generation{0};
 inline std::atomic<uint64_t> input_redraw_admitted_generation{0};
 inline std::atomic<uint64_t> input_redraw_dispatched_generation{0};
 inline std::atomic<uint64_t> input_redraw_presented_generation{0};
+inline std::atomic<uint64_t> input_redraw_content_presented_generation{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
 
@@ -294,6 +295,8 @@ struct RedrawTraceSnapshot {
 
 inline std::atomic<bool> redraw_trace_capture_active{false};
 inline RedrawTraceSnapshot redraw_trace_state{};
+inline std::atomic<bool> input_redraw_trace_capture_active{false};
+inline RedrawTraceSnapshot input_redraw_trace_state{};
 
 inline void redraw_trace_begin(const uint64_t episode_generation)
 {
@@ -343,6 +346,32 @@ inline void redraw_trace_frame_begin(const uint64_t episode_generation)
   redraw_trace_state.background = {};
   redraw_trace_state.grid = {};
   redraw_trace_state.display = {};
+}
+
+/**
+ * Capture draw evidence only while one fully dispatched terminal input still lacks a strict
+ * VIEW_3D surface present. This is separate from the resize episode trace: ordinary input must not
+ * enter or reset the replacement-drawable barrier, and an overlapping resize must retain its own
+ * immutable frame record.
+ */
+inline void input_redraw_trace_frame_begin(const uint64_t dispatched_generation,
+                                           const uint64_t terminal_generation)
+{
+  input_redraw_trace_capture_active.store(false, std::memory_order_release);
+  input_redraw_trace_state = {};
+  if (terminal_generation == 0u || dispatched_generation < terminal_generation ||
+      terminal_generation <=
+          input_redraw_content_presented_generation.load(std::memory_order_acquire))
+  {
+    return;
+  }
+  input_redraw_trace_state.input_redraw_generation = dispatched_generation;
+  input_redraw_trace_capture_active.store(true, std::memory_order_release);
+}
+
+inline bool input_redraw_trace_capturing()
+{
+  return input_redraw_trace_capture_active.load(std::memory_order_acquire);
 }
 
 inline void redraw_trace_note(const RedrawTracePass pass,
@@ -400,9 +429,69 @@ inline void redraw_trace_note(const RedrawTracePass pass,
   }
 }
 
+inline void input_redraw_trace_note(const RedrawTracePass pass,
+                                    const bool window_target,
+                                    const int32_t target_width,
+                                    const int32_t target_height,
+                                    const int32_t viewport_x,
+                                    const int32_t viewport_y,
+                                    const uint32_t viewport_width,
+                                    const uint32_t viewport_height,
+                                    const bool scissor_enabled,
+                                    const uint32_t scissor_x,
+                                    const uint32_t scissor_y,
+                                    const uint32_t scissor_width,
+                                    const uint32_t scissor_height)
+{
+  if (!input_redraw_trace_capturing()) {
+    return;
+  }
+  RedrawTracePlan plan;
+  plan.sequence = ++input_redraw_trace_state.draw_count;
+  plan.window_target = window_target;
+  plan.target_width = target_width;
+  plan.target_height = target_height;
+  plan.viewport_x = viewport_x;
+  plan.viewport_y = viewport_y;
+  plan.viewport_width = viewport_width;
+  plan.viewport_height = viewport_height;
+  plan.scissor_enabled = scissor_enabled;
+  plan.scissor_x = scissor_x;
+  plan.scissor_y = scissor_y;
+  plan.scissor_width = scissor_width;
+  plan.scissor_height = scissor_height;
+  input_redraw_trace_state.last = plan;
+  input_redraw_trace_state.frame_draw_count++;
+  if (window_target) {
+    input_redraw_trace_state.window_draw_count++;
+    input_redraw_trace_state.frame_window_draw_count++;
+    input_redraw_trace_state.frame_last_window_sequence = plan.sequence;
+  }
+  else {
+    input_redraw_trace_state.frame_offscreen_draw_count++;
+    if (input_redraw_trace_state.frame_first_offscreen_sequence == 0) {
+      input_redraw_trace_state.frame_first_offscreen_sequence = plan.sequence;
+    }
+  }
+  if (pass == RedrawTracePass::OverlayBackground) {
+    input_redraw_trace_state.background = plan;
+  }
+  else if (pass == RedrawTracePass::OverlayGrid) {
+    input_redraw_trace_state.grid = plan;
+  }
+  else if (pass == RedrawTracePass::OcioDisplay) {
+    input_redraw_trace_state.display = plan;
+  }
+}
+
 inline RedrawTraceSnapshot redraw_trace_snapshot()
 {
   return redraw_trace_state;
+}
+
+inline RedrawTraceSnapshot input_redraw_trace_snapshot()
+{
+  return input_redraw_trace_state;
 }
 
 inline void request_redraw_retry()
@@ -574,6 +663,48 @@ inline bool viewport_content_trace_complete(const RedrawTraceSnapshot &trace,
   return redraw_present_trace_complete(trace, episode) &&
          trace.grid.sequence > 0u && !trace.grid.window_target &&
          trace.display.sequence > trace.grid.sequence;
+}
+
+/** A post-input frame is content-complete only when the exact dispatched generation encoded the
+ * same background/grid/final-display shape used by loader and resize admission. */
+inline bool input_redraw_content_trace_complete(const RedrawTraceSnapshot &trace,
+                                                const uint64_t input_generation)
+{
+  return input_generation != 0u && trace.input_redraw_generation == input_generation &&
+         trace.frame_draw_count >= 3u && trace.frame_offscreen_draw_count >= 2u &&
+         trace.frame_window_draw_count > 0u && trace.frame_first_offscreen_sequence > 0u &&
+         trace.frame_last_window_sequence > trace.frame_first_offscreen_sequence &&
+         trace.frame_last_window_sequence == trace.last.sequence &&
+         trace.background.sequence != 0u && trace.background.window_target == false &&
+         trace.grid.sequence != 0u && trace.grid.window_target == false &&
+         trace.background.sequence < trace.display.sequence &&
+         trace.grid.sequence < trace.display.sequence && trace.display.window_target == true;
+}
+
+inline bool note_input_redraw_content_presented(const RedrawTraceSnapshot &trace,
+                                                const uint64_t input_generation)
+{
+  if (!input_redraw_content_trace_complete(trace, input_generation)) {
+    return false;
+  }
+  uint64_t presented =
+      input_redraw_content_presented_generation.load(std::memory_order_relaxed);
+  while (presented < input_generation) {
+    if (input_redraw_content_presented_generation.compare_exchange_weak(
+            presented,
+            input_generation,
+            std::memory_order_release,
+            std::memory_order_relaxed))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline uint64_t input_redraw_content_presented_count()
+{
+  return input_redraw_content_presented_generation.load(std::memory_order_acquire);
 }
 
 /** Successful surface submissions carrying a strict VIEW_3D frame. The first value is the

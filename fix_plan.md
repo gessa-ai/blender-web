@@ -3539,7 +3539,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   lifecycle errors. Exact CAPTURE `.wasm.orig` is `31c7a6bab76a` (118,988,169 bytes). Apple must run
   this generation: admitted > dispatched isolates GHOST/WM dispatch; dispatched > presented
   isolates surface presentation; matching generations with stale native state/pixels places the
-  loss downstream. P0-I/J remain open. See
+  loss downstream. **Bounded input-burst candidate implemented/relinked (`5721ba7`):** paired
+  input/aggregate retry deltas no longer misclassify every motion sample as new asynchronous GPU
+  readiness. The first input after idle opens one bounded recovery burst, nonterminal motion inside
+  that burst neither injects another full-screen update nor resets its hard ceiling, and a distinct
+  button/key/wheel terminal edge restarts exactly one complete coalesced tail. Two exact fallback
+  runs drain in 5,545/5,566 ms and repaint an independent orbit in 2,513/1,551 ms with terminal,
+  admitted, dispatched, and presented generations converged and zero page/lifecycle errors; the
+  53-step cumulative/modal battery also passes 9/9 workspace transitions and its full warning
+  census. Exact CAPTURE `.wasm.orig` is `aa374938f2b8` (118,988,326 bytes). The software fallback
+  binds no pixel verdict, and its resize probe still fails only the filed legacy `5/2` present-churn
+  heuristic despite coherent barriers, so Apple must run the exact freeze discriminator and
+  same-generation gauntlet plus P0-E regression. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -813,3 +813,54 @@ the resize barrier, admitted greater than dispatched to GHOST/WM dispatch, dispa
 presented to surface validation/presentation, and matching generations with stale Blender state or
 pixels downstream of all three. No hardware receipt, profile, result, promise, tolerance, golden,
 blacklist, deferral, APPLY/public bundle, tag, or launch claim changed.
+
+## Bound nonterminal input redraw bursts
+
+The driver's latest `b326a3be` evidence retains five action images, but their filesystem times are
+only 344-408 ms apart. The exact pre-change fallback discriminator likewise needed 8,951 ms to
+drain (`ledger/buildlogs/20260829T010610-3614749.log`). Source tracing found that every mouse-motion,
+button, and key callback advanced both the input-specific and aggregate retry generations. The
+recovery helper treated each paired increment as fresh asynchronous readiness, requested another
+full-screen `WindowUpdate`, and reset the full 180-tick input tail on every motion sample. Blender's
+native cursor/button/key event already owns the immediate interaction redraw, so this synthetic work
+could accumulate behind the action it was intended to recover.
+
+Commit `5721ba7` keeps one input generation per accepted callback and one terminal generation per
+completed button/key/wheel action. `redraw_recovery_tick()` now subtracts the paired per-tick input
+delta from the aggregate retry delta. An unmatched aggregate edge remains real resource/resize
+readiness and retries immediately. A first nonterminal input after an exhausted burst opens a new
+bounded burst, but further motion inside it neither injects a synthetic update nor resets the hard
+ceiling. The terminal edge still restarts one complete coalesced tail. This does not route ordinary
+input through the resize-only episode or barrier.
+
+The source contract failed first against the all-input full-tail policy
+(`ledger/buildlogs/20260829T010825-3616459.log`). Final input/rapid mutation contracts and the
+87-case native/wasm32 integrated state model are green
+(`20260829T011803-3625326`, `20260829T011803-3625327`, and
+`20260829T011819-3626120`). Two fresh isolated-X executions of the driver's exact cadence both
+drain and repaint: action drain is 5,545/5,566 ms, recovery orbit is 2,513/1,551 ms, and terminal,
+admitted, dispatched, and presented generations converge with zero page/lifecycle errors
+(`20260829T012005-3628557` and `20260829T012041-3629691`). The complete fallback fidelity battery
+also passes 53 steps, 172 states, 767 presentations, 9/9 workspace transitions, the modal settle,
+three same-pose checks, and an empty hard-warning/page-error census
+(`20260829T012150-3630371`, consumer `20260829T012556-3632964`). These are software-adapter
+diagnostics, not pixel closure.
+
+The final CAPTURE relink is `ledger/buildlogs/20260829T011849-3627966.log`; committed-state locked
+no-work is `20260829T012913-3636244`. Exact product identities are:
+
+- `blender_browser.js`: `06505f5705bf` (709,920 bytes)
+- `blender_browser.wasm`: `8751f1615ad1` (120,337,101 bytes)
+- `blender_browser.wasm.orig`: `aa374938f2b8` (118,988,326 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `b74035aa5b00` (13,812 bytes)
+
+Resize source and trace contracts remain green (`20260829T012613-3633091/3633093`). The fallback
+live probe still reports its already-filed legacy present-churn failure `5/2` despite two coherent
+barriers and no rejection/loss (`20260829T012618-3633116`), so no P0-E regression is claimed.
+Capture/gauntlet self-checks and pinned Node 22.16.0 profile self-check are green
+(`20260829T012950-3637110/3637111`, `20260829T012957-3637177`), as is REUSE 6.2.0
+(`20260829T012832-3635921`). Direct M4 remains Apple-pixel RED
+(`20260829T012652-3633666`); pinned-container regression restores M0 6/6 while later tiers retain
+their named strict/APPLY/product boundaries (`20260829T012726-3634160`). P0-I/J remain open for the
+exact Apple discriminator and same-generation composed gauntlet.

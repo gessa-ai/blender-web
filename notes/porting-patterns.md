@@ -2090,3 +2090,19 @@ in the same bounded sample. Then require a separately baselined recovery action.
 diagnostic-only and transition-based so duplicate/synthetic releases do not manufacture delivery.
 See `platform_web/ghost/GHOST_WebDisplayState.hh`, `platform_web/ghost/GHOST_SystemWeb.cc`, and
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.
+
+## Class 141 — input activity and resource readiness need separate retry ownership
+
+Signature: every proxied mouse-motion sample advances an input generation and the aggregate redraw
+generation, while the recovery consumer treats the aggregate edge as new asynchronous GPU-resource
+readiness. A drag can then inject one synthetic full-screen update and reset the full recovery tail
+for every motion event, building a render queue behind the native interaction events that already
+own immediate redraw. Preserve both counters, but compare their per-poll unsigned deltas: paired
+input/aggregate increments are input activity, while an unmatched aggregate increment is genuine
+resource or resize readiness. Inside an active burst, acknowledge nonterminal input without
+injecting another synthetic update or extending the hard ceiling. Let the first input after idle
+open a bounded burst, and let a separately recorded button/key/wheel terminal edge restart exactly
+one complete tail. This keeps ordinary input outside the replacement-drawable barrier while making
+continuous motion bounded. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
+`platform_web/ghost/GHOST_SystemWeb.cc`, and
+`sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.

@@ -3873,6 +3873,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   selection, and independent-recovery drains were 325-429/2,505-4,715/6,938-8,722 ms. One bounded
   pre-browser Xvfb launcher hang was rejected rather than counted. Focused mutation checks and
   REUSE 2,821/2,821 remain green. This binds software stability only and does not close P0-I/J.
+  **Gesture-selection sibling pass-through candidate implemented/relinked/pending Apple
+  (`7c0971b`, patch 0318):** the same WM return-code audit found pending particle-depth and bitmap-
+  gesture selection also returned `RUNNING_MODAL | PASS_THROUGH` for non-owned events, which breaks
+  later handlers instead of passing. Both now return bare pass-through, retaining their continuation
+  while allowing the event's real owner to run. The focused contract covers all three browser
+  selection continuation families; full owned-readback native/Wasm parity, canonical replay,
+  affected object, locked relink/no-work/preflight, REUSE, and the exact slow/sparse fallback control
+  are green. RELINKED CAPTURE `.wasm.orig` is `104bc1579a91` (119,031,221 bytes); JS/Wasm/data/
+  manifest are `bba3f480bb3b`/`48ef66fc238d`/`095d0ba748c3`/`059d3bd3a8dd`. This source/device-free
+  closure does not close P0-I/J: the exact generation still requires Apple 10/10 plus the same-
+  generation P0-E/zero-artifact gauntlet. See
+  `notes/p0-selection-gesture-passthrough-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

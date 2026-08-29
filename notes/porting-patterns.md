@@ -2283,3 +2283,15 @@ not merely balanced input counters or a retired modal stack. See
 `patches/0320-view3d-web-selection-navigation-motion-order.patch`,
 `patches/0321-view3d-web-selection-navigation-tail-reset.patch`, and
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.
+
+## Class 154 — producer pixel checks must be repeated by the receipt consumer
+
+Signature: a hardware producer waits for changed screenshot bytes and emits their hashes, but the
+independent series consumer validates only hash syntax and native state. A mutated or incorrectly
+composed receipt can then carry the baseline hash through a nominally successful orbit while
+state counters still advance. Recheck every load-bearing pixel transition in the consumer, not
+just the producer: compare the deselected frame to the first orbit, the pre-selection view to the
+navigation result, and the pre-transform view to the replayed transform result. Give synthetic
+steps distinct hashes before mutation-testing each equality; otherwise a positive fixture with
+one shared placeholder hash cannot exercise the contract. See
+`sandbox/p0-interaction-stress/analyze_sparse_hardware_series.py`.

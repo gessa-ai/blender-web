@@ -3941,7 +3941,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `bba3f480bb3b`/`e61b1f4cc5f3`/`095d0ba748c3`/`a3569ddfe799`. This remains software evidence:
   P0-I/J stay open for this exact generation to pass the driver-operated Apple 10/10 and the
   same-generation P0-E/zero-artifact gauntlet. See
-  `notes/p0-selection-navigation-motion-order-20260829.md`.
+  `notes/p0-selection-navigation-motion-order-20260829.md`. **Sparse Apple-series pixel binding
+  hardened/pending Apple (`32678a0`):** the producer already required changed pixels for the first
+  orbit, navigation through pending selection, and the replayed transform tail, but its independent
+  10-run consumer accepted syntactically valid baseline hashes at those steps. The consumer now
+  repeats all three pixel-difference assertions and rejects three independent equality mutations;
+  its fail-first/final 26-negative self-check, integrated WebGPU/GHOST matrix, and REUSE are green.
+  This changes no product byte: CAPTURE `.wasm.orig` remains `6b0ac5366aef`, direct M4 remains red
+  at the Apple pixel boundary, and P0-I/J still require exact Apple 10/10 plus the same-generation
+  P0-E/zero-artifact gauntlet. See `notes/p0-sparse-hardware-series-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

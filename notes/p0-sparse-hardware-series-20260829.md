@@ -67,3 +67,28 @@ An unchanged-product slow/sparse software control remained green
 and the following isolated orbit in 11,383 ms, selected exactly Cube without moving it, and ended
 with empty page, lifecycle, readback, and validation failure censuses. Because its adapter is
 software/fallback, it is diagnostic evidence only and binds no receipt.
+
+## Pixel-identity consumer hardening
+
+Commit `32678a0` closes a fail-closed gap in the series consumer without changing the producer or
+the linked product. The producer already required changed screenshot bytes while draining the
+first orbit, navigation through a pending selection, and the replayed transform tail. The
+independent series consumer checked only that those SHA-256 fields were well formed, so a mutated
+receipt could replace a changing frame hash with its baseline and still pass while native counters
+advanced.
+
+The new consumer assertions require three distinct pixel transitions: Deselect All to the first
+isolated orbit, the first orbit to navigation through the pending selection, and the first orbit to
+the replayed transform result. Synthetic fixtures now give every step an independent image hash,
+and three mutations replace each required changed hash with its baseline. The new navigation
+mutation failed first at `ledger/buildlogs/20260829T193635-276629.log`; the final 26-negative
+self-check and integrated WebGPU/GHOST matrix are green at
+`ledger/buildlogs/20260829T193707-277446.log` and
+`ledger/buildlogs/20260829T193718-277502.log`. REUSE 6.2.0 is green at
+`ledger/buildlogs/20260829T194042-281481.log`.
+
+Direct M4 remains red at the unchanged Apple browser-pixel boundary
+(`ledger/buildlogs/20260829T193756-278962.log`). Pinned-oracle regression restores M0 6/6 while
+M1-M8 retain their named strict, hardware, APPLY, and product boundaries
+(`ledger/buildlogs/20260829T193838-279454.log`). CAPTURE `.wasm.orig` remains `6b0ac5366aef`; no
+relink, hardware receipt, result promotion, or P0-I/J closure occurred.

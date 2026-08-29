@@ -3595,7 +3595,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   passes 181 native states, 724 presents, 9/9 workspaces, three same-pose checks, and zero hard
   warnings/page errors. CAPTURE `.wasm.orig` is `e61df1b64f7b` (118,991,717 bytes). This is a
   hardware candidate, not closure: Apple must run the exact deterministic freeze 10/10 plus the
-  same-generation composed P0-D/E/F/I gauntlet. P0-I/J remain open. See
+  same-generation composed P0-D/E/F/I gauntlet. **Slow/sparse discriminator implemented
+  (`adb8e79`):** the prior producer sampled a 350 ms burst, while the filed Apple claim now describes
+  one isolated orbit with no later input queued. `BW_P0_SPARSE=1` leaves 650 ms between the prelude
+  inputs, then withholds all later input until the first orbit reaches balanced GHOST delivery,
+  WM admission/dispatch, validated surface presentation, strict same-generation VIEW_3D content,
+  changed native view state, and changed pixels; it repeats that contract for a second isolated
+  orbit and retains every 250 ms stage sample. The unchanged fallback product passes at terminal/
+  admitted/dispatched/presented/content `29/29/29/29/29` then `40/40/40/40/40` in 317/1,606 ms.
+  The unchanged rapid mode still shows five immediate identical frames but drains fully in 8,425 ms,
+  proving that immediate identity alone is not a liveness verdict on this lane. No runtime byte or
+  receipt changed. Apple must run this exact sparse discriminator; its timeout timeline now locates
+  delivery vs WM vs surface vs content vs native-state/pixel loss before any seventh runtime patch.
+  P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

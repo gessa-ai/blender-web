@@ -1032,3 +1032,50 @@ restores M0 6/6 and retains every later named strict/APPLY/product boundary (res
 `2026-08-29T03:27:17Z` through `03:27:18Z`). P0-I/J close only after the driver runs this exact
 `e61df1b64f7b` generation through the deterministic freeze 10/10 and the composed P0-D/E/F/I
 hardware gauntlet.
+
+## Slow/sparse input discriminator
+
+The Apple rerun of the content-retired candidate still reported identical screenshots after the
+first orbit. That was the sixth screenshot-only candidate result, while the repository producer
+still exercised a different 350 ms burst and waited for the whole burst only after click, second
+orbit, and move were already queued. Another redraw-policy patch would therefore have been a
+seventh guess across two different workloads.
+
+Commit `adb8e79` adds an explicit `BW_P0_SPARSE=1` mode to the existing fail-closed producer. It
+leaves 650 ms between Numpad/select/deselect samples, sends one MMB orbit, and queues no later input
+until that orbit reaches all of: balanced GHOST press/release with a clear held mask, terminal
+publication, WM admission and post-Blender dispatch, validated presentation, strict same-generation
+VIEW_3D background/grid/display content, changed pixels, changed native view rotation, stable scene
+location/selection, and an empty modal stack except for the pass-through probe. It then repeats the
+same contract for one second isolated orbit. Every 250 ms poll is retained as a bounded timeline
+with counters, SHA-256, GHOST edges, native state, and modal operators. A timeout now identifies the
+first divergent stage rather than treating an immediate repeated PNG as a permanent-liveness fact.
+
+The source contract failed first on the absent sparse mode
+(`ledger/buildlogs/20260829T035309-3754376.log`). The final producer/source self-check rejects all
+rapid and sparse mutations (`ledger/buildlogs/20260829T035619-3756115.log`), JavaScript syntax is
+green (`ledger/buildlogs/20260829T035625-3756151.log`), and the integrated native/wasm32 WebGPU/GHOST
+suite is green (`ledger/buildlogs/20260829T035908-3758524.log`). The focused source check, diff
+check, and REUSE 6.2.0 are green (`ledger/buildlogs/20260829T035959-3761527.log`,
+`ledger/buildlogs/20260829T035959-3761553.log`,
+`ledger/buildlogs/20260829T040020-3761730.log`).
+
+Against the unchanged `e61df1b64f7b` fallback product, the fresh sparse control passes. The first
+isolated orbit reaches terminal/admitted/dispatched/presented/content `29/29/29/29/29` with changed
+native rotation and pixels, and the second reaches `40/40/40/40/40`; measured post-sample drains are
+317 ms and 1,606 ms, with zero page/lifecycle errors
+(`ledger/buildlogs/20260829T035716-3756679.log`). One preceding WSLg context close had zero page
+errors and binds no verdict (`ledger/buildlogs/20260829T035625-3756150.log`). The unchanged rapid
+branch also passes under fresh isolated Xvfb: five immediate action frames remain identical, then
+all terminal stages converge at generation 50 in 8,425 ms and a recovery orbit converges at 63 in
+751 ms (`ledger/buildlogs/20260829T040136-3762238.log`). This directly confirms that immediate PNG
+identity is diagnostic data, not by itself a permanent-freeze verdict.
+
+No runtime source or product byte changed, so no relink was needed and the exact CAPTURE identities
+remain those recorded above. Direct M4 remains RED at `browser_pixels`; the required regression
+retains its named strict/APPLY/product failures while pinned-container M0 is 6/6 green
+(`ledger/buildlogs/20260829T035927-3759857.log`,
+`ledger/buildlogs/20260829T035932-3759906.log`,
+`ledger/buildlogs/20260829T035949-3760258.log`). P0-I/J remain open. The driver must run the sparse
+mode on Apple: if the second isolated orbit times out, its timeline will locate the first mismatch
+among delivery, admission, dispatch, surface validation, strict content, native state, and pixels.

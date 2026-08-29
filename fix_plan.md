@@ -3505,7 +3505,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   leaves SwiftShader's known failed GPU-pick lane explicitly diagnostic. The exact fallback control,
   33-mutation source contract, and integrated native/Wasm suite are green without changing or
   relinking the current product. Apple must run this strengthened discriminator against exact
-  `.wasm.orig` `b326a3be5331` before P0-I/J can close. See
+  `.wasm.orig` `b326a3be5331` before P0-I/J can close. **Terminal-redraw admission discriminator
+  implemented/relinked (`8177420`):** the next filed hypothesis is now split at its real boundary.
+  Completed button/key/wheel callbacks publish a terminal input generation; the WM records that
+  generation only after its synthetic `WindowUpdate` passes the resize barrier, while bounded
+  terminal/admitted/withheld lines record the unchanged resize-episode generation. The exact
+  fallback replay admits every terminal (`50/50`, recovery `63/63`) with episode fixed at 1,
+  advancing pixels/presents, and zero page/lifecycle errors. Thus ordinary input does not call the
+  resize-only episode, but the source and fallback both prove its distinct bounded retry is rearmed
+  and admitted; Apple must now determine whether the deterministic freeze is above or below that
+  admission boundary. CAPTURE `.wasm.orig` is `1caec08e9582` (118,987,074 bytes). Device-free
+  resize source/trace remain green, but two live fallback runs retain a RED legacy present-churn
+  check (`5/2`, `5/4`) despite two coherent barriers and zero WebGPU rejects/loss; no P0-E
+  regression is claimed green until Apple pixels rerun. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

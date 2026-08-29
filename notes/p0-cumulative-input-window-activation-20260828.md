@@ -653,3 +653,62 @@ changed and no relink occurred: the current CAPTURE generation remains JS `cae15
 `8d6928a6545d`, `.wasm.orig` `b326a3be5331` (118,986,006 bytes), data `095d0ba748c3`, and manifest
 `ddf56d15022d`. P0-I/J remain open for this strengthened Apple run and the same-generation composed
 hardware gauntlet.
+
+## Bind terminal input publication to WM redraw admission
+
+The driver's next hypothesis asked whether ordinary orbit/click/key completion ever calls the
+resize episode. Source tracing first established the required distinction: `request_redraw_episode()`
+is owned only by initial/replacement drawable publication, while accepted ordinary input already
+publishes a separate `request_input_redraw_retry()` generation. Routing input through the resize
+episode would incorrectly attach it to the replacement-drawable barrier and risk regressing P0-E.
+What was missing was evidence that the distinct input generation actually crossed that barrier as
+a WM `GHOST_kEventWindowUpdate` rather than being acknowledged and lost beforehand.
+
+Commit `8177420` adds that discriminator without changing redraw policy. Every completed button,
+key, or wheel callback records its exact terminal input generation and logs the retry and resize
+episode before/after publication. `GHOST_SystemWeb::processEvents()` publishes a separate admitted
+generation only after `filter_redraw_present_barrier_update()` accepts the synthetic WindowUpdate;
+one bounded line records admission, while a separately bounded line records a terminal generation
+withheld by an active barrier. Browser exports expose published, terminal, admitted, and episode
+generations. The focused producer now requires its last terminal generation to be admitted and the
+resize episode to remain unchanged before either action drain can pass.
+
+The contract failed first at the absent terminal/admission predicate
+(`ledger/buildlogs/20260829T001518-3565923.log`). Final rapid-input and ordinary-input mutation
+contracts, the real GHOST harness, and the integrated native/Wasm WebGPU/GHOST suite are green
+(`20260829T001658-3566974`, `20260829T001800-3568158`,
+`20260829T001707-3567083`, `20260829T001859-3570697`). REUSE 6.2.0 is green
+(`20260829T002058-3573279`).
+
+The committed CAPTURE relink and locked no-work proof are
+`20260829T002121-3573518` and `20260829T002415-3576246`. Exact identities are:
+
+- `blender_browser.js`: `116d74fdfda8` (709,604 bytes)
+- `blender_browser.wasm`: `2e7a762e37ac` (120,335,819 bytes)
+- `blender_browser.wasm.orig`: `1caec08e9582` (118,987,074 bytes)
+- `blender_browser.data`: `095d0ba748c3` (168,637,598 bytes)
+- `blender_browser.split-build.json`: `10946183fc74` (13,729 bytes)
+
+The exact isolated-X fallback replay is green
+(`ledger/buildlogs/20260829T002319-3575639.log`). It deliberately reproduces five identical rapid
+action samples, then drains after 5,814 ms with terminal/admitted `50/50`, ticks 143, presents 57,
+retries 713, balanced left `2/2` and middle `2/2` edges, and held mask zero. Its independent orbit
+repaints after 327 ms with terminal/admitted `63/63`, ticks 145, presents 60, and episode still 1.
+Every logged terminal has `episode_changed=0`; there are no withheld lines, page errors, or lifecycle
+errors. This proves on the fallback path that ordinary input does not request a resize episode but
+does rearm and cross its own WM retry boundary. It does not determine the Apple failure.
+
+CAPTURE inventory, profile/capture, and same-generation hardware-gauntlet self-checks are green
+(`20260829T002442-3577176`, `20260829T002707-3580238`,
+`20260829T002714-3580334`, `20260829T002707-3580239`). Direct M4 remains honestly RED at the Apple
+pixel binding (`20260829T002624-3578397`); pinned-container regression restores M0 6/6 while later
+tiers retain their named strict/APPLY/product boundaries (`20260829T002652-3579215`).
+
+The adjacent resize source and trace contracts remain green, but the live fallback probe is
+retained as RED rather than hidden: two fresh runs completed exactly two coherent resize barriers,
+current/contained plans, and zero encode/submit/transaction rejection or device loss, yet exceeded
+its legacy at-most-three-total-presents heuristic with shrink/restore deltas `5/2` and `5/4`
+(`20260829T002442-3577191`, `20260829T002529-3577774`). This diagnostic-only change does not claim
+P0-E regression green. The driver must run the exact Apple discriminator and P0-E/P0-I gauntlet. If
+Apple terminal exceeds admitted, the loss is at barrier admission; if they match while native state
+or pixels remain frozen, the re-arm-gap hypothesis is falsified and the defect is downstream.

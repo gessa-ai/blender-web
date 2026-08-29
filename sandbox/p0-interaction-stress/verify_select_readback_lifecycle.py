@@ -110,6 +110,10 @@ def validate(sources: dict[str, str]) -> None:
         'joinCompletes: read("_bw_exact_buffer_readback_join_complete_count")',
         'ready: read("_bw_exact_buffer_readback_ready_count")',
         "selectionReadback: {...current.selectionReadback}",
+        "const classifySelectionReadbackBoundary = (baseline, current) => {",
+        "selectionReadbackBoundary: classifySelectionReadbackBoundary(counterBaseline, current)",
+        'process.env.BW_P0_READBACK_CLASSIFIER_SELFCHECK === "1"',
+        "P0J_SELECTION_READBACK_BOUNDARY_SELFCHECK_PASS cases=9",
         "Object.values(splashDismissed.selectionReadback).every(Number.isFinite)",
     ):
         require_present(producer, token)
@@ -161,6 +165,16 @@ def self_check(sources: dict[str, str]) -> None:
             "producer",
             "selectionReadback: {...current.selectionReadback}",
             "selectionReadback: {}",
+        ),
+        (
+            "producer",
+            "selectionReadbackBoundary: classifySelectionReadbackBoundary(counterBaseline, current)",
+            "selectionReadbackBoundary: null",
+        ),
+        (
+            "producer",
+            'process.env.BW_P0_READBACK_CLASSIFIER_SELFCHECK === "1"',
+            'process.env.BW_P0_READBACK_CLASSIFIER_SELFCHECK === "0"',
         ),
         (
             "producer",

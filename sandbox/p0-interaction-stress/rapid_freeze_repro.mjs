@@ -119,6 +119,141 @@ const probeAdapter = async (page) => classifyAdapter(await page.evaluate(async (
       .map((key) => [key, typeof info[key] === "string" ? info[key] : ""])),
   };
 }));
+
+const READBACK_LIFECYCLE_FIELDS = Object.freeze([
+  "submits", "mapStarts", "mapCompletes", "validationCompletes", "joinCompletes", "ready",
+]);
+const SELECTION_CONTINUATION_FIELDS = Object.freeze([
+  "gpuAttempts", "gpuResults", "gpuFailures", "modalBegins", "modalFinishes",
+]);
+const classifySelectionReadbackBoundary = (baseline, current) => {
+  const readbackDelta = Object.fromEntries(READBACK_LIFECYCLE_FIELDS.map((field) => [
+    field,
+    current?.selectionReadback?.[field] - baseline?.selectionReadback?.[field],
+  ]));
+  const continuationDelta = Object.fromEntries(SELECTION_CONTINUATION_FIELDS.map((field) => [
+    field,
+    current?.selectionContinuation?.[field] - baseline?.selectionContinuation?.[field],
+  ]));
+  const phase = current?.selectionContinuation?.gpuPhase;
+  const active = current?.selectionContinuation?.active;
+  const queuedEvents = current?.selectionContinuation?.queuedEvents;
+  const result = (boundary) => ({
+    boundary,
+    phase,
+    active,
+    queuedEvents,
+    readbackDelta,
+    continuationDelta,
+  });
+  if (![...Object.values(readbackDelta), ...Object.values(continuationDelta),
+        phase, active, queuedEvents].every(Number.isFinite) ||
+      [...Object.values(readbackDelta), ...Object.values(continuationDelta)]
+        .some((value) => value < 0)) {
+    return result("invalid-counters");
+  }
+  if (continuationDelta.modalFinishes > 0 && active === 0) {
+    if (continuationDelta.gpuResults > 0) return result("completed");
+    if (continuationDelta.gpuFailures > 0) return result("failed");
+    return result("finished-without-result");
+  }
+  if (continuationDelta.modalBegins === 0 && active === 0) return result("not-started");
+  if (continuationDelta.gpuAttempts === 0) return result("selection-attempt");
+  if (phase === 3 || phase === 4) return result("draw-retry");
+  if (readbackDelta.submits < continuationDelta.gpuAttempts) return result("readback-submit");
+  if (readbackDelta.mapStarts < readbackDelta.submits) return result("map-start");
+  if (readbackDelta.mapCompletes < readbackDelta.mapStarts) return result("map-callback");
+  if (readbackDelta.validationCompletes < readbackDelta.submits) {
+    return result("validation-callback");
+  }
+  if (readbackDelta.joinCompletes <
+      Math.min(readbackDelta.mapCompletes, readbackDelta.validationCompletes)) {
+    return result("map-validation-join");
+  }
+  if (phase === 2) return result("draw-validation");
+  if (readbackDelta.ready > continuationDelta.gpuResults) return result("selection-consume");
+  if (continuationDelta.gpuResults > 0) return result("modal-finish");
+  if (phase === 5) return result("ticket-publication");
+  if (phase === 7 || continuationDelta.gpuFailures > 0) return result("failed");
+  return result("active-unknown");
+};
+
+if (process.env.BW_P0_READBACK_CLASSIFIER_SELFCHECK === "1") {
+  const snapshot = (selectionReadback = {}, selectionContinuation = {}) => ({
+    selectionReadback: {
+      submits: 0,
+      mapStarts: 0,
+      mapCompletes: 0,
+      validationCompletes: 0,
+      joinCompletes: 0,
+      ready: 0,
+      ...selectionReadback,
+    },
+    selectionContinuation: {
+      gpuPhase: 0,
+      gpuAttempts: 0,
+      gpuResults: 0,
+      gpuFailures: 0,
+      modalBegins: 0,
+      modalFinishes: 0,
+      active: 0,
+      queuedEvents: 0,
+      ...selectionContinuation,
+    },
+  });
+  const baseline = snapshot();
+  const fixtures = [
+    ["not-started", baseline],
+    ["selection-attempt", snapshot({}, {gpuPhase: 1, modalBegins: 1, active: 1})],
+    ["draw-retry", snapshot({}, {
+      gpuPhase: 3, gpuAttempts: 1, modalBegins: 1, active: 1,
+    })],
+    ["map-start", snapshot({submits: 1}, {
+      gpuPhase: 5, gpuAttempts: 1, modalBegins: 1, active: 1,
+    })],
+    ["map-callback", snapshot({submits: 1, mapStarts: 1, validationCompletes: 1}, {
+      gpuPhase: 5, gpuAttempts: 1, modalBegins: 1, active: 1,
+    })],
+    ["validation-callback", snapshot({
+      submits: 1, mapStarts: 1, mapCompletes: 1,
+    }, {gpuPhase: 2, gpuAttempts: 1, modalBegins: 1, active: 1})],
+    ["map-validation-join", snapshot({
+      submits: 1, mapStarts: 1, mapCompletes: 1, validationCompletes: 1,
+    }, {gpuPhase: 5, gpuAttempts: 1, modalBegins: 1, active: 1})],
+    ["draw-validation", snapshot({
+      submits: 2,
+      mapStarts: 2,
+      mapCompletes: 2,
+      validationCompletes: 2,
+      joinCompletes: 2,
+    }, {gpuPhase: 2, gpuAttempts: 2, modalBegins: 1, active: 1})],
+    ["completed", snapshot({
+      submits: 5,
+      mapStarts: 5,
+      mapCompletes: 5,
+      validationCompletes: 5,
+      joinCompletes: 5,
+      ready: 3,
+    }, {
+      gpuPhase: 0,
+      gpuAttempts: 5,
+      gpuResults: 3,
+      modalBegins: 1,
+      modalFinishes: 1,
+      active: 0,
+    })],
+  ];
+  for (const [expected, current] of fixtures) {
+    const actual = classifySelectionReadbackBoundary(baseline, current).boundary;
+    if (actual !== expected) {
+      throw new Error(`selection readback classifier expected ${expected}, got ${actual}`);
+    }
+  }
+  if (fixtures.length !== 9) throw new Error("selection readback classifier fixture count changed");
+  process.stdout.write("P0J_SELECTION_READBACK_BOUNDARY_SELFCHECK_PASS cases=9\n");
+  process.exit(0);
+}
+
 const browser = await chromium.launch({
   headless: false,
   args: [
@@ -411,6 +546,7 @@ try {
         drawDrops: current.drawDrops,
         selectionDrawValidation: {...current.selectionDrawValidation},
         selectionReadback: {...current.selectionReadback},
+        selectionReadbackBoundary: classifySelectionReadbackBoundary(counterBaseline, current),
         selectionContinuation: {...current.selectionContinuation},
         inputRedraw: {...current.inputRedraw},
         ghostInput: {...current.ghostInput},

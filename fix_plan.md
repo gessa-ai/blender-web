@@ -3808,7 +3808,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   empty page-error censuses were rejected. This changes no runtime byte and required no relink;
   CAPTURE `.wasm.orig` remains `40a21549d0f1`. P0-I/J stay open for this exact producer to pass the
   driver-operated Apple 10/10 plus the same-generation P0-E gauntlet. See
-  `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`.
+  `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`. **Exact slow/sparse Apple-series
+  gate implemented/pending hardware (`57f9fb0`):** hardware mode now fails closed unless every run
+  binds an immutable label, the current producer hash, the exact pinned Node/Playwright/pngjs/
+  Chromium stack, an accepted non-fallback adapter, and hashes for all five CAPTURE product files.
+  It cross-checks the local and served split manifests, requires the driver-supplied expected
+  `.wasm.orig`, re-hashes the product after the run, and publishes pass evidence exclusively so a
+  concurrent relink or duplicate label cannot overwrite a receipt. The series analyzer requires
+  exactly 10 same-generation runs and independently rechecks the native selection/replay, pixel,
+  timeout, lifecycle, and error contracts. Nineteen negative mutations, the real
+  `40a21549d0f1` product identity check, and an unchanged-product software retained-tail control are
+  green. This is evidence infrastructure only: no runtime byte was changed or relinked, and P0-I/J
+  remain open for the driver-operated Apple 10/10 plus the same-generation P0-E/broader gauntlet.
+  See `notes/p0-sparse-hardware-series-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

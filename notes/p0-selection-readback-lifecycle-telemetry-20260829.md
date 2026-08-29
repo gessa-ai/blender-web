@@ -135,6 +135,62 @@ Direct M4 remains honestly red at the Apple-pixel binding
 M0 6/6 while M1–M8 retain their named strict, hardware, APPLY, and product boundaries
 (`ledger/buildlogs/20260829T132507-9776.log`).
 
+## Slow/sparse retained-tail discriminator
+
+Implementation commit `6aac74b` closes a gap in the diagnostic producer rather than changing the
+product. The previous slow/sparse path waited for the projected Cube click to finish its complete
+asynchronous selection continuation before sending the second orbit. It therefore proved two clean
+isolated actions but never exercised the exact filed tail where one later, otherwise isolated orbit
+arrives while selection still owns the modal stack.
+
+The producer now preserves the driver's slow cadence, clicks Blender's live projected Cube point,
+waits one real 650 ms interval, and sends exactly one orbit without waiting for selection. When the
+GPU selection session has started but its modal finish generation has not advanced, acceptance now
+requires all of these boundaries together:
+
+- the left click and one middle-button orbit cross both GHOST and WM delivery counters;
+- the selection continuation begins and finishes once, returns inactive, drains its queue, and
+  records no new GPU failure;
+- the replayed-event generation advances rather than allowing a fresh post-selection orbit to hide
+  the retained path;
+- exactly Cube becomes selected, Cube location is unchanged, and Blender's native view rotation
+  changes;
+- strict content pixels and one retired rotate action are presented within the existing bound.
+
+The contract failed first because this retained-tail path and predicate were absent
+(`ledger/buildlogs/20260829T133722-18301.log`). Final rapid-input and selection-stream mutation
+self-checks are green (`ledger/buildlogs/20260829T135107-27091.log` and
+`ledger/buildlogs/20260829T135107-27095.log`), as are JavaScript syntax and the adjacent
+continuation-telemetry contract (`ledger/buildlogs/20260829T135107-27092.log` and
+`ledger/buildlogs/20260829T135107-27097.log`). Rotate retirement, readback lifecycle, same-turn map,
+draw validation, and capture contracts remain green
+(`ledger/buildlogs/20260829T134644-23429.log`,
+`ledger/buildlogs/20260829T134644-23430.log`,
+`ledger/buildlogs/20260829T134644-23442.log`,
+`ledger/buildlogs/20260829T134644-23451.log`, and
+`ledger/buildlogs/20260829T134644-23461.log`).
+
+The unchanged exact product completed one refined software control
+(`ledger/buildlogs/20260829T134813-24957.log`). At the delayed orbit boundary it recorded a started
+GPU session with no modal finish, so `selectionReplayRequired=true`. The continuation later exposed
+ten queued events, replayed all ten, returned queued events to zero, retired at modal begins/finishes
+`1/1`, selected exactly Cube, changed native view rotation, and preserved Cube location. The first
+orbit drained in 323 ms and the combined selection/replayed-orbit drain in 11,121 ms;
+`selectionInputWasRetained`, `selectionComplete`, `recoveryComplete`, and
+`retainedReplayExercised` are all true. This is fallback-adapter diagnostic evidence only.
+
+Two other attempts closed their external WSLg page/browser before reaching the retained-selection
+verdict and had empty page-error censuses (`ledger/buildlogs/20260829T134727-24432.log` and
+`ledger/buildlogs/20260829T134915-25536.log`). They are infrastructure rejects, not product samples.
+The cadence correction is local to the sparse click-to-orbit boundary; the existing 350 ms rapid
+producer remains unchanged. No relink was required and CAPTURE `.wasm.orig` remains
+`40a21549d0f1`.
+
+REUSE 6.2.0 is green (`ledger/buildlogs/20260829T135403-29704.log`). Direct M4 remains honestly
+red at its existing hardware-pixel binding (`ledger/buildlogs/20260829T135250-28311.log`). The
+authoritative pinned-oracle regression restores M0 6/6 while M1–M8 retain their named strict,
+hardware, APPLY, and product boundaries (`ledger/buildlogs/20260829T135319-28768.log`).
+
 ## Closure bar
 
 P0-I/J remain open. The driver must serve this exact inventory and capture the six-counter timeline

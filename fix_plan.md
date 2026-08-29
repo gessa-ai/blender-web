@@ -3796,7 +3796,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   three map-callback polls, one post-join draw-validation poll, and the terminal completion with no
   unknown active boundary; Cube selection and the following orbit retired. This is diagnostic-only
   and required no relink: CAPTURE `.wasm.orig` remains `40a21549d0f1`. P0-I/J remain open for the
-  driver-operated Apple 10/10 plus the same-generation P0-E gauntlet.
+  driver-operated Apple 10/10 plus the same-generation P0-E gauntlet. **Slow/sparse retained-tail
+  discriminator verified/pending Apple (`6aac74b`):** the sparse producer no longer waits for Cube
+  selection to finish before sending its second orbit. It waits one real 650 ms interval, sends
+  exactly one otherwise-isolated orbit, and—when the GPU selection session remains unfinished—fails
+  closed unless the modal continuation retires, its bounded FIFO replay generation advances,
+  exactly Cube is selected without moving, and Blender's native view rotation changes. The rapid
+  350 ms producer is unchanged. Fail-first plus final mutation/adjacent contracts are green. The
+  unchanged software product required replay, queued and replayed ten events, retired the combined
+  selection/orbit drain in 11,121 ms, and met every native boundary. Two external WSLg closures with
+  empty page-error censuses were rejected. This changes no runtime byte and required no relink;
+  CAPTURE `.wasm.orig` remains `40a21549d0f1`. P0-I/J stay open for this exact producer to pass the
+  driver-operated Apple 10/10 plus the same-generation P0-E gauntlet. See
+  `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

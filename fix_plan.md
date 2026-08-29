@@ -3757,7 +3757,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   recovery drains were 328-1,366/11,321-14,651/1,885-2,310 ms. This binds repeatable software
   behavior only; the exact Apple 10/10 and same-generation P0-E gauntlet remain mandatory, and no
   runtime byte or product claim changed. See
-  `notes/p0-selection-continuation-telemetry-20260829.md`.
+  `notes/p0-selection-continuation-telemetry-20260829.md`. **Selection readback same-turn-map
+  candidate implemented/relinked/pending hardware (`0931d51`, patch 0312):** the browser command
+  copy already submitted synchronously, but `kick_buffer()` registered `MapAsync` only after its
+  asynchronous command error scopes settled. The helper now publishes the exact submit edge;
+  selection mapping starts immediately after that browser submit, while a two-leg join keeps bytes
+  private until mapping and command validation both succeed. Native ordering and all existing
+  callers are preserved. Fail-first/final native+wasm32 ordering tests, focused mutation contract,
+  integrated WebGPU smoke, canonical replay, CAPTURE preflight, relink/no-work, REUSE, and the exact
+  slow/sparse software control are green. RELINKED CAPTURE `.wasm.orig` is `cddbb3585b90`
+  (119,028,538 bytes). The control selects Cube in 10,048 ms and retires both isolated orbits with
+  zero validation failures, selection fallbacks, or page errors. This remains software diagnosis:
+  P0-I/J stay open for this exact inventory to pass Apple 10/10 plus the same-generation P0-E
+  gauntlet. See `notes/p0-selection-readback-same-turn-map-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

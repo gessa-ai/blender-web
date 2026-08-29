@@ -2204,3 +2204,17 @@ state. A healthy cold software control should be able to show pending tickets ri
 zero without failures before selection completes; only hardware pixels close the defect. See
 `platform_web/ghost/GHOST_ContextWGPUWeb.cc` and
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.
+
+## Class 149 — register dependent browser work at submission, then join validation
+
+Signature: a command buffer is submitted synchronously in the browser calling turn, but dependent
+work such as `MapAsync` is started only from the terminal callback of asynchronous WebGPU error
+scopes. The submit is correctly ordered while the continuation that consumes it starts on a later
+event-loop turn—or never crosses the expected browser lifetime boundary. Report the exact
+`Queue::Submit` edge separately from the later validation verdict. Start the dependent operation
+immediately after a real submit, then join its completion with command validation before publishing
+any bytes or semantic result. On validation failure, release or unmap the dependent resource and
+fail closed. Preserve native validation-before-submit ordering and an exactly-once terminal result.
+See `upstream/source/blender/gpu/webgpu/wgpu_common.hh`,
+`upstream/source/blender/gpu/webgpu/wgpu_readback.cc`, and
+`sandbox/wgpu-buffer-integrated-smoke/integrated_buffer_test.cc`.

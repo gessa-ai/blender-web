@@ -3517,7 +3517,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   admission boundary. CAPTURE `.wasm.orig` is `1caec08e9582` (118,987,074 bytes). Device-free
   resize source/trace remain green, but two live fallback runs retain a RED legacy present-churn
   check (`5/2`, `5/4`) despite two coherent barriers and zero WebGPU rejects/loss; no P0-E
-  regression is claimed green until Apple pixels rerun. See
+  regression is claimed green until Apple pixels rerun. **Terminal-present discriminator
+  implemented/relinked (`ebb602a`):** the admitted generation is now sampled before each browser
+  surface transaction and published only after that transaction validates cleanly. Monotonic
+  publication prevents a delayed scoped callback from moving the evidence behind a newer unscoped
+  frame. The exact producer now requires `presented >= terminal` in addition to delivery,
+  admission, native state, and changed pixels. Native/wasm32 behavior covers newer, duplicate, and
+  out-of-order callbacks. The fallback control drains at terminal/admitted/presented `51/51/51`
+  and recovers at `64/65/65`, but this binds no Apple pixels. CAPTURE `.wasm.orig` is
+  `f396b0ea7950` (118,987,372 bytes). Apple must run this exact generation: terminal > admitted
+  locates the loss at the barrier, admitted > presented locates it between WM admission and clean
+  surface presentation, and matching generations with stale native state/pixels puts the defect
+  downstream. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

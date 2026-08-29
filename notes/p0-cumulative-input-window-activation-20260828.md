@@ -712,3 +712,47 @@ its legacy at-most-three-total-presents heuristic with shrink/restore deltas `5/
 P0-E regression green. The driver must run the exact Apple discriminator and P0-E/P0-I gauntlet. If
 Apple terminal exceeds admitted, the loss is at barrier admission; if they match while native state
 or pixels remain frozen, the re-arm-gap hypothesis is falsified and the defect is downstream.
+
+## Bind admitted terminal input to clean surface presentation
+
+Commit `ebb602a` adds the next downstream discriminator without changing redraw or presentation
+policy. `presentBackbuffer()` snapshots the latest admitted ordinary-input generation before
+encoding its surface transaction and publishes that generation only after the transaction's
+validation scopes complete cleanly. The atomic publication is monotonic: an older scoped callback
+that settles after a newer unscoped frame cannot move the counter backward. One bounded console
+line records each terminal generation that crosses this boundary, and the browser export
+`bw_input_redraw_presented_count()` makes the same fact machine-readable.
+
+The rapid producer now requires `presented >= terminal` alongside terminal GHOST delivery, WM
+admission, advancing ticks/presents/retries, changed pixels, a drained modal stack, and—in Apple
+mode—the Blender-native selection/rotation/location transitions. Its fail-first source contract
+rejects the absent counter (`ledger/buildlogs/20260829T003222-3584150.log`). The final mutation
+contract, real GHOST harness, and integrated native/wasm32 suite are green
+(`20260829T003529-3587662`, `20260829T003359-3584756`, and
+`20260829T003600-3589134`). The behavior suite now covers 85 cases, including newer, duplicate,
+and out-of-order presentation callbacks.
+
+The relinked exact fallback product passes the filed sequence
+(`ledger/buildlogs/20260829T003810-3592128.log`). Action drain takes 6,294 ms and reaches
+terminal/admitted/presented `51/51/51`; the independent recovery orbit takes 2,486 ms and reaches
+`64/65/65`. The resize-only episode remains 1, retained rapid samples are deliberately observed
+before the backlog drains, and page/lifecycle errors are empty. This is software-adapter diagnostic
+evidence only.
+
+The CAPTURE product is JS `6da5ca692add`, Wasm `e68f67650b7a`, `.wasm.orig`
+`f396b0ea7950` (118,987,372 bytes), data `095d0ba748c3`, and manifest `8bde9ab660d1`.
+Relink and committed-state locked no-work are green
+(`ledger/buildlogs/20260829T003635-3591210.log` and
+`20260829T004013-3594597.log`); CAPTURE preflight is green
+(`20260829T003759-3592021.log`). REUSE and the profile/capture/gauntlet self-checks are green
+(`20260829T003856-3593310`, `20260829T003920-3593499`,
+`20260829T003856-3593311`, and `20260829T003856-3593316`). Direct M4 remains honestly RED at the
+unsupported Apple-pixel binding (`20260829T003924-3593540`); pinned-container regression restores
+M0 6/6 and preserves the named later strict/APPLY/product boundaries
+(`20260829T003932-3593638`).
+
+P0-I/J remain open. On the exact Apple repro, terminal greater than admitted locates the loss at
+barrier admission; admitted greater than presented locates it between admitted WindowUpdate and a
+clean surface transaction; matching terminal/admitted/presented with stale native state or pixels
+locates it downstream. No hardware receipt, profile, result, promise, tolerance, golden, blacklist,
+deferral, APPLY/public bundle, tag, or launch claim changed.

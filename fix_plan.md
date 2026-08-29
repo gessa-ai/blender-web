@@ -3386,7 +3386,7 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   still cannot close P0-I/J. See
   `notes/p0-modal-extrude-frame-coherence-20260827.md` and
   `notes/p0-cumulative-input-window-activation-20260828.md`.
-- [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, blocked-by: none]:**
+- [ ] **P0-J-M4-CUMULATIVE-WORKSPACE-HIT-TEST [ghost-web/input, driver, claimed_by: root, blocked-by: none]:**
   the exact Modeling-tab coordinate changed Blender's native active workspace before navigation,
   while the original post-stress automation observed 0/8 later transitions. **Initial-activation
   candidate implemented/pending hardware:** DOM capture and a pass-through Blender modal probe
@@ -3854,7 +3854,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   `bba3f480bb3b`/`d09c9c6a5cee`/`095d0ba748c3`/`53076509e2b2`. Direct M4 remains red at the unchanged
   Apple pixel boundary. P0-I/J stay open until this exact generation passes the driver's 10/10
   slow/sparse series and same-generation P0-E/zero-artifact gauntlet. See
-  `notes/stuck-2026-08-29.md`.
+  `notes/stuck-2026-08-29.md`. **Unrelated-event pass-through candidate implemented/relinked/
+  pending Apple (`a3dd47b`, patch 0317):** the same WM return-code trace exposed a second exact
+  contradiction: the branch whose comment promised unrelated timer/custom events would keep
+  flowing returned `OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH`, which Blender maps to a
+  breaking modal action. It now returns bare pass-through, retaining the selection handler while
+  allowing later event owners to run. Fail-first/final focused and adjacent mutation contracts,
+  the affected Wasm object, 20,258-path canonical replay, locked CAPTURE relink/no-work/preflight,
+  exact slow/sparse fallback product control, and REUSE are green. RELINKED CAPTURE `.wasm.orig`
+  is `04b01d73e0a5` (119,031,221 bytes). One external WSLg page closure with zero page errors was
+  rejected; the isolated-X rerun exercised the live pending-selection route, passed navigation,
+  completed selection, and selected Cube without product errors. This remains device-free evidence:
+  P0-I/J stay open for Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
+  `notes/p0-selection-unrelated-event-passthrough-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

@@ -3780,7 +3780,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   selection-readback, page, or lifecycle error. RELINKED CAPTURE `.wasm.orig` is `40a21549d0f1`
   (119,029,200 bytes). This remains diagnostic software evidence: P0-I/J stay open for the driver
   to capture the first stopped boundary on Apple and pass exact 10/10 plus the same-generation
-  P0-E gauntlet. See `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`.
+  P0-E gauntlet. **Exact-generation software stability verified/pending hardware:** the unchanged
+  candidate completed 10/10 fresh isolated-X slow/sparse runs. Every completed run selected Cube,
+  retired both isolated orbits, and converged at readback lifecycle `5/5/5/5/5/3`, continuation
+  `1/5/3/6/0`, zero pending validation tickets, and zero validation/readback/page/lifecycle errors;
+  action/selection/recovery drains were 317-333/10,416-12,079/1,105-2,678 ms. Five separate WSLg
+  target-page closures with empty page-error censuses were rejected rather than counted. This
+  changes no runtime byte or hardware verdict: P0-I/J remain open for exact Apple 10/10 plus the
+  same-generation P0-E gauntlet. See
+  `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

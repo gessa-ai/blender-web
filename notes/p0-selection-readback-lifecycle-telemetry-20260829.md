@@ -77,10 +77,32 @@ returned to zero, selection completed, Cube became selected, and the following i
 changed state and pixels. Page-error, lifecycle-error, validation-failure, and selection-readback
 failure censuses were empty. This is fallback-adapter diagnostic evidence only.
 
+## Repeated software stability
+
+The unchanged `40a21549d0f1` inventory subsequently completed 10/10 fresh isolated-X slow/sparse
+runs (`ledger/buildlogs/20260829T125835-4182008.log` through
+`ledger/buildlogs/20260829T130633-4190259.log`). Every completed run selected exactly Cube and
+retired both isolated orbits. Action, selection, and recovery drains were respectively
+317-333 ms, 10,416-12,079 ms, and 1,105-2,678 ms. All ten converged at exact readback lifecycle
+submit/map-start/map-complete/validation/join/ready `5/5/5/5/5/3`, one selection continuation at
+sessions/attempts/results/replays/failures `1/5/3/6/0`, zero pending validation tickets, and zero
+validation failures, selection-readback failures, page errors, or lifecycle errors.
+
+Five other attempts were rejected rather than counted because the external WSLg target page and
+browser context closed during settle with an empty page-error census
+(`ledger/buildlogs/20260829T125752-4181544.log`,
+`ledger/buildlogs/20260829T125915-4183141.log`,
+`ledger/buildlogs/20260829T130222-4186045.log`,
+`ledger/buildlogs/20260829T130421-4187829.log`, and
+`ledger/buildlogs/20260829T130608-4189860.log`). The focused lifecycle self-check and pinned REUSE
+6.2.0 lint remain green (`ledger/buildlogs/20260829T130823-4191777.log` and
+`ledger/buildlogs/20260829T131028-4193394.log`). This repeatability binds software behavior only;
+it neither substitutes for nor weakens the Apple pixel gate.
+
 Direct M4 remains red at the Apple pixel binding
-(`ledger/buildlogs/20260829T125003-4175478.log`). The authoritative pinned-oracle regression keeps
+(`ledger/buildlogs/20260829T130830-4191867.log`). The authoritative pinned-oracle regression keeps
 M0 green at 6/6 while M1–M8 retain their named strict, hardware, APPLY, and product boundaries
-(`ledger/buildlogs/20260829T125121-4176851.log`).
+(`ledger/buildlogs/20260829T130902-4192334.log`).
 
 ## Closure bar
 

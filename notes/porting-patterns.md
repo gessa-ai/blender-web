@@ -2179,3 +2179,15 @@ so graceful degradation cannot manufacture a pass. Preserve native reports. See
 `upstream/source/blender/editors/space_view3d/view3d_select.cc`,
 `upstream/source/blender/windowmanager/intern/wm_event_system.cc`, and
 `sandbox/p0-interaction-stress/verify_select_stream_continuation.py`.
+
+## Class 147 — every modal-continuation teardown must preserve its retained input
+
+Signature: an asynchronous browser operator replays its FIFO on success, timeout, explicit Escape,
+and backend failure, but its registered external `cancel` callback frees the continuation directly.
+Window/area teardown or another WM-owned cancellation can then silently discard every ordinary
+event captured while the request was pending, even though the GPU and event loop remain healthy.
+Route external cancellation through the same replay-before-free ordering as other terminal paths;
+reuse the continuation's manager/window identity guard so context drift never requeues input into a
+replacement window. Mutation coverage must remove this one teardown replay independently of the
+normal modal exits. See `upstream/source/blender/editors/space_view3d/view3d_select.cc` and
+`sandbox/p0-interaction-stress/verify_select_stream_continuation.py`.

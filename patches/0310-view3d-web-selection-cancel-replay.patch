@@ -1,0 +1,14 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -4442,4 +4442,10 @@
+ static void view3d_select_cancel(bContext *C, wmOperator *op)
+ {
++#ifdef __EMSCRIPTEN__
++  View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);
++  if (data != nullptr) {
++    view3d_select_async_events_requeue(C, data);
++  }
++#endif
+   view3d_select_async_finish(C, op);
+ }

@@ -1233,3 +1233,6 @@
 # 0309: keep browser selection backend failures non-modal while replaying retained input, so a
 # failed pick cannot capture every later user action behind an operator-report popup.
 0309-view3d-web-selection-failure-nonmodal.patch
+# 0310: preserve the browser selection continuation's retained input when the WM cancels it
+# externally, using the same live-manager/window guard as ordinary completion and failure.
+0310-view3d-web-selection-cancel-replay.patch

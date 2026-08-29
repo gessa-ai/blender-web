@@ -18,6 +18,7 @@ VIEW3D_SELECT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_sele
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
 PATCH = ROOT / "patches/0305-gpu-webgpu-select-stream-continuation.patch"
 NONMODAL_PATCH = ROOT / "patches/0309-view3d-web-selection-failure-nonmodal.patch"
+CANCEL_PATCH = ROOT / "patches/0310-view3d-web-selection-cancel-replay.patch"
 SERIES = ROOT / "patches/series"
 
 
@@ -35,6 +36,7 @@ def validate(sources: dict[str, str]) -> None:
     producer = sources["producer"]
     patch = sources["patch"]
     nonmodal_patch = sources["nonmodal_patch"]
+    cancel_patch = sources["cancel_patch"]
     series = sources["series"]
 
     for token in (
@@ -121,8 +123,20 @@ def validate(sources: dict[str, str]) -> None:
         "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
         "      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n    }",
     )
-    if view3d_select.count("view3d_select_async_events_requeue(C, data);") < 5:
-        raise ValueError("selection completion/error paths do not all preserve retained input")
+    require(view3d_select, "view3d_select_async_events_requeue(C, data);", 7)
+    require(
+        view3d_select,
+        "static void view3d_select_cancel(bContext *C, wmOperator *op)\n"
+        "{\n"
+        "#ifdef __EMSCRIPTEN__\n"
+        "  View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);\n"
+        "  if (data != nullptr) {\n"
+        "    view3d_select_async_events_requeue(C, data);\n"
+        "  }\n"
+        "#endif\n"
+        "  view3d_select_async_finish(C, op);\n"
+        "}",
+    )
 
     for token in (
         'const stateOnlyDiagnostic = process.env.BW_P0_STATE_ONLY === "1";',
@@ -189,6 +203,17 @@ def validate(sources: dict[str, str]) -> None:
     ):
         require(nonmodal_patch, token)
     require(series, "0309-view3d-web-selection-failure-nonmodal.patch")
+    require(
+        cancel_patch,
+        "diff --git a/source/blender/editors/space_view3d/view3d_select.cc "
+        "b/source/blender/editors/space_view3d/view3d_select.cc",
+    )
+    for token in (
+        "+  View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);",
+        "+    view3d_select_async_events_requeue(C, data);",
+    ):
+        require(cancel_patch, token)
+    require(series, "0310-view3d-web-selection-cancel-replay.patch")
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -230,6 +255,23 @@ def self_check(sources: dict[str, str]) -> None:
             'view3d_select_async_web_failure_log("input queue exceeded its bound");',
             'BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");',
         ),
+        (
+            "view3d_select",
+            "static void view3d_select_cancel(bContext *C, wmOperator *op)\n"
+            "{\n"
+            "#ifdef __EMSCRIPTEN__\n"
+            "  View3DSelectAsyncData *data = static_cast<View3DSelectAsyncData *>(op->customdata);\n"
+            "  if (data != nullptr) {\n"
+            "    view3d_select_async_events_requeue(C, data);\n"
+            "  }\n"
+            "#endif\n"
+            "  view3d_select_async_finish(C, op);\n"
+            "}",
+            "static void view3d_select_cancel(bContext *C, wmOperator *op)\n"
+            "{\n"
+            "  view3d_select_async_finish(C, op);\n"
+            "}",
+        ),
         ("producer", 'throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic")', ""),
         (
             "producer",
@@ -260,6 +302,11 @@ def self_check(sources: dict[str, str]) -> None:
             "nonmodal_patch",
             "+static void view3d_select_async_web_failure_log(",
             "+static void view3d_select_async_modal_report(",
+        ),
+        (
+            "cancel_patch",
+            "+    view3d_select_async_events_requeue(C, data);",
+            "+    view3d_select_async_finish(C, op);",
         ),
         (
             "series",
@@ -294,6 +341,7 @@ def main() -> int:
         "producer": PRODUCER.read_text(),
         "patch": PATCH.read_text(),
         "nonmodal_patch": NONMODAL_PATCH.read_text(),
+        "cancel_patch": CANCEL_PATCH.read_text(),
         "series": SERIES.read_text(),
     }
     try:

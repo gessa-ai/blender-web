@@ -2218,3 +2218,15 @@ fail closed. Preserve native validation-before-submit ordering and an exactly-on
 See `upstream/source/blender/gpu/webgpu/wgpu_common.hh`,
 `upstream/source/blender/gpu/webgpu/wgpu_readback.cc`, and
 `sandbox/wgpu-buffer-integrated-smoke/integrated_buffer_test.cc`.
+
+## Class 150 — an aggregate pending count is not an asynchronous lifecycle discriminator
+
+Signature: a browser operation remains pending while input delivery and presentation telemetry
+advance, but the evidence cannot tell whether work failed to submit, its dependent callback never
+ran, validation never settled, two completed legs never joined, or the terminal result was never
+published. Add read-only monotonic generations at each already-existing boundary and sample them in
+the same bounded producer; do not make the diagnostic own, poll, or advance the operation. Keep
+successful publication distinct from terminal joining because a joined failure must not look like
+a usable result. Mutation-test every export and fail closed when the served product lacks one. See
+`upstream/source/blender/gpu/webgpu/wgpu_readback.cc` and
+`sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

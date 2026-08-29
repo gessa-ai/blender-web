@@ -3769,7 +3769,18 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   (119,028,538 bytes). The control selects Cube in 10,048 ms and retires both isolated orbits with
   zero validation failures, selection fallbacks, or page errors. This remains software diagnosis:
   P0-I/J stay open for this exact inventory to pass Apple 10/10 plus the same-generation P0-E
-  gauntlet. See `notes/p0-selection-readback-same-turn-map-20260829.md`.
+  gauntlet. See `notes/p0-selection-readback-same-turn-map-20260829.md`. **Selection-readback
+  lifecycle discriminator exported/relinked/pending hardware (`9a75f6c`, patch 0313):** aggregate
+  pending state could not locate a browser stall within the exact-buffer continuation. Six
+  read-only generations now distinguish submit, map start, map callback, validation callback, join,
+  and successful `Ready` publication; the producer samples them on every existing bounded poll and
+  rejects a served product missing any export. No selection/input/retry/redraw/timeout/present
+  policy changed. The exact isolated-X control traverses `5/5/5/5/5/3`, matching five attempts and
+  three GPU results, then selects Cube and repaints an independent orbit with zero validation,
+  selection-readback, page, or lifecycle error. RELINKED CAPTURE `.wasm.orig` is `40a21549d0f1`
+  (119,029,200 bytes). This remains diagnostic software evidence: P0-I/J stay open for the driver
+  to capture the first stopped boundary on Apple and pass exact 10/10 plus the same-generation
+  P0-E gauntlet. See `notes/p0-selection-readback-lifecycle-telemetry-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

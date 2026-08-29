@@ -51,6 +51,10 @@ def validate(source: str) -> None:
         'const finalProductIdentity = await inspectProductIdentity(',
         'hardware diagnostic product changed during the run',
         'const sampleCadenceMs = sparseDiagnostic ? 650 : 350;',
+        'const sparseCadenceTimeline = [];',
+        'const sampleSparseCadence = async (action, name, actionCompletedAt) =>',
+        'sample: name,',
+        'delayMs: sampleStartedAt - actionCompletedAt,',
         'hardwareDiagnostic && process.platform !== "darwin"',
         'const SOFTWARE_ADAPTER_TOKENS = Object.freeze([',
         'typeof info.isFallbackAdapter === "boolean"',
@@ -89,7 +93,6 @@ def validate(source: str) -> None:
         "(!requireNativeState || nativeStateComplete(current))",
         'operator === "WM_OT_bwp0r_input_probe"',
         '(allowSelectionModal && operator === "VIEW3D_OT_select")',
-        'await page.waitForTimeout(sampleCadenceMs);',
         'const hardwareIsolatedOrbitStateComplete = (current, baseline) =>',
         'current.nativeState?.selected_count === baseline.nativeState?.selected_count',
         'from bpy_extras import view3d_utils',
@@ -97,9 +100,11 @@ def validate(source: str) -> None:
         'selectionPoint = nativeCubePagePoint(selectionBaseline, box);',
         'await page.mouse.click(selectionPoint.x, selectionPoint.y);',
         'if (sparseDiagnostic) {',
-        '"isolated-orbit-drain",',
-        'current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}',
-        '(current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline)',
+        'const firstOrbitCompletedAt = Date.now();',
+        '"orbit-before-click", firstOrbitCompletedAt',
+        'actionDrain = {...orbitBeforeClick, settleMs: sparseCadenceTimeline.at(-1).delayMs};',
+        'actionDrain, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}',
+        '!hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline)',
         'const nativeSelectionReplayComplete = (current, baseline) =>',
         'const selectionContinuationRetired = (current, baseline) =>',
         'current.selectionContinuation.modalBegins > baseline.selectionContinuation.modalBegins',
@@ -107,13 +112,22 @@ def validate(source: str) -> None:
         'current.selectionContinuation.active === 0',
         'current.selectionContinuation.queuedEvents === 0',
         'current.selectionContinuation.gpuFailures === baseline.selectionContinuation.gpuFailures',
-        'const selectionPendingWindow = await sample("isolated-selection-pending");',
+        'const selectionClickCompletedAt = Date.now();',
+        '"selection-click", "isolated-selection-pending", selectionClickCompletedAt',
         'selectionNavigationPassthroughRequired =\n'
         '      selectionPendingWindow.selectionContinuation.gpuSessions >',
         'selectionPendingWindow.selectionContinuation.modalFinishes ===',
-        'const selectionNavigationWindow = await waitForActionDrain(',
-        '"isolated-selection-navigation-passthrough",',
+        'const navigationCompletedAt = Date.now();',
+        '"navigation-orbit",\n'
+        '      "isolated-selection-navigation-passthrough",\n'
+        '      navigationCompletedAt',
+        'const transformMotionCompletedAt = Date.now();',
+        '"transform-motion", "isolated-transform-pending", transformMotionCompletedAt',
+        'const transformConfirmCompletedAt = Date.now();',
+        '"transform-confirm", "isolated-transform-confirmed", transformConfirmCompletedAt',
         'selectionNavigationPassedThrough =\n',
+        '(!hardwareDiagnostic || !selectionNavigationPassthroughRequired ||\n'
+        '         selectionNavigationPassedThrough)',
         '"isolated-selection-drain",',
         'current, selectionInputBaseline, {left: 2, middle: 1, keys: 1}',
         '(current) => nativeSelectionReplayComplete(current, selectionBaseline) &&',
@@ -124,6 +138,7 @@ def validate(source: str) -> None:
         'selectionNavigationPassthroughRequired,',
         '\n    selectionNavigationPassedThrough,\n    actionDrainMs:',
         'selectionDrainMs: selectionDrain?.settleMs ?? null',
+        'sparseCadenceTimeline,',
         'const postDrainBaseline = selectionDrain;',
         'const postDrainInputBaseline = postDrainBaseline.ghostInput;',
         'const postDrainWmInputBaseline = postDrainBaseline.wmInput;',
@@ -132,7 +147,7 @@ def validate(source: str) -> None:
         'current, postDrainWmInputBaseline, {left: 0, middle: 1, keys: 0}',
         '(current) => hardwareRecoveryStateComplete(current, postDrainBaseline)',
         'recoveryComplete: hardwareRecoveryStateComplete(recoveryOrbit, postDrainBaseline)',
-        'const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");',
+        'let orbitBeforeClick = sparseDiagnostic ?',
         'const ghostInputDeliveryComplete = (current, baseline, expected) =>',
         'current.ghostInput.leftPresses >= baseline.leftPresses + expected.left',
         'current.ghostInput.leftReleases >= baseline.leftReleases + expected.left',
@@ -192,8 +207,16 @@ def validate(source: str) -> None:
         "evidence.selectionReadbackFailureLines.length !== 0",
     ):
         require_once(source, token)
-    if source.count("await page.waitForTimeout(Math.max(sampleCadenceMs, 650));") != 2:
-        raise ValueError("slow/sparse selection and post-drain pauses are not both present")
+    if source.count("await page.waitForTimeout(sampleCadenceMs);") != 2:
+        raise ValueError("ordinary settle and fixed-cadence sampling waits are not both present")
+    if source.count("await page.waitForTimeout(Math.max(sampleCadenceMs, 650));") != 1:
+        raise ValueError("slow/sparse post-drain pause is not unique")
+    sparse_start = source.index("if (sparseDiagnostic) {")
+    sparse_drain = source.index('selectionDrain = await waitForActionDrain(', sparse_start)
+    if "waitForActionDrain(" in source[sparse_start:sparse_drain]:
+        raise ValueError("slow/sparse input cadence still waits for an intermediate drain")
+    if source.index('await page.keyboard.press("g");', sparse_start) > sparse_drain:
+        raise ValueError("slow/sparse transform starts after the terminal drain")
     if source.count(
         "stateArraysEqual(current.nativeState?.location, baseline.nativeState?.location)"
     ) != 1:
@@ -606,8 +629,8 @@ def self_check(
         ),
         replace_once(
             source,
-            '"isolated-orbit-drain",',
-            '"isolated-orbit-skipped",',
+            '"orbit-before-click", firstOrbitCompletedAt',
+            '"orbit-before-click-skipped", firstOrbitCompletedAt',
         ),
         replace_once(
             source,
@@ -633,6 +656,12 @@ def self_check(
             source,
             'navigationPassedThrough: selectionNavigationPassedThrough',
             'navigationPassedThrough: true',
+        ),
+        replace_once(
+            source,
+            '(!hardwareDiagnostic || !selectionNavigationPassthroughRequired ||\n'
+            '         selectionNavigationPassedThrough)',
+            '(!selectionNavigationPassthroughRequired || selectionNavigationPassedThrough)',
         ),
         replace_once(
             source,

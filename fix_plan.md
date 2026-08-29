@@ -3968,7 +3968,22 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   errors was rejected rather than counted. No runtime byte or relink changed: CAPTURE `.wasm.orig`
   remains `6b0ac5366aef`. P0-I/J remain open for this stronger producer and exact candidate to pass
   Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
-  `notes/p0-sparse-hardware-series-20260829.md`.
+  `notes/p0-sparse-hardware-series-20260829.md`. **Fixed-cadence sparse tail plus first-selection
+  translation seed implemented/relinked/pending Apple:** the producer now follows the driver's
+  sparse repro without intermediate drains, sampling first orbit, Cube click, navigation orbit,
+  transform motion, and confirmation after fixed 650 ms intervals; the independent Apple consumer
+  binds all five timestamps and remains strict about early pixel/native pass-through. Real-product
+  tracing localized the first selection stall to synchronous stage-80 creation of selectable
+  overlay shaders. The immutable seed now contains 136 startup-plus-selection entries; an A/B run
+  changed the selection path from 135 misses to 160 hits/zero misses, and a final bundled audit
+  added the sole remaining selectable variant. The isolated-X exact product changes pixels/native
+  rotation on the first post-`Alt+A` orbit at 650 ms, records 36 selectable cache hits and zero
+  translation misses, drains selection/transform, and completes a third orbit with no page errors.
+  SwiftShader still reports 34 async module/pipeline drops and does not bind the early pending-
+  selection navigation verdict. The seed's Brotli-q11 cost is 13,998 bytes. RELINKED CAPTURE
+  `.wasm.orig` remains `6b0ac5366aef` while data becomes `db2cc4f50a0a`; P0-I/J remain open for
+  Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
+  `notes/p0-fixed-cadence-selection-seed-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

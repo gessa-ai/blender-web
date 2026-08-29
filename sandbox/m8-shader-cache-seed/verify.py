@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PACK = ROOT / "platform_web/shader_cache/first_boot.bwsp"
 MANIFEST = ROOT / "platform_web/shader_cache/first_boot.seed.json"
 GENERATOR = ROOT / "scripts/build-shader-cache-seed.py"
+PROBE = ROOT / "sandbox/m8-shader-cache-seed/probe_seed.mjs"
 SOURCE_ENTRIES = ROOT / "sandbox/m8-shader-cache-seed/artifacts/seed"
 CACHE_CC = ROOT / "upstream/source/blender/gpu/webgpu/wgpu_shader_cache.cc"
 PLATFORM = ROOT / "patches/platform_wasm.cmake"
@@ -126,7 +127,9 @@ def require_once(text: str, needle: str, label: str) -> None:
 
 
 def main() -> int:
-    required = [PACK, MANIFEST, GENERATOR, CACHE_CC, PLATFORM, PATCH, SERIES, PREVIEW, PREVIEW_SHA]
+    required = [
+        PACK, MANIFEST, GENERATOR, PROBE, CACHE_CC, PLATFORM, PATCH, SERIES, PREVIEW, PREVIEW_SHA
+    ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
     if missing:
         raise ContractError("missing first-boot seed inputs: " + ", ".join(missing))
@@ -150,14 +153,15 @@ def main() -> int:
         raise ContractError("seed manifest lacks a concrete source Wasm identity")
     if manifest.get("diagnosticNonreceipt") is not True:
         raise ContractError("software extraction must remain explicitly nonreceipt")
-    if len(entries) != 100:
-        raise ContractError(f"first-frame seed identity drifted: {len(entries)} != 100")
+    if len(entries) != 136:
+        raise ContractError(f"first-interaction seed identity drifted: {len(entries)} != 136")
 
     cache_source = CACHE_CC.read_text()
     platform_source = PLATFORM.read_text()
     numbered_patch = PATCH.read_text()
     series = SERIES.read_text()
     preview = PREVIEW.read_text()
+    probe = PROBE.read_text()
     require_once(cache_source,
                  'constexpr const char *kSeedPath = "/bw/shader-cache/first_boot.bwsp";',
                  "runtime seed path")
@@ -173,8 +177,21 @@ def main() -> int:
     for label, source in (("numbered patch", numbered_patch), ("canonical patch", preview)):
         require_once(source, 'kSeedPath = "/bw/shader-cache/first_boot.bwsp"', label)
         require_once(source, "return seed_cache_lookup(", label)
-    if not series.rstrip().endswith("0285-gpu-webgpu-first-boot-shader-cache-seed.patch"):
-        raise ContractError("0285 is not the final applied series entry")
+    require_once(
+        series,
+        "0285-gpu-webgpu-first-boot-shader-cache-seed.patch",
+        "0285 series identity",
+    )
+    for token in (
+        '"extract-selection", "seeded", "seeded-selection"',
+        '"extract-bundled-selection"',
+        'mode === "disabled" || mode === "extract-selection"',
+        'if (mode.endsWith("-selection"))',
+        'Number(mod?._bw_exact_buffer_readback_ready_count?.()) > 0',
+        'Number(mod?._bw_gpu_select_async_phase?.()) === 0',
+        "selectionReadyMs = Date.now() - selectionAt;",
+    ):
+        require_once(probe, token, "selection seed probe")
     expected_preview_hash, expected_preview_name = PREVIEW_SHA.read_text().split()
     if expected_preview_name != "PREVIEW_SNAPSHOT.patch" or \
             hashlib.sha256(PREVIEW.read_bytes()).hexdigest() != expected_preview_hash:

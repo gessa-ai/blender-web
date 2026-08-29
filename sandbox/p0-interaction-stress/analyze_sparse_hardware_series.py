@@ -19,6 +19,14 @@ ROOT = Path(__file__).resolve().parents[2]
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
 REQUIRED_RUNS = 10
 HARDWARE_TIMEOUT_MS = 12_000
+MAX_CADENCE_DELAY_MS = 1_500
+CADENCE_STEPS = (
+    ("first-orbit", "orbit-before-click"),
+    ("selection-click", "isolated-selection-pending"),
+    ("navigation-orbit", "isolated-selection-navigation-passthrough"),
+    ("transform-motion", "isolated-transform-pending"),
+    ("transform-confirm", "isolated-transform-confirmed"),
+)
 SAFE_RUN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 PRODUCT_FILES = {
@@ -45,9 +53,10 @@ REQUIRED_STEPS = {
     "select-all",
     "deselect-all",
     "orbit-before-click",
-    "isolated-orbit-drain",
     "isolated-selection-pending",
     "isolated-selection-navigation-passthrough",
+    "isolated-transform-pending",
+    "isolated-transform-confirmed",
     "isolated-selection-drain",
     "isolated-post-drain-recovery-orbit",
 }
@@ -198,6 +207,31 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
         value = document.get(field)
         require(isinstance(value, (int, float)) and not isinstance(value, bool) and
                 0 <= value <= HARDWARE_TIMEOUT_MS, f"{field} exceeded the hardware bound")
+    cadence = document.get("sparseCadenceTimeline")
+    require(isinstance(cadence, list) and len(cadence) == len(CADENCE_STEPS),
+            "fixed-cadence action timeline is incomplete")
+    previous_sample_ms = -1
+    for entry, (expected_action, expected_sample) in zip(cadence, CADENCE_STEPS, strict=True):
+        require(isinstance(entry, dict) and set(entry) == {
+            "action", "sample", "actionCompletedAtMs", "sampleStartedAtMs", "delayMs"
+        }, "fixed-cadence timeline fields differ")
+        require(entry.get("action") == expected_action and
+                entry.get("sample") == expected_sample,
+                "fixed-cadence action/sample order differs")
+        action_ms = entry.get("actionCompletedAtMs")
+        sample_ms = entry.get("sampleStartedAtMs")
+        delay_ms = entry.get("delayMs")
+        require(all(type(value) is int and value >= 0
+                    for value in (action_ms, sample_ms, delay_ms)),
+                "fixed-cadence timeline values are invalid")
+        require(sample_ms - action_ms == delay_ms and
+                document["sampleCadenceMs"] <= delay_ms <= MAX_CADENCE_DELAY_MS,
+                "slow/sparse action did not preserve the fixed cadence")
+        require(action_ms >= previous_sample_ms,
+                "slow/sparse actions overlap or reorder their samples")
+        previous_sample_ms = sample_ms
+    require(document.get("actionDrainMs") == cadence[0]["delayMs"],
+            "first-orbit timing is not bound to the fixed-cadence sample")
     for field in ("pageErrors", "lifecycle", "selectionReadbackFailureLines"):
         require(document.get(field) == [], f"{field} is not empty")
 
@@ -213,7 +247,7 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
                 f"focused step pixel SHA-256 is invalid: {step.get('name')}")
     by_name = {step["name"]: step for step in steps}
     deselected = by_name["deselect-all"]
-    baseline = by_name["isolated-orbit-drain"]
+    baseline = by_name["orbit-before-click"]
     navigation = by_name["isolated-selection-navigation-passthrough"]
     final = by_name["isolated-selection-drain"]
     recovery = by_name["isolated-post-drain-recovery-orbit"]
@@ -320,8 +354,6 @@ def validate_document(document: dict[str, Any]) -> dict[str, Any]:
     require(isinstance(timelines, dict) and
             all(isinstance(timelines.get(name), list) and timelines[name]
                 for name in (
-                    "isolated-orbit-drain",
-                    "isolated-selection-navigation-passthrough",
                     "isolated-selection-drain",
                     "isolated-post-drain-recovery-orbit",
                 )),
@@ -463,17 +495,26 @@ def synthetic_document(index: int = 0) -> dict[str, Any]:
         "selectionPoint": {"x": 512.0, "y": 360.0},
         "selectionNavigationPassthroughRequired": True,
         "selectionNavigationPassedThrough": True,
-        "actionDrainMs": 500,
+        "actionDrainMs": 650,
         "selectionDrainMs": 1500,
         "recoveryOrbitMs": 1500,
+        "sparseCadenceTimeline": [
+            {
+                "action": action,
+                "sample": sample,
+                "actionCompletedAtMs": offset,
+                "sampleStartedAtMs": offset + 650,
+                "delayMs": 650,
+            }
+            for offset, (action, sample) in zip(
+                (0, 800, 1600, 2400, 3200), CADENCE_STEPS, strict=True)
+        ],
         "nativeStateContract": {
             "enforced": True, "selectionEnforced": True, "actionComplete": True,
             "selectionComplete": True, "recoveryComplete": True,
             "navigationPassedThrough": True,
         },
         "drainTimelines": {
-            "isolated-orbit-drain": [{"elapsedMs": 250}],
-            "isolated-selection-navigation-passthrough": [{"elapsedMs": 250}],
             "isolated-selection-drain": [{"elapsedMs": 250}],
             "isolated-post-drain-recovery-orbit": [{"elapsedMs": 250}],
         },
@@ -520,17 +561,17 @@ def self_check() -> None:
                           if step["name"] == "isolated-selection-drain")[
                               "selectionContinuation"].__setitem__("replayedEvents", 0),
         lambda docs: next(step for step in docs[0]["steps"]
-                          if step["name"] == "isolated-orbit-drain").__setitem__(
+                          if step["name"] == "orbit-before-click").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
                                              if step["name"] == "deselect-all")["sha256"]),
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-selection-navigation-passthrough").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
-                                             if step["name"] == "isolated-orbit-drain")["sha256"]),
+                                             if step["name"] == "orbit-before-click")["sha256"]),
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-selection-drain").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
-                                             if step["name"] == "isolated-orbit-drain")["sha256"]),
+                                             if step["name"] == "orbit-before-click")["sha256"]),
         lambda docs: next(step for step in docs[0]["steps"]
                           if step["name"] == "isolated-post-drain-recovery-orbit").__setitem__(
                               "sha256", next(step for step in docs[0]["steps"]
@@ -567,8 +608,17 @@ def self_check() -> None:
                           if step["name"] == "isolated-post-drain-recovery-orbit").__setitem__(
                               "ticks", 10),
         lambda docs: docs[0].__setitem__("selectionReadbackFailureLines", ["failed"]),
+        lambda docs: docs[0]["sparseCadenceTimeline"].pop(),
+        lambda docs: docs[0]["sparseCadenceTimeline"][0].__setitem__(
+            "delayMs", MAX_CADENCE_DELAY_MS + 1),
+        lambda docs: docs[0]["sparseCadenceTimeline"][1].__setitem__(
+            "action", "selection-drain"),
+        lambda docs: docs[0]["sparseCadenceTimeline"][2].__setitem__(
+            "sample", "isolated-selection-drain"),
+        lambda docs: docs[0]["sparseCadenceTimeline"][3].__setitem__(
+            "actionCompletedAtMs", 0),
         lambda docs: docs[0]["drainTimelines"].__setitem__(
-            "isolated-selection-navigation-passthrough", []),
+            "isolated-selection-drain", []),
         lambda docs: docs[0]["drainTimelines"].__setitem__(
             "isolated-post-drain-recovery-orbit", []),
     ]

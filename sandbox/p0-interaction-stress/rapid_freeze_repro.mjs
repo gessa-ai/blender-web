@@ -727,6 +727,23 @@ try {
   };
   const steps = [];
   failureContext.steps = steps;
+  const sparseCadenceTimeline = [];
+  failureContext.sparseCadenceTimeline = sparseCadenceTimeline;
+  const sparseCadenceEpoch = Date.now();
+  const sampleSparseCadence = async (action, name, actionCompletedAt) => {
+    await page.waitForTimeout(sampleCadenceMs);
+    const sampleStartedAt = Date.now();
+    const current = await sample(name);
+    sparseCadenceTimeline.push({
+      action,
+      sample: name,
+      actionCompletedAtMs: actionCompletedAt - sparseCadenceEpoch,
+      sampleStartedAtMs: sampleStartedAt - sparseCadenceEpoch,
+      delayMs: sampleStartedAt - actionCompletedAt,
+    });
+    steps.push(current);
+    return current;
+  };
   const splashDismissed = await sample("splash-dismissed");
   if (![splashDismissed.drawDrops,
         splashDismissed.selectionDrawValidation.pending,
@@ -770,9 +787,14 @@ try {
   await page.mouse.down({button: "middle"});
   await page.mouse.move(center.x + 34, center.y + 20, {steps: 8});
   await page.mouse.up({button: "middle"});
-  await settle("orbit-before-click");
-
-  const orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");
+  const firstOrbitCompletedAt = Date.now();
+  let orbitBeforeClick = sparseDiagnostic ?
+    await sampleSparseCadence("first-orbit", "orbit-before-click", firstOrbitCompletedAt) :
+    null;
+  if (!sparseDiagnostic) {
+    await settle("orbit-before-click");
+    orbitBeforeClick = steps.find((step) => step.name === "orbit-before-click");
+  }
   const drainTimeoutMs = hardwareDiagnostic ? 12000 : 30000;
   let actionDrain;
   let selectionDrain = null;
@@ -783,20 +805,16 @@ try {
   let nativeStateContract;
   let retainedActionFramesEqual = null;
   if (sparseDiagnostic) {
-    actionDrain = await waitForActionDrain(
-      "isolated-orbit-drain",
-      isolatedOrbitBaseline.sha256,
-      isolatedOrbitBaseline,
-      isolatedOrbitBaseline,
-      1,
-      (current) => ghostInputDeliveryComplete(
-        current, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}) &&
-        wmInputDeliveryComplete(
-          current, isolatedOrbitWmInputBaseline, {left: 0, middle: 1, keys: 0}),
-      (current) => hardwareIsolatedOrbitStateComplete(current, isolatedOrbitBaseline),
-      drainTimeoutMs,
-    );
-    steps.push(actionDrain);
+    actionDrain = {...orbitBeforeClick, settleMs: sparseCadenceTimeline.at(-1).delayMs};
+    if (hardwareDiagnostic &&
+        (!ghostInputDeliveryComplete(
+          actionDrain, isolatedOrbitInputBaseline, {left: 0, middle: 1, keys: 0}) ||
+         !wmInputDeliveryComplete(
+           actionDrain, isolatedOrbitWmInputBaseline, {left: 0, middle: 1, keys: 0}) ||
+         !hardwareIsolatedOrbitStateComplete(actionDrain, isolatedOrbitBaseline) ||
+         actionDrain.sha256 === isolatedOrbitBaseline.sha256)) {
+      throw new Error("fixed-cadence first orbit did not visibly complete within 650ms");
+    }
 
     /* The filed freeze changes the first orbit, then becomes permanent when the following click
      * starts VIEW3D_OT_select. Reproduce its sparse tail instead of avoiding it: after one real
@@ -809,9 +827,9 @@ try {
     selectionPoint = nativeCubePagePoint(selectionBaseline, box);
     await page.mouse.move(selectionPoint.x, selectionPoint.y);
     await page.mouse.click(selectionPoint.x, selectionPoint.y);
-    await page.waitForTimeout(Math.max(sampleCadenceMs, 650));
-    const selectionPendingWindow = await sample("isolated-selection-pending");
-    steps.push(selectionPendingWindow);
+    const selectionClickCompletedAt = Date.now();
+    const selectionPendingWindow = await sampleSparseCadence(
+      "selection-click", "isolated-selection-pending", selectionClickCompletedAt);
     selectionNavigationPassthroughRequired =
       selectionPendingWindow.selectionContinuation.gpuSessions >
         selectionBaseline.selectionContinuation.gpuSessions &&
@@ -822,23 +840,11 @@ try {
     await page.mouse.down({button: "middle"});
     await page.mouse.move(center.x - 34, center.y + 16, {steps: 8});
     await page.mouse.up({button: "middle"});
-    const selectionNavigationWindow = await waitForActionDrain(
+    const navigationCompletedAt = Date.now();
+    const selectionNavigationWindow = await sampleSparseCadence(
+      "navigation-orbit",
       "isolated-selection-navigation-passthrough",
-      selectionBaseline.sha256,
-      selectionPendingWindow,
-      selectionBaseline,
-      1,
-      (current) => ghostInputDeliveryComplete(
-        current, navigationInputBaseline, {left: 0, middle: 1, keys: 0}) &&
-        wmInputDeliveryComplete(
-          current, navigationWmInputBaseline, {left: 0, middle: 1, keys: 0}),
-      (current) => hardwareIsolatedOrbitStateComplete(current, selectionBaseline),
-      drainTimeoutMs,
-      true,
-      true,
-      false,
-    );
-    steps.push(selectionNavigationWindow);
+      navigationCompletedAt);
     selectionNavigationPassthroughRequired =
       selectionNavigationPassthroughRequired ||
       (selectionNavigationWindow.selectionContinuation.modalBegins >
@@ -847,6 +853,11 @@ try {
          selectionBaseline.selectionContinuation.modalFinishes &&
        selectionNavigationWindow.selectionContinuation.active === 1);
     selectionNavigationPassedThrough =
+      selectionNavigationWindow.sha256 !== selectionBaseline.sha256 &&
+      ghostInputDeliveryComplete(
+        selectionNavigationWindow, navigationInputBaseline, {left: 0, middle: 1, keys: 0}) &&
+      wmInputDeliveryComplete(
+        selectionNavigationWindow, navigationWmInputBaseline, {left: 0, middle: 1, keys: 0}) &&
       view3dRotateRetired(selectionNavigationWindow, selectionBaseline, 1) &&
       nativeViewChanged(selectionNavigationWindow, selectionBaseline) &&
       selectionNavigationWindow.selectionContinuation.replayedEvents ===
@@ -858,7 +869,13 @@ try {
      * the replay into a zero-delta transform. */
     await page.keyboard.press("g");
     await page.mouse.move(center.x + 40, center.y - 20, {steps: 8});
+    const transformMotionCompletedAt = Date.now();
+    await sampleSparseCadence(
+      "transform-motion", "isolated-transform-pending", transformMotionCompletedAt);
     await page.mouse.click(center.x + 40, center.y - 20);
+    const transformConfirmCompletedAt = Date.now();
+    await sampleSparseCadence(
+      "transform-confirm", "isolated-transform-confirmed", transformConfirmCompletedAt);
     selectionDrain = await waitForActionDrain(
       "isolated-selection-drain",
       selectionBaseline.sha256,
@@ -871,7 +888,8 @@ try {
           current, selectionWmInputBaseline, {left: 2, middle: 1, keys: 1}),
       (current) => nativeSelectionReplayComplete(current, selectionBaseline) &&
         selectionContinuationRetired(current, selectionBaseline) &&
-        (!selectionNavigationPassthroughRequired || selectionNavigationPassedThrough),
+        (!hardwareDiagnostic || !selectionNavigationPassthroughRequired ||
+         selectionNavigationPassedThrough),
       drainTimeoutMs,
       true,
     );
@@ -993,6 +1011,7 @@ try {
     actionDrainMs: actionDrain.settleMs,
     selectionDrainMs: selectionDrain?.settleMs ?? null,
     recoveryOrbitMs: recoveryOrbit.settleMs,
+    sparseCadenceTimeline,
     nativeStateContract,
     drainTimelines,
     nativeInputs,
@@ -1049,6 +1068,7 @@ catch (error) {
     nativeStates: failureContext?.nativeStates || [],
     retainedActionFramesEqual: sparseDiagnostic ? null :
       (retained.length === 5 ? new Set(retained).size === 1 : null),
+    sparseCadenceTimeline: failureContext?.sparseCadenceTimeline || [],
     drainTimelines: failureContext?.drainTimelines || {},
     pageErrors: failureContext?.pageErrors || [],
     lifecycle: failureContext?.lifecycle || [],

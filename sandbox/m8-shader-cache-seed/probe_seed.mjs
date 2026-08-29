@@ -28,8 +28,15 @@ if (!chromium) {
 }
 
 const mode = process.argv[2] || "extract";
-if (!new Set(["extract", "seeded", "bundled", "disabled"]).has(mode)) {
-  throw new Error("usage: probe_seed.mjs extract|seeded|bundled|disabled [port] [seed-dir] [tag]");
+if (!new Set([
+  "extract", "extract-selection", "seeded", "seeded-selection", "bundled", "disabled",
+  "extract-bundled-selection",
+]).has(mode)) {
+  throw new Error(
+    "usage: probe_seed.mjs extract|extract-selection|extract-bundled-selection|" +
+    "seeded|seeded-selection|bundled|disabled " +
+    "[port] [seed-dir] [tag]",
+  );
 }
 const port = Number(process.argv[3] || 8123);
 const seedDir = resolve(process.argv[4] ||
@@ -42,7 +49,7 @@ const consoleLines = [];
 const pageErrors = [];
 
 mkdirSync(artifactDir, {recursive: true});
-if (mode === "extract") {
+if (mode.startsWith("extract")) {
   mkdirSync(seedDir, {recursive: true});
 }
 
@@ -74,7 +81,7 @@ try {
     });
   });
 
-  if (mode === "disabled") {
+  if (mode === "disabled" || mode === "extract-selection") {
     await page.route("**/boot-windowed.js", async (route) => {
       const response = await route.fetch();
       const source = await response.text();
@@ -89,7 +96,7 @@ try {
     });
   }
 
-  if (mode === "seeded") {
+  if (mode === "seeded" || mode === "seeded-selection") {
     const entries = readdirSync(seedDir, {withFileTypes: true})
       .filter((entry) => entry.isFile() && entryPattern.test(entry.name))
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -143,7 +150,28 @@ try {
   const firstPresentMs = Date.now() - navigationAt;
   await page.waitForTimeout(2000);
 
-  if (mode === "extract") {
+  let selectionReadyMs = null;
+  if (mode.endsWith("-selection")) {
+    const canvas = page.locator("#canvas");
+    await canvas.focus();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(750);
+    const box = await canvas.boundingBox();
+    if (!box) {
+      throw new Error("selection seed canvas has no bounding box");
+    }
+    const selectionAt = Date.now();
+    await page.mouse.click(box.x + box.width * 0.47, box.y + box.height * 0.54);
+    await page.waitForFunction(() => {
+      const mod = window.__bwModule;
+      return Number(mod?._bw_exact_buffer_readback_ready_count?.()) > 0 &&
+        Number(mod?._bw_gpu_select_async_phase?.()) === 0;
+    }, null, {timeout: 120000, polling: 50});
+    selectionReadyMs = Date.now() - selectionAt;
+    await page.waitForTimeout(2000);
+  }
+
+  if (mode.startsWith("extract")) {
     const extracted = await page.evaluate(async () => {
       const rootHandle = await navigator.storage.getDirectory();
       const cache = await rootHandle.getDirectoryHandle(".shadercache");
@@ -194,6 +222,7 @@ try {
     diagnosticNonreceipt: true,
     mode,
     firstPresentMs,
+    selectionReadyMs,
     seed: {count: files.length, bytes: seedBytes, sha256: hash.digest("hex")},
     cacheResults: {hits, misses},
     pageErrors,
@@ -201,7 +230,8 @@ try {
   };
   writeFileSync(resolve(artifactDir, `${tag}.json`), `${JSON.stringify(result, null, 2)}\n`);
   console.log(`BW_SHADER_CACHE_SEED_DIAGNOSTIC mode=${mode} ` +
-    `first_present_ms=${firstPresentMs} entries=${files.length} bytes=${seedBytes} ` +
+    `first_present_ms=${firstPresentMs} selection_ready_ms=${selectionReadyMs ?? "none"} ` +
+    `entries=${files.length} bytes=${seedBytes} ` +
     `hits=${hits} misses=${misses} page_errors=${pageErrors.length} ` +
     `sha256=${result.seed.sha256}`);
 }

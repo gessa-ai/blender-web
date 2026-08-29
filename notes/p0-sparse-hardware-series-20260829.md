@@ -92,3 +92,29 @@ Direct M4 remains red at the unchanged Apple browser-pixel boundary
 M1-M8 retain their named strict, hardware, APPLY, and product boundaries
 (`ledger/buildlogs/20260829T193838-279454.log`). CAPTURE `.wasm.orig` remains `6b0ac5366aef`; no
 relink, hardware receipt, result promotion, or P0-I/J closure occurred.
+
+## Failed-attempt evidence retention
+
+The pass-only producer previously printed a failed Apple run's complete boundary timeline only to
+stderr. That made the unattended failure easy to summarize but left its designated evidence
+directory empty, preventing exact post-run comparison of the selection, GHOST, WM, presentation,
+and native-state boundary snapshots. `BW_P0_OUTPUT` remains a PASS-only receipt. A failed browser
+attempt now exclusively creates `<BW_P0_OUTPUT>.failure.json`, marked `status=FAIL` and
+`evidenceClass=diagnostic-apple-failure`; the ten-file series consumer never accepts that sidecar.
+
+The source contract failed first without this seam at
+`ledger/buildlogs/20260829T194849-286197.log`. Final producer mutation and Node syntax checks are
+green at `ledger/buildlogs/20260829T194910-287012.log` and
+`ledger/buildlogs/20260829T194910-287013.log`. The live failure-path check forced two connection
+failures: the first left the PASS path absent and created a parseable failed sidecar, while the
+second preserved its exact SHA-256 through exclusive-create rejection
+(`ledger/buildlogs/20260829T195201-290044.log`). The adjacent sparse-series, composed-gauntlet,
+selection-navigation, and selection-stream mutation checks remain green
+(`ledger/buildlogs/20260829T195011-287536.log`, `20260829T195011-287541.log`,
+`20260829T195011-287549.log`, and `20260829T195011-287559.log`).
+
+This changes no runtime or product byte. Direct M4 remains honestly red at the Apple pixel binding
+(`ledger/buildlogs/20260829T195213-290471.log`), and the pinned-container regression restores M0
+6/6 while retaining every named later boundary
+(`ledger/buildlogs/20260829T195105-288259.log`). P0-I/J still require the exact current generation
+to pass Apple 10/10 plus the same-generation P0-E and zero-artifact gauntlet.

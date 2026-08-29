@@ -3950,6 +3950,14 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   This changes no product byte: CAPTURE `.wasm.orig` remains `6b0ac5366aef`, direct M4 remains red
   at the Apple pixel boundary, and P0-I/J still require exact Apple 10/10 plus the same-generation
   P0-E/zero-artifact gauntlet. See `notes/p0-sparse-hardware-series-20260829.md`.
+  **Failed-attempt evidence retention verified/pending Apple:** the hardware producer still creates
+  `BW_P0_OUTPUT` only after PASS, but a browser-run failure now exclusively creates the distinct
+  `<BW_P0_OUTPUT>.failure.json` sidecar with an explicit FAIL class and the complete bounded native,
+  GHOST, WM, selection, presentation, and pixel timeline. A second attempt cannot overwrite the
+  first diagnosis. Fail-first/final mutation, live failure/no-overwrite, sparse-series, composed-
+  gauntlet, and REUSE checks are green. This changes no linked byte or hardware verdict; current
+  CAPTURE `.wasm.orig` remains `6b0ac5366aef`, and P0-I/J remain open at the unchanged Apple 10/10
+  plus same-generation P0-E/zero-artifact gate.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

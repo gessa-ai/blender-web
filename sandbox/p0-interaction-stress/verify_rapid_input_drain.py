@@ -32,6 +32,7 @@ def validate(source: str) -> None:
         'const runLabel = process.env.BW_P0_RUN || "";',
         'const expectedWasmOrigSha256 = process.env.BW_P0_EXPECTED_WASM_ORIG_SHA256 || "";',
         'const outputPath = process.env.BW_P0_OUTPUT ? resolve(process.env.BW_P0_OUTPUT) : "";',
+        'const failureOutputPath = outputPath ? `${outputPath}.failure.json` : "";',
         'const binDir = resolve(process.env.BLENDER_WEB_BIN ||',
         'const REQUIRED_HARDWARE_STACK = Object.freeze({',
         'nodeVersion: "v22.16.0"',
@@ -172,6 +173,11 @@ def validate(source: str) -> None:
         '    productIdentity,\n'
         '    mode: sparseDiagnostic ? "slow-sparse" : "rapid-burst"',
         'await writeFile(outputPath, evidenceText, {encoding: "utf8", flag: "wx"});',
+        'status: "FAIL",',
+        'evidenceClass: hardwareDiagnostic ? "diagnostic-apple-failure" :',
+        'await writeFile(failureOutputPath, failureEvidenceText, '
+        '{encoding: "utf8", flag: "wx"});',
+        'P0J_FAILURE_ARTIFACT_WRITE_FAILED',
         "drainTimelines,",
         "nativeStateContract,",
         "actionComplete: hardwareActionStateComplete(actionDrain, orbitBeforeClick)",
@@ -198,6 +204,14 @@ def validate(source: str) -> None:
         raise ValueError("an intermediate action can still satisfy the terminal drain")
     if "retainedActionFramesEqual" not in source or "throw new Error" not in source:
         raise ValueError("producer lost diagnostic retained-frame reporting or fail-closed outcome")
+    if source.index('status: "FAIL",') < source.index("catch (error)"):
+        raise ValueError("failed-run status is not isolated to the failure path")
+    if source.index("await writeFile(failureOutputPath, failureEvidenceText") < source.index(
+        "catch (error)"
+    ):
+        raise ValueError("failed-run sidecar is written outside the failure path")
+    if source.count("await writeFile(outputPath, evidenceText") != 1:
+        raise ValueError("the pass-only evidence path is not written exactly once")
 
 
 def validate_delivery_sources(
@@ -710,6 +724,17 @@ def self_check(
             source,
             'if (nativeStates.length === 0) throw new Error("native rapid-input monitor did not start");',
             'if (false) throw new Error("native rapid-input monitor did not start");',
+        ),
+        replace_once(
+            source,
+            'const failureOutputPath = outputPath ? `${outputPath}.failure.json` : "";',
+            "const failureOutputPath = outputPath;",
+        ),
+        replace_once(source, 'status: "FAIL",', 'status: "PASS",'),
+        replace_once(
+            source,
+            "await writeFile(failureOutputPath, failureEvidenceText",
+            "await writeFile(outputPath, failureEvidenceText",
         ),
     )
     rejected = 0

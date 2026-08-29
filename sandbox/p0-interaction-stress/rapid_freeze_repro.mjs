@@ -19,6 +19,7 @@ const productSelfcheck = process.env.BW_P0_PRODUCT_SELFCHECK === "1";
 const runLabel = process.env.BW_P0_RUN || "";
 const expectedWasmOrigSha256 = process.env.BW_P0_EXPECTED_WASM_ORIG_SHA256 || "";
 const outputPath = process.env.BW_P0_OUTPUT ? resolve(process.env.BW_P0_OUTPUT) : "";
+const failureOutputPath = outputPath ? `${outputPath}.failure.json` : "";
 const binDir = resolve(process.env.BLENDER_WEB_BIN ||
   resolve(root, "build-wasm-windowed-opt/bin"));
 const ozonePlatform = process.env.BW_P0_OZONE || "";
@@ -1002,7 +1003,10 @@ try {
 catch (error) {
   const retained = sparseDiagnostic ? [] :
     (failureContext?.steps || []).slice(8, 13).map((step) => step.sha256);
-  process.stderr.write(`${JSON.stringify({
+  const failureEvidence = {
+    status: "FAIL",
+    evidenceClass: hardwareDiagnostic ? "diagnostic-apple-failure" :
+      "diagnostic-software-failure",
     error: error?.stack || String(error),
     schema: 2,
     run: hardwareDiagnostic ? runLabel : null,
@@ -1035,7 +1039,19 @@ catch (error) {
     eventTail: (failureContext?.consoleLines || [])
       .filter((line) => /ghost_event_proc/.test(line)).slice(-80),
     consoleTail: (failureContext?.consoleLines || []).slice(-120),
-  }, null, 2)}\n`);
+  };
+  const failureEvidenceText = `${JSON.stringify(failureEvidence, null, 2)}\n`;
+  if (failureOutputPath) {
+    try {
+      await writeFile(failureOutputPath, failureEvidenceText, {encoding: "utf8", flag: "wx"});
+    }
+    catch (failureWriteError) {
+      process.stderr.write(
+        `P0J_FAILURE_ARTIFACT_WRITE_FAILED ${failureWriteError?.stack || failureWriteError}\n`,
+      );
+    }
+  }
+  process.stderr.write(failureEvidenceText);
   throw error;
 }
 finally {

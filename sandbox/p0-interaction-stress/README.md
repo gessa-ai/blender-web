@@ -104,6 +104,12 @@ duplicate labels/timestamps/paths, or any cross-run source, stack, adapter, or p
 focused 10/10 discriminator complements rather than replaces the broader repeated interaction and
 same-generation P0-E gauntlet below.
 
+The requested `BW_P0_OUTPUT` remains pass-only. If an attempt fails after browser startup, the
+producer exclusively creates `<BW_P0_OUTPUT>.failure.json` instead. That sidecar is marked
+`status=FAIL` and `evidenceClass=diagnostic-apple-failure`, retains the bounded drain timelines and
+native/GHOST/WM/WebGPU boundary snapshots, and is never an input to the ten-file PASS consumer.
+Existing sidecars are not overwritten, so every unattended failure keeps an immutable diagnosis.
+
 Before that broader battery, schema v2 replays the driver's tighter total-freeze isolation:
 Numpad 1/3/7/0/4, Select All, Deselect All, MMB orbit, trusted Cube click, `G X 2` plus undo, and a
 second MMB orbit. Each changing view is coupled to settled Blender-native perspective/rotation and

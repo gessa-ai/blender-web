@@ -3583,7 +3583,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   content `49/49/49/49/49` and recovery `62/62/62/62/62`, with no miss line on its successful path.
   CAPTURE `.wasm.orig` is `e5629d6d0867` (118,991,633 bytes). Apple must run this generation: a
   timeout's first `content-miss` line now distinguishes absent background, grid, display, ordering,
-  or trace-generation provenance in one hardware pass. P0-I/J remain open. See
+  or trace-generation provenance in one hardware pass. **Content-retired input-tail candidate
+  implemented/relinked (`b4c04d1`):** the strict content edge then exposed avoidable queue pressure:
+  every terminal input retained all 180 ticks of synthetic full-screen recovery even after that
+  exact generation had already encoded and presented background + grid + final display. The shared
+  recovery helper now retires only that input-owned tail on the exact content receipt; a resize,
+  lazy-resource readiness edge, or any dropped draw clears input ownership and retains the original
+  bounded generic burst. The 101-case native/wasm32 model and 79-mutation source contract are green.
+  The exact fallback sequence converges at terminal/admitted/dispatched/presented/content
+  `49/49/49/49/49`, then repaints its independent recovery orbit in 748 ms; the 53-step battery
+  passes 181 native states, 724 presents, 9/9 workspaces, three same-pose checks, and zero hard
+  warnings/page errors. CAPTURE `.wasm.orig` is `e61df1b64f7b` (118,991,717 bytes). This is a
+  hardware candidate, not closure: Apple must run the exact deterministic freeze 10/10 plus the
+  same-generation composed P0-D/E/F/I gauntlet. P0-I/J remain open. See
   `notes/p0-cumulative-input-window-activation-20260828.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the

@@ -978,3 +978,57 @@ must run the exact deterministic freeze against `.wasm.orig` `f6a096b53f13`: if 
 VIEW_3D frame production; if both advance while native state or pixels stay stale, it is below
 that content-bearing surface transaction. Only the repeated same-generation Apple interaction
 series plus the composed 10/10 resize gauntlet can close P0-I/J.
+
+## Retire an input tail after exact VIEW_3D content presentation
+
+The strict content edge made one remaining source of self-inflicted queue pressure measurable.
+Every terminal input restarted the full 180-tick recovery budget, and the helper continued issuing
+periodic full-screen `WindowUpdate` events after that exact input generation had already encoded
+and presented overlay background, stock grid, and the final OCIO display composite. The preceding
+fallback battery needed 803 validated presentations for 53 steps. Those redundant retries can sit
+ahead of the next sparse user action even though native input has already produced its successful
+frame.
+
+Commit `b4c04d1` gives the shared recovery helper one explicit input-tail target. A terminal input
+sets the target; validation of a strict content-bearing surface transaction for that generation
+retires the synthetic tail immediately. The optimization is deliberately fail-closed outside that
+case: a replacement-drawable episode, newly accepted lazy resource, or any dropped draw clears
+input ownership and leaves the original 180-tick generic recovery intact. Resize still owns its
+completed-frame barrier, ordinary input still does not enter that barrier, and no adapter, receipt,
+pixel tolerance, or completeness predicate changed. A later terminal input starts a fresh tail.
+
+The contract failed first on the absent per-window tail state
+(`ledger/buildlogs/20260829T031018-3716984.log`). The final 101-case native/wasm32 behavior model,
+79-mutation recovery source contract, resize-trace terminal-path mutations, and integrated
+WebGPU/GHOST matrix are green (`ledger/buildlogs/20260829T031653-3728774.log`). REUSE 6.2.0 is green
+(`ledger/buildlogs/20260829T031746-3730559.log`).
+
+The CAPTURE relink and committed-state locked no-work proof are
+`ledger/buildlogs/20260829T031808-3730798.log` and
+`ledger/buildlogs/20260829T032142-3733980.log`. CAPTURE preflight is green
+(`ledger/buildlogs/20260829T032734-3737899.log`). Exact product identities are:
+
+- `blender_browser.js`: `0ce224a7fc73`
+- `blender_browser.wasm`: `0c73f8a1f21a`
+- `blender_browser.wasm.orig`: `e61df1b64f7b` (118,991,717 bytes)
+- `blender_browser.data`: `095d0ba748c3`
+- `blender_browser.split-build.json`: `8f266d4cf283`
+
+One first fallback browser was externally closed by WSLg during settle with zero product page
+errors (`ledger/buildlogs/20260829T031943-3732136.log`); it binds no verdict. The fresh exact replay
+passes: action drain reaches terminal/admitted/dispatched/presented/content-presented
+`49/49/49/49/49` in 5,624 ms, and the independent recovery orbit reaches `62/62/62/62/62` in
+748 ms, with balanced input and zero page/lifecycle errors
+(`ledger/buildlogs/20260829T032029-3732691.log`). The full fallback battery and independent consumer
+pass 53 steps, 181 native states, 724 validated presentations, 9/9 workspace transitions, three
+same-pose comparisons, move/undo, and zero hard completeness warnings or page errors
+(`ledger/buildlogs/20260829T032154-3734050.log`,
+`ledger/buildlogs/20260829T032614-3736593.log`). Rapid-source and same-generation hardware-gauntlet
+self-checks remain green (`ledger/buildlogs/20260829T032749-3737999.log`,
+`ledger/buildlogs/20260829T032749-3738000.log`). All local pixels are software-adapter diagnostics.
+
+Direct M4 remains honestly RED at the Apple pixel boundary, while container-backed regression
+restores M0 6/6 and retains every later named strict/APPLY/product boundary (results
+`2026-08-29T03:27:17Z` through `03:27:18Z`). P0-I/J close only after the driver runs this exact
+`e61df1b64f7b` generation through the deterministic freeze 10/10 and the composed P0-D/E/F/I
+hardware gauntlet.

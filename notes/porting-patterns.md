@@ -2136,3 +2136,18 @@ presentation but cannot establish visual correctness. See
 `upstream/source/blender/gpu/webgpu/wgpu_context.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_framebuffer.cc`, and
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.
+
+## Class 144 — retire input-owned recovery after exact content success
+
+Signature: terminal input correctly starts a bounded synthetic full-screen retry tail, but the
+tail always consumes its entire tick budget even after that exact input generation has already
+encoded and presented a complete semantic viewport frame. The redundant updates can build a queue
+ahead of the next sparse user action and make a healthy worker look frozen. Track explicit
+input-tail ownership and retire it only when the frame-bound content-presented generation reaches
+the target. Clear that ownership instead of retiring the shared burst when a resize episode,
+asynchronous resource-readiness edge, or dropped draw appears: those signals may cover other
+regions and retain their original bounded recovery contract. Prove early retirement, later-input
+rearming, and unchanged generic/resize ceilings in native and wasm32 behavior; hardware pixels
+remain the closure authority. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
+`platform_web/ghost/GHOST_SystemWeb.cc`, and
+`sandbox/wgpu-pipeline-integrated-smoke/first_pixel_settle_test.cc`.

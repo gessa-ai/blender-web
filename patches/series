@@ -1245,3 +1245,6 @@
 # 0313: expose each exact-buffer submit/map/validation/join/ready boundary so one sparse Apple
 # selection timeout identifies the stalled browser-readback stage without changing runtime policy.
 0313-gpu-webgpu-select-readback-lifecycle-telemetry.patch
+# 0314: bind viewport-selection fail-close to elapsed monotonic time instead of scheduler-dependent
+# timer-event delivery, while retaining the event count as read-only lifecycle telemetry.
+0314-view3d-web-selection-wall-timeout.patch

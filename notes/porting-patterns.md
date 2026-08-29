@@ -2230,3 +2230,15 @@ successful publication distinct from terminal joining because a joined failure m
 a usable result. Mutation-test every export and fail closed when the served product lacks one. See
 `upstream/source/blender/gpu/webgpu/wgpu_readback.cc` and
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.
+
+## Class 151 — timer-event counts are not portable asynchronous timeout clocks
+
+Signature: a modal browser continuation uses a nominal 10 ms WM timer and cancels after a fixed
+number of delivered timer events. Worker scheduling and synchronous GPU work can coalesce those
+events heavily: the same 240-event limit may mean roughly 2.4 seconds on an idle hardware host but
+far longer on a busy software adapter. Store a monotonic start time with the continuation and make
+elapsed time the sole fail-close authority; keep the event count only as lifecycle telemetry.
+Exercise both directions explicitly: many rapidly delivered events must not cancel before the wall
+deadline, and a sparsely delivered timer must still cancel after it. See
+`upstream/source/blender/editors/space_view3d/view3d_select.cc` and
+`sandbox/p0-interaction-stress/verify_select_wall_timeout.py`.

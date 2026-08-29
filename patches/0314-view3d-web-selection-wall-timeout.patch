@@ -1,0 +1,36 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -39,5 +39,6 @@
+ #include "BLI_span.hh"
+ #include "BLI_string_utf8.h"
+ #include "BLI_task.hh"
++#include "BLI_time.h"
+ #include "BLI_utildefines.h"
+ #include "BLI_vector.hh"
+@@ -4122,6 +4123,7 @@ struct View3DSelectAsyncData {
+   wmWindowManager *manager = nullptr;
+   wmWindow *window = nullptr;
+   int tick_count = 0;
++  double start_time = BLI_time_now_seconds();
+   ParticleEditDepthCacheSession *particle_depth_session = nullptr;
+ #ifdef __EMSCRIPTEN__
+   Vector<wmEvent> queued_events;
+@@ -4463,12 +4465,13 @@ static wmOperatorStatus view3d_select_modal(bContext *C, wmOperator *op, const wm
+-  /* Fail closed instead of retaining a modal operator forever after device
+-   * loss or an undelivered browser callback (roughly 2.4 seconds at 10 ms). */
+-  constexpr int max_tick_count = 240;
++  /* Fail closed on elapsed time instead of timer-event count. Browser/worker scheduling can
++   * coalesce the 10 ms timer heavily while WebGPU callbacks settle, so event count is not a
++   * portable duration and remains telemetry only. */
++  constexpr double max_wait_seconds = 30.0;
+   data->tick_count++;
+ #ifdef __EMSCRIPTEN__
+   web_view3d_select_modal_tick_count.store(
+       uint32_t(data->tick_count), std::memory_order_release);
+ #endif
+-  if (data->tick_count > max_tick_count) {
++  if ((BLI_time_now_seconds() - data->start_time) > max_wait_seconds) {
+ #ifdef __EMSCRIPTEN__
+     view3d_select_async_web_failure_log("readback timeout");
+ #else

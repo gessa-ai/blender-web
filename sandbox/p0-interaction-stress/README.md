@@ -53,7 +53,9 @@ immediately; they never enter the continuation's retained-input FIFO. State-chan
 input remains retained until the pick settles. The producer then sends the driver's complete
 `G` -> pointer motion -> confirm tail while that continuation is live. Pointer motion passes
 through only during the held MMB navigation gesture; otherwise it stays ordered between the
-retained transform key and confirmation. The combined drain requires both input stages, a retired
+retained transform key and confirmation. A later rotate modal may consume the MMB release before
+the selection continuation observes it, so the first subsequent ordinary event also closes stale
+navigation ownership before its following motion is classified. The combined drain requires both input stages, a retired
 selection continuation, exactly Cube selected, changed view rotation, strict content pixels, and
 a changed Cube location. The click point is Blender's own projection of the Cube origin into the
 live `VIEW_3D` window, converted from Blender's bottom-left window coordinates to the browser

@@ -2274,9 +2274,12 @@ orbit stays live, but it retains a later transform key and confirmation. The tra
 motion overtakes the retained key, so replay eventually invokes and confirms a zero-delta
 operation even though every DOM, GHOST, WM, readback, and presentation boundary completed. Track
 the actual navigation gesture: MMB press opens pass-through ownership, its motion stays live, and
-MMB release closes it. Outside that interval, pointer motion belongs in the same retained FIFO as
-the state-changing key and confirmation. Bind the hardware consumer to changed native geometry,
+MMB release closes it. A later navigation modal can consume that release before the pending
+selection modal observes it, so the next ordinary non-navigation event must also close the stale
+ownership tail. Outside the navigation interval, pointer motion belongs in the same retained FIFO
+as the state-changing key and confirmation. Bind the hardware consumer to changed native geometry,
 not merely balanced input counters or a retired modal stack. See
 `upstream/source/blender/editors/space_view3d/view3d_select.cc`,
-`patches/0320-view3d-web-selection-navigation-motion-order.patch`, and
+`patches/0320-view3d-web-selection-navigation-motion-order.patch`,
+`patches/0321-view3d-web-selection-navigation-tail-reset.patch`, and
 `sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

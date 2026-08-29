@@ -1,0 +1,20 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -4165,6 +4165,14 @@ static bool view3d_select_async_navigation_event(View3DSelectAsyncData *data,
+   if (ISMOUSE_MOTION(event->type)) {
+     return data->navigation_active;
+   }
+-  return ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||
+-         ISKEYMODIFIER(event->type) || ISNDOF(event->type);
++  if (ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||
++      ISKEYMODIFIER(event->type) || ISNDOF(event->type))
++  {
++    return true;
++  }
++  /* A later modal handler can consume the MMB release after selection passed the gesture
++   * through. The next ordinary event starts a new ownership tail even when that release was not
++   * observable here, so its following pointer motion must remain ordered in the replay FIFO. */
++  data->navigation_active = false;
++  return false;
+ }

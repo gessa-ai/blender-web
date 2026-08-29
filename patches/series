@@ -1266,3 +1266,6 @@
 # 0320: pass pointer motion through pending browser selection only while a real middle-mouse
 # navigation gesture is held, preserving transform-key/motion/confirm ordering in the FIFO.
 0320-view3d-web-selection-navigation-motion-order.patch
+# 0321: close a stale navigation tail at the next ordinary event when the owning rotate modal
+# consumed the MMB release, preserving that event's following motion in the selection FIFO.
+0321-view3d-web-selection-navigation-tail-reset.patch

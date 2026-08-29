@@ -29,6 +29,7 @@ EVENT_PATCH = ROOT / "patches/0317-view3d-web-selection-unrelated-event-passthro
 GESTURE_PATCH = ROOT / "patches/0318-view3d-web-gesture-selection-passthrough.patch"
 SIBLING_PATCH = ROOT / "patches/0319-web-async-modal-event-passthrough.patch"
 MOTION_PATCH = ROOT / "patches/0320-view3d-web-selection-navigation-motion-order.patch"
+TAIL_RESET_PATCH = ROOT / "patches/0321-view3d-web-selection-navigation-tail-reset.patch"
 SERIES = ROOT / "patches/series"
 
 
@@ -100,6 +101,7 @@ def validate(sources: dict[str, str]) -> int:
     gesture_patch = sources["gesture_patch"]
     sibling_patch = sources["sibling_patch"]
     motion_patch = sources["motion_patch"]
+    tail_reset_patch = sources["tail_reset_patch"]
     series = sources["series"]
 
     require(view3d_select, "  bool navigation_active = false;\n")
@@ -114,8 +116,16 @@ def validate(sources: dict[str, str]) -> int:
         "  if (ISMOUSE_MOTION(event->type)) {\n"
         "    return data->navigation_active;\n"
         "  }\n"
-        "  return ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||\n"
-        "         ISKEYMODIFIER(event->type) || ISNDOF(event->type);\n"
+        "  if (ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||\n"
+        "      ISKEYMODIFIER(event->type) || ISNDOF(event->type))\n"
+        "  {\n"
+        "    return true;\n"
+        "  }\n"
+        "  /* A later modal handler can consume the MMB release after selection passed the gesture\n"
+        "   * through. The next ordinary event starts a new ownership tail even when that release was not\n"
+        "   * observable here, so its following pointer motion must remain ordered in the replay FIFO. */\n"
+        "  data->navigation_active = false;\n"
+        "  return false;\n"
         "}"
     )
     require(view3d_select, helper)
@@ -310,11 +320,19 @@ def validate(sources: dict[str, str]) -> int:
         "+    if (view3d_select_async_navigation_event(data, event)) {",
     ):
         require(motion_patch, token)
+    for token in (
+        "diff --git a/source/blender/editors/space_view3d/view3d_select.cc "
+        "b/source/blender/editors/space_view3d/view3d_select.cc",
+        "+  data->navigation_active = false;",
+        "+  return false;",
+    ):
+        require(tail_reset_patch, token)
     require(series, NAVIGATION_PATCH.name)
     require(series, EVENT_PATCH.name)
     require(series, GESTURE_PATCH.name)
     require(series, SIBLING_PATCH.name)
     require(series, MOTION_PATCH.name)
+    require(series, TAIL_RESET_PATCH.name)
     return async_combined_passthrough_census(sources)
 
 
@@ -336,6 +354,11 @@ def self_check(sources: dict[str, str]) -> None:
             "view3d_select",
             "    return data->navigation_active;",
             "    return true;",
+        ),
+        (
+            "view3d_select",
+            "  data->navigation_active = false;\n  return false;",
+            "  return false;",
         ),
         (
             "view3d_select",
@@ -472,6 +495,12 @@ def self_check(sources: dict[str, str]) -> None:
             "+    return true;",
         ),
         ("series", MOTION_PATCH.name, "0320-missing.patch"),
+        (
+            "tail_reset_patch",
+            "+  data->navigation_active = false;",
+            "+  data->navigation_active = true;",
+        ),
+        ("series", TAIL_RESET_PATCH.name, "0321-missing.patch"),
     )
     rejected = 0
     for key, old, new in mutations:
@@ -508,6 +537,7 @@ def main() -> int:
         "gesture_patch": GESTURE_PATCH.read_text() if GESTURE_PATCH.is_file() else "",
         "sibling_patch": SIBLING_PATCH.read_text() if SIBLING_PATCH.is_file() else "",
         "motion_patch": MOTION_PATCH.read_text() if MOTION_PATCH.is_file() else "",
+        "tail_reset_patch": TAIL_RESET_PATCH.read_text() if TAIL_RESET_PATCH.is_file() else "",
         "series": SERIES.read_text(),
     }
     try:

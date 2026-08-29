@@ -23720,7 +23720,7 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..23bc99e01b26d1f91da4fe80f9c03e40
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f578785919a 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..a8e5267de60d092fc1de65bfcedd70d4ba306439 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
 @@ -7,8 +7,14 @@
@@ -24412,7 +24412,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
      gpu->has_bones = (object_only && gpu->hits > 0) ?
                           false :
                           selectbuffer_has_bones(gpu->buffer.storage.as_span().slice(0, gpu->hits));
-@@ -3512,68 +4027,250 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+@@ -3512,68 +4027,258 @@ static bool ed_grease_pencil_select_pick(bContext *C,
    return true;
  }
  
@@ -24604,8 +24604,16 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
 +  if (ISMOUSE_MOTION(event->type)) {
 +    return data->navigation_active;
 +  }
-+  return ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||
-+         ISKEYMODIFIER(event->type) || ISNDOF(event->type);
++  if (ISMOUSE_WHEEL(event->type) || ISMOUSE_GESTURE(event->type) ||
++      ISKEYMODIFIER(event->type) || ISNDOF(event->type))
++  {
++    return true;
++  }
++  /* A later modal handler can consume the MMB release after selection passed the gesture
++   * through. The next ordinary event starts a new ownership tail even when that release was not
++   * observable here, so its following pointer motion must remain ordered in the replay FIFO. */
++  data->navigation_active = false;
++  return false;
 +}
 +
 +static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
@@ -24714,7 +24722,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
        }
        if (!changed) {
          changed = ED_armature_edit_select_pick(C, mval, params);
-@@ -3602,7 +4299,54 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3602,7 +4307,54 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      }
    }
    else if (obact && obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24770,7 +24778,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    }
    else if (obact && BKE_paint_select_face_test(obact)) {
      changed = paintface_mouse_select(C, mval, params, obact);
-@@ -3617,6 +4361,19 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3617,6 +4369,19 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      changed = ed_object_select_pick(C, mval, params, center, enumerate, object_only);
    }
  
@@ -24790,7 +24798,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    /* Pass-through flag may be cleared, see #WM_operator_flag_only_pass_through_on_press. */
  
    /* Pass-through allows tweaks
-@@ -3629,15 +4386,185 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3629,15 +4394,185 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
    return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
  }
  
@@ -24976,7 +24984,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
  void VIEW3D_OT_select(wmOperatorType *ot)
  {
    PropertyRNA *prop;
-@@ -3650,6 +4577,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
+@@ -3650,6 +4585,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
    /* API callbacks. */
    ot->invoke = view3d_select_invoke;
    ot->exec = view3d_select_exec;
@@ -24985,7 +24993,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    ot->poll = ED_operator_view3d_active;
    ot->get_name = ED_select_pick_get_name;
  
-@@ -4071,6 +5000,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4071,6 +5008,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    view3d_userdata_boxselect_init(&data, vc, rect, sel_op);
  
@@ -25006,7 +25014,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
        EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
-@@ -4087,18 +5030,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4087,18 +5038,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    GPU_matrix_set(vc->rv3d->viewmat);
  
@@ -25025,7 +25033,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -4535,6 +5466,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
+@@ -4535,6 +5474,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
    return do_curves_select_box(vc, object, rect, sel_op);
  }
  
@@ -25041,7 +25049,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
  static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-@@ -4553,6 +5493,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4553,6 +5501,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
    eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
    WM_operator_properties_border_to_rcti(op, &rect);
  
@@ -25072,7 +25080,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    if (vc.obedit) {
      FOREACH_OBJECT_IN_MODE_BEGIN (
          vc.bmain, vc.scene, vc.view_layer, vc.v3d, vc.obedit->type, vc.obedit->mode, ob_iter)
-@@ -4650,7 +5614,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4650,7 +5622,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
        }
      }
      else if (vc.obact && vc.obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -25081,7 +25089,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
      }
      else if (vc.obact && ((vc.obact->mode & OB_MODE_POSE) ||
                            ((vc.obact->mode & OB_MODE_WEIGHT_PAINT) &&
-@@ -4671,10 +5635,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4671,10 +5643,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  
    WM_generic_user_data_free(wm_userdata);
  
@@ -25162,7 +25170,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
  }
  
  void VIEW3D_OT_select_box(wmOperatorType *ot)
-@@ -4685,11 +5716,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
+@@ -4685,11 +5724,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
    ot->idname = "VIEW3D_OT_select_box";
  
    /* API callbacks. */
@@ -25177,7 +25185,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
  
    /* flags */
    ot->flag = OPTYPE_UNDO;
-@@ -4803,6 +5834,20 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4803,6 +5842,20 @@ static bool mesh_circle_select(const ViewContext *vc,
    CircleSelectUserData data;
    BLI_assert(vc->em == BKE_editmesh_from_object(vc->obedit));
  
@@ -25198,7 +25206,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    bool changed = false;
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
-@@ -4824,22 +5869,6 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4824,22 +5877,6 @@ static bool mesh_circle_select(const ViewContext *vc,
  
    view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
  
@@ -25221,7 +25229,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        if (esel->select_bitmap != nullptr) {
-@@ -5544,19 +6573,331 @@ static void view3d_circle_select_recalc(void *user_data)
+@@ -5544,19 +6581,331 @@ static void view3d_circle_select_recalc(void *user_data)
    }
  }
  
@@ -25553,7 +25561,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    WM_gesture_circle_cancel(C, op);
    view3d_circle_select_recalc(C);
  }
-@@ -5564,17 +6905,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+@@ -5564,17 +6913,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
  static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
@@ -25596,7 +25604,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
  
    Object *obact = vc.obact;
-@@ -5631,10 +6992,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5631,10 +7000,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
      FOREACH_OBJECT_IN_MODE_END;
    }
    else if (obact && (obact->mode & OB_MODE_PARTICLE_EDIT)) {
@@ -25630,7 +25638,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
    }
    else if (obact && obact->mode & OB_MODE_SCULPT) {
      return OPERATOR_CANCELLED;
-@@ -5662,13 +7043,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5662,13 +7051,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
    }
    else {
      EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
@@ -25679,7 +25687,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..6f4d2767c5b91fa68ae9091099f63f57
  }
  
  void VIEW3D_OT_select_circle(wmOperatorType *ot)
-@@ -5677,7 +7089,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+@@ -5677,7 +7097,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
    ot->description = "Select items using circle selection";
    ot->idname = "VIEW3D_OT_select_circle";
  

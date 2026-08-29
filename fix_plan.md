@@ -3724,6 +3724,16 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   and was rejected rather than counted. Stream/retry/admission/validation mutation contracts,
   locked no-work, and REUSE remain green. This binds software stability only: P0-I/J stay open for
   exact Apple 10/10 plus the same-generation P0-E gauntlet; no runtime byte or receipt changed.
+  **Selection-validation boundary exported/relinked/pending hardware (`e2bac4a`):** the sparse
+  timeline now samples the existing global draw-drop generation plus selection command-validation
+  pending/failure counters on every 250 ms poll and rejects a served product that lacks any export.
+  This is read-only observability: selection, retry, redraw, and timeout behavior are unchanged.
+  The exact cold software control demonstrates the discriminator by peaking at 19 pending tickets,
+  zero validation failures, and 68 additional draw drops before selecting Cube and retiring both
+  isolated orbits. RELINKED CAPTURE `.wasm.orig` is `0c3eda918085` (119,001,878 bytes). P0-I/J
+  remain open for this exact inventory to pass Apple 10/10 plus the same-generation P0-E gauntlet;
+  no hardware receipt, profile, APPLY/public bundle, tag, result, promise, or launch claim changed.
+  See `notes/p0-selection-validation-boundary-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

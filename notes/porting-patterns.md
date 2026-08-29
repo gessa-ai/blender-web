@@ -2191,3 +2191,16 @@ reuse the continuation's manager/window identity guard so context drift never re
 replacement window. Mutation coverage must remove this one teardown replay independently of the
 normal modal exits. See `upstream/source/blender/editors/space_view3d/view3d_select.cc` and
 `sandbox/p0-interaction-stress/verify_select_stream_continuation.py`.
+
+## Class 148 — a pending modal needs its asynchronous validation boundary in the evidence
+
+Signature: a sparse interaction timeout shows balanced browser/WM input, advancing redraw and
+presentation counters, and a retained selection operator, but cannot distinguish a synchronously
+dropped draw from an encoded command still validating or a later browser rejection. Export the
+existing draw-drop generation and the selection-specific validation pending/failure counters as
+read-only values, sample them on every bounded hardware poll, and fail closed if the served product
+lacks an export. Do not call a status function from the diagnostic if polling it can advance retry
+state. A healthy cold software control should be able to show pending tickets rise and return to
+zero without failures before selection completes; only hardware pixels close the defect. See
+`platform_web/ghost/GHOST_ContextWGPUWeb.cc` and
+`sandbox/p0-interaction-stress/rapid_freeze_repro.mjs`.

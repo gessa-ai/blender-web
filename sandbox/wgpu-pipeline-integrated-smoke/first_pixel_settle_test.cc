@@ -122,18 +122,21 @@ int main()
   const uint64_t first_presented_input = ghost_web::request_input_redraw_retry();
   ghost_web::note_input_redraw_terminal(first_presented_input);
   ghost_web::note_input_redraw_admitted(first_presented_input);
+  ghost_web::note_input_redraw_dispatched(first_presented_input);
   if (!require(ghost_web::input_redraw_terminal_count() == first_presented_input &&
-                   ghost_web::input_redraw_admitted_count() == first_presented_input,
-               "terminal input publishes an admitted WM redraw generation") ||
+                   ghost_web::input_redraw_admitted_count() == first_presented_input &&
+                   ghost_web::input_redraw_dispatched_count() == first_presented_input,
+               "terminal input publishes admitted and WM-dispatched redraw generations") ||
       !require(ghost_web::note_input_redraw_presented(first_presented_input) &&
                    ghost_web::input_redraw_presented_count() == first_presented_input,
-               "a clean surface submit publishes its admitted input generation"))
+               "a clean surface submit publishes its dispatched input generation"))
   {
     return 1;
   }
   const uint64_t second_presented_input = ghost_web::request_input_redraw_retry();
   ghost_web::note_input_redraw_terminal(second_presented_input);
   ghost_web::note_input_redraw_admitted(second_presented_input);
+  ghost_web::note_input_redraw_dispatched(second_presented_input);
   if (!require(ghost_web::note_input_redraw_presented(second_presented_input) &&
                    ghost_web::input_redraw_presented_count() == second_presented_input,
                "a newer clean surface submit advances input presentation") ||

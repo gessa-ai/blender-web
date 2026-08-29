@@ -148,6 +148,8 @@ class GHOST_SystemWeb : public GHOST_System {
   std::string canvas_selector_;
   GHOST_WindowWeb *window_ = nullptr;
   bool callbacks_registered_ = false;
+  bool input_redraw_dispatch_consumer_registration_attempted_ = false;
+  bool input_redraw_dispatch_consumer_registered_ = false;
   void *callback_user_data_ = nullptr;
 
   /* Per-window readiness/input generations and bounded tick counter for draw recovery. */

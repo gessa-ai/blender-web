@@ -219,6 +219,7 @@ inline std::atomic<uint64_t> redraw_retry_counter{0};
 inline std::atomic<uint64_t> input_redraw_retry_counter{0};
 inline std::atomic<uint64_t> input_redraw_terminal_generation{0};
 inline std::atomic<uint64_t> input_redraw_admitted_generation{0};
+inline std::atomic<uint64_t> input_redraw_dispatched_generation{0};
 inline std::atomic<uint64_t> input_redraw_presented_generation{0};
 inline std::atomic<uint64_t> redraw_episode_counter{0};
 inline std::atomic<uint64_t> redraw_drop_counter{0};
@@ -430,7 +431,29 @@ inline uint64_t input_redraw_admitted_count()
   return input_redraw_admitted_generation.load(std::memory_order_acquire);
 }
 
-/** Latest admitted input-tail generation carried by a clean surface presentation. */
+/** Latest admitted input-tail generation whose synthetic event reached every GHOST consumer. */
+inline bool note_input_redraw_dispatched(const uint64_t input_generation)
+{
+  uint64_t dispatched = input_redraw_dispatched_generation.load(std::memory_order_relaxed);
+  while (dispatched < input_generation) {
+    if (input_redraw_dispatched_generation.compare_exchange_weak(
+            dispatched,
+            input_generation,
+            std::memory_order_release,
+            std::memory_order_relaxed))
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline uint64_t input_redraw_dispatched_count()
+{
+  return input_redraw_dispatched_generation.load(std::memory_order_acquire);
+}
+
+/** Latest dispatched input-tail generation carried by a clean surface presentation. */
 inline bool note_input_redraw_presented(const uint64_t input_generation)
 {
   uint64_t presented = input_redraw_presented_generation.load(std::memory_order_relaxed);

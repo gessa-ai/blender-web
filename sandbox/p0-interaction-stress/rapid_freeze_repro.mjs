@@ -217,6 +217,7 @@ try {
           published: read("_bw_input_redraw_retry_count"),
           terminal: read("_bw_input_redraw_terminal_count"),
           admitted: read("_bw_input_redraw_admitted_count"),
+          dispatched: read("_bw_input_redraw_dispatched_count"),
           presented: read("_bw_input_redraw_presented_count"),
           episode: read("_bw_redraw_episode_count"),
         },
@@ -290,6 +291,7 @@ try {
           current.retries > counterBaseline.retries &&
           current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal &&
           current.inputRedraw.admitted >= current.inputRedraw.terminal &&
+          current.inputRedraw.dispatched >= current.inputRedraw.terminal &&
           current.inputRedraw.presented >= current.inputRedraw.terminal &&
           current.inputRedraw.episode === counterBaseline.inputRedraw.episode &&
           nativeDeliveryComplete(current) &&

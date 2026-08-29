@@ -100,8 +100,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_redraw_retry_count(void)
 }
 
 /* Exact ordinary-input recovery handoff. Publication occurs in the proxied HTML5 callback;
- * terminal records the last completed button/key/wheel callback; admitted advances only when a
- * synthetic WindowUpdate carrying that terminal generation passes the resize barrier. */
+ * terminal records the last completed button/key/wheel callback; admitted advances when a
+ * synthetic WindowUpdate passes the resize barrier; dispatched advances only after Blender's WM
+ * consumer processes that event. */
 extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_retry_count(void)
 {
   return double(ghost_web::input_redraw_retry_generation());
@@ -115,6 +116,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_terminal_count(void)
 extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_admitted_count(void)
 {
   return double(ghost_web::input_redraw_admitted_count());
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_dispatched_count(void)
+{
+  return double(ghost_web::input_redraw_dispatched_count());
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE double bw_input_redraw_presented_count(void)
@@ -1153,8 +1159,8 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
   const uint32_t requested_height = requested_height_;
   const uint32_t backbuffer_width = backbuffer_w_;
   const uint32_t backbuffer_height = backbuffer_h_;
-  const uint64_t input_redraw_admitted_generation =
-      ghost_web::input_redraw_admitted_count();
+  const uint64_t input_redraw_dispatched_generation =
+      ghost_web::input_redraw_dispatched_count();
   if (validate_transaction) {
     present_settlement_.begin();
   }
@@ -1235,7 +1241,7 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
            requested_height,
            backbuffer_width,
            backbuffer_height,
-           input_redraw_admitted_generation,
+           input_redraw_dispatched_generation,
            validate_transaction](const bool valid) {
             lifetime->deliver([&](GHOST_ContextWGPUWeb &owner) {
               const bool retry_after_settlement =
@@ -1359,19 +1365,19 @@ bool GHOST_ContextWGPUWeb::presentBackbuffer()
               {
                 std::printf("WGPUWeb: validated VIEW_3D content presented\n");
               }
-              if (input_redraw_admitted_generation != 0u &&
-                  ghost_web::note_input_redraw_presented(input_redraw_admitted_generation))
+              if (input_redraw_dispatched_generation != 0u &&
+                  ghost_web::note_input_redraw_presented(input_redraw_dispatched_generation))
               {
                 const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
                 static uint32_t input_redraw_presented_log_count = 0;
                 if (terminal_generation != 0u &&
-                    input_redraw_admitted_generation >= terminal_generation &&
+                    input_redraw_dispatched_generation >= terminal_generation &&
                     input_redraw_presented_log_count < 64)
                 {
                   std::printf("[bw] GHOST-input-redraw presented input=%llu terminal=%llu "
                               "present=%llu\n",
                               static_cast<unsigned long long>(
-                                  input_redraw_admitted_generation),
+                                  input_redraw_dispatched_generation),
                               static_cast<unsigned long long>(terminal_generation),
                               static_cast<unsigned long long>(ghost_web::present_count() + 1u));
                   input_redraw_presented_log_count++;

@@ -50,6 +50,7 @@ def validate(source: str) -> None:
         "current.retries > counterBaseline.retries",
         "current.inputRedraw.terminal > counterBaseline.inputRedraw.terminal",
         "current.inputRedraw.admitted >= current.inputRedraw.terminal",
+        "current.inputRedraw.dispatched >= current.inputRedraw.terminal",
         "current.inputRedraw.presented >= current.inputRedraw.terminal",
         "current.inputRedraw.episode === counterBaseline.inputRedraw.episode",
         "nativeDeliveryComplete(current)",
@@ -130,6 +131,7 @@ def validate_delivery_sources(
         "input_button_mask.load(std::memory_order_acquire)",
         "inline std::atomic<uint64_t> input_redraw_terminal_generation{0};",
         "inline std::atomic<uint64_t> input_redraw_admitted_generation{0};",
+        "inline std::atomic<uint64_t> input_redraw_dispatched_generation{0};",
         "inline std::atomic<uint64_t> input_redraw_presented_generation{0};",
         "inline uint64_t request_input_redraw_retry()",
         "return input_generation;",
@@ -139,6 +141,9 @@ def validate_delivery_sources(
         "input_redraw_admitted_generation.store(input_generation, std::memory_order_release);",
         "inline uint64_t input_redraw_terminal_count()",
         "inline uint64_t input_redraw_admitted_count()",
+        "inline bool note_input_redraw_dispatched(const uint64_t input_generation)",
+        "input_redraw_dispatched_generation.compare_exchange_weak(",
+        "inline uint64_t input_redraw_dispatched_count()",
         "inline bool note_input_redraw_presented(const uint64_t input_generation)",
         "input_redraw_presented_generation.compare_exchange_weak(",
         "inline uint64_t input_redraw_presented_count()",
@@ -151,6 +156,14 @@ def validate_delivery_sources(
     require_once(
         system_header,
         "void requestInputRedrawRetry(const char *terminal_kind = nullptr,",
+    )
+    require_once(
+        system_header,
+        "bool input_redraw_dispatch_consumer_registration_attempted_ = false;",
+    )
+    require_once(
+        system_header,
+        "bool input_redraw_dispatch_consumer_registered_ = false;",
     )
     for token in (
         "const bool was_down = buttons_.get(button);",
@@ -167,6 +180,15 @@ def validate_delivery_sources(
         "ghost_web::note_input_redraw_admitted(input_redraw_generation);",
         '"[bw] GHOST-input-redraw admitted input=%llu terminal=%llu "',
         '"[bw] GHOST-input-redraw withheld input=%llu terminal=%llu "',
+        "class GHOST_EventWindowUpdateWeb final : public GHOST_Event",
+        "class GHOST_InputRedrawDispatchConsumer final : public GHOST_IEventConsumer",
+        "ghost_web::note_input_redraw_dispatched(payload->input_redraw_generation)",
+        '"[bw] GHOST-input-redraw dispatched input=%llu terminal=%llu "',
+        "if (!input_redraw_dispatch_consumer_registration_attempted_)",
+        "input_redraw_dispatch_consumer_registration_attempted_ = true;",
+        "input_redraw_dispatch_consumer_registered_ = true;",
+        "std::make_unique<GHOST_EventWindowUpdateWeb>(",
+        "input_redraw_pending_admission ? input_redraw_generation : 0u",
     ):
         require_once(system_source, token)
     require_once(event_bridge, "ghost_web::note_input_key(down);")
@@ -187,6 +209,7 @@ def validate_delivery_sources(
         "bw_input_redraw_retry_count(void)",
         "bw_input_redraw_terminal_count(void)",
         "bw_input_redraw_admitted_count(void)",
+        "bw_input_redraw_dispatched_count(void)",
         "bw_input_redraw_presented_count(void)",
         "return double(ghost_web::input_button_press_count(button));",
         "return double(ghost_web::input_button_release_count(button));",
@@ -196,9 +219,10 @@ def validate_delivery_sources(
         "return double(ghost_web::input_redraw_retry_generation());",
         "return double(ghost_web::input_redraw_terminal_count());",
         "return double(ghost_web::input_redraw_admitted_count());",
+        "return double(ghost_web::input_redraw_dispatched_count());",
         "return double(ghost_web::input_redraw_presented_count());",
-        "const uint64_t input_redraw_admitted_generation =",
-        "ghost_web::note_input_redraw_presented(input_redraw_admitted_generation)",
+        "const uint64_t input_redraw_dispatched_generation =",
+        "ghost_web::note_input_redraw_presented(input_redraw_dispatched_generation)",
         '"[bw] GHOST-input-redraw presented input=%llu terminal=%llu "',
     ):
         require_once(context_source, token)
@@ -213,6 +237,7 @@ def validate_delivery_sources(
         'published: read("_bw_input_redraw_retry_count")',
         'terminal: read("_bw_input_redraw_terminal_count")',
         'admitted: read("_bw_input_redraw_admitted_count")',
+        'dispatched: read("_bw_input_redraw_dispatched_count")',
         'presented: read("_bw_input_redraw_presented_count")',
         'episode: read("_bw_redraw_episode_count")',
     ):
@@ -264,6 +289,11 @@ def self_check(
             source,
             "current.inputRedraw.admitted >= current.inputRedraw.terminal",
             "current.inputRedraw.admitted < current.inputRedraw.terminal",
+        ),
+        replace_once(
+            source,
+            "current.inputRedraw.dispatched >= current.inputRedraw.terminal",
+            "current.inputRedraw.dispatched < current.inputRedraw.terminal",
         ),
         replace_once(
             source,
@@ -432,12 +462,32 @@ def self_check(
         )),
         (source, replace_once(
             display,
+            "input_redraw_dispatched_generation.compare_exchange_weak(",
+            "input_redraw_dispatched_generation.compare_exchange_strong(",
+        ), system_header, system_source, event_bridge, context_source),
+        (source, display, system_header, replace_once(
+            system_source,
+            "ghost_web::note_input_redraw_dispatched(payload->input_redraw_generation)",
+            "false",
+        ), event_bridge, context_source),
+        (source, display, system_header, replace_once(
+            system_source,
+            "input_redraw_pending_admission ? input_redraw_generation : 0u",
+            "0u",
+        ), event_bridge, context_source),
+        (source, display, system_header, system_source, event_bridge, replace_once(
+            context_source,
+            "return double(ghost_web::input_redraw_dispatched_count());",
+            "return double(ghost_web::input_redraw_admitted_count());",
+        )),
+        (source, replace_once(
+            display,
             "input_redraw_presented_generation.compare_exchange_weak(",
             "",
         ), system_header, system_source, event_bridge, context_source),
         (source, display, system_header, system_source, event_bridge, replace_once(
             context_source,
-            "ghost_web::note_input_redraw_presented(input_redraw_admitted_generation)",
+            "ghost_web::note_input_redraw_presented(input_redraw_dispatched_generation)",
             "false",
         )),
         (source, display, system_header, system_source, event_bridge, replace_once(

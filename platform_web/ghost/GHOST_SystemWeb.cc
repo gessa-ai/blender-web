@@ -31,6 +31,7 @@
 #include "GHOST_Buttons.hh"
 #include "GHOST_Event.hh"
 #include "GHOST_EventManager.hh"
+#include "GHOST_IEventConsumer.hh"
 #include "GHOST_ModifierKeys.hh"
 #include "GHOST_WindowManager.hh"
 
@@ -63,6 +64,63 @@ std::array<uint8_t, kCallbackRegistrationBudget> g_callback_registration_tokens{
 std::atomic<uint32_t> g_callback_registration_token_count{0};
 std::atomic<void *> g_callback_registration{nullptr};
 std::atomic<GHOST_SystemWeb *> g_callback_system{nullptr};
+
+struct GHOST_WebWindowUpdateData {
+  uint64_t input_redraw_generation = 0;
+};
+
+class GHOST_EventWindowUpdateWeb final : public GHOST_Event {
+ private:
+  GHOST_WebWindowUpdateData payload_;
+
+ public:
+  GHOST_EventWindowUpdateWeb(const uint64_t msec,
+                             const GHOST_TEventType type,
+                             GHOST_IWindow *window,
+                             const uint64_t input_redraw_generation)
+      : GHOST_Event(msec, type, window),
+        payload_{input_redraw_generation}
+  {
+    data_ = &payload_;
+  }
+};
+
+/**
+ * Observe a synthetic input-tail WindowUpdate only after Blender's WM consumer has processed it.
+ * wm_ghost_init registers that consumer before the first processEvents call installs this one, and
+ * GHOST dispatches consumers in registration order. This closes the diagnostic gap between queue
+ * admission and actual WM dispatch without adding a Blender-internal instrumentation patch.
+ */
+class GHOST_InputRedrawDispatchConsumer final : public GHOST_IEventConsumer {
+ public:
+  bool processEvent(const GHOST_IEvent *event) override
+  {
+    if (event == nullptr || event->getType() != GHOST_kEventWindowUpdate ||
+        event->getData() == nullptr)
+    {
+      return false;
+    }
+
+    const auto *payload = static_cast<const GHOST_WebWindowUpdateData *>(event->getData());
+    if (payload->input_redraw_generation != 0u &&
+        ghost_web::note_input_redraw_dispatched(payload->input_redraw_generation))
+    {
+      const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();
+      static uint32_t input_redraw_dispatched_log_count = 0;
+      if (payload->input_redraw_generation >= terminal_generation && terminal_generation != 0u &&
+          input_redraw_dispatched_log_count < 64)
+      {
+        std::printf("[bw] GHOST-input-redraw dispatched input=%llu terminal=%llu "
+                    "present=%llu\n",
+                    static_cast<unsigned long long>(payload->input_redraw_generation),
+                    static_cast<unsigned long long>(terminal_generation),
+                    static_cast<unsigned long long>(ghost_web::present_count()));
+        input_redraw_dispatched_log_count++;
+      }
+    }
+    return false;
+  }
+};
 
 void *callback_registration_token_acquire()
 {
@@ -1282,6 +1340,18 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * waitForEvent is ignored; report whether anything is queued for dispatch. */
   GHOST_EventManager *em = getEventManager();
 
+  if (!input_redraw_dispatch_consumer_registration_attempted_) {
+    input_redraw_dispatch_consumer_registration_attempted_ = true;
+    GHOST_IEventConsumer *consumer = new GHOST_InputRedrawDispatchConsumer();
+    if (addEventConsumer(consumer) == GHOST_kSuccess) {
+      input_redraw_dispatch_consumer_registered_ = true;
+    }
+    else {
+      delete consumer;
+      std::fprintf(stderr, "GHOST-web: input redraw dispatch observer registration failed\n");
+    }
+  }
+
   /* Reconcile focus-domain facts published synchronously in the DOM event turn.
    * This must precede ordinary input dispatch so a hidden rapid blur boundary
    * retires held state before later input from the reacquired canvas is handled. */
@@ -1389,8 +1459,11 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
       window_ != nullptr && ghost_web::filter_redraw_present_barrier_update(
                                 redraw_episode_generation, redraw_update_requested);
   if (redraw_update_admitted) {
-    pushEvent(
-        std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window_));
+    pushEvent(std::make_unique<GHOST_EventWindowUpdateWeb>(
+        getMilliSeconds(),
+        GHOST_kEventWindowUpdate,
+        window_,
+        input_redraw_pending_admission ? input_redraw_generation : 0u));
     if (input_redraw_pending_admission) {
       ghost_web::note_input_redraw_admitted(input_redraw_generation);
       const uint64_t terminal_generation = ghost_web::input_redraw_terminal_count();

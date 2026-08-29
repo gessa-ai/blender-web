@@ -256,3 +256,9 @@ encoded `Draw*` can still reject asynchronously after the synchronous admission 
 Each selection command now owns a balanced validation ticket; readback consumption waits for every
 ticket, and a late rejection cancels the exact cleared result before retry. The failure generation
 is selection-specific, so an unrelated UI draw drop cannot invalidate a genuine pick.
+
+Browser selection failure teardown is deliberately non-modal. The continuation still replays every
+retained input in order and emits one bounded console diagnostic, which this producer rejects, but
+it does not populate the operator report list: Blender turns any such report into a popup that can
+capture all later input and recreate the apparent total freeze. Native selection reports retain
+their existing behavior.

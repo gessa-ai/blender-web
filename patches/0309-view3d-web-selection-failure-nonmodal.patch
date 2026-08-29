@@ -1,0 +1,121 @@
+diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
+--- a/source/blender/editors/space_view3d/view3d_select.cc
++++ b/source/blender/editors/space_view3d/view3d_select.cc
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include <cfloat>
++#include <cstdio>
+ #include <cstring>
+ #include <optional>
+ 
+@@ -4057,6 +4058,28 @@
+ };
+ 
+ #ifdef __EMSCRIPTEN__
++static void view3d_select_async_web_failure_log(
++    const char *message,
++    const eGPUReadbackError error = GPU_READBACK_ERROR_NONE)
++{
++  constexpr int max_log_count = 16;
++  static int log_count = 0;
++  if (log_count >= max_log_count) {
++    return;
++  }
++  log_count++;
++  if (error == GPU_READBACK_ERROR_NONE) {
++    std::fprintf(stderr, "[bw] WebGPU selection continuation canceled: %s\n", message);
++  }
++  else {
++    std::fprintf(stderr,
++                 "[bw] WebGPU selection readback failed (error %d): %s\n",
++                 int(error),
++                 message);
++  }
++  std::fflush(stderr);
++}
++
+ static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
+ {
+   constexpr int max_queued_events = 512;
+@@ -4199,7 +4222,7 @@
+         if (async_data->timer == nullptr) {
+           PE_depth_cache_session_free(depth_session);
+           MEM_delete(async_data);
+-          BKE_report(op->reports, RPT_ERROR, "Unable to retain particle pick depth request");
++          view3d_select_async_web_failure_log("unable to retain particle pick depth request");
+           return OPERATOR_CANCELLED;
+         }
+         op->customdata = async_data;
+@@ -4220,7 +4243,11 @@
+       PE_depth_cache_session_free(depth_session);
+     }
+     if (particle_result == ParticleEditOperationResult::Failed) {
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_web_failure_log("particle depth readback failed");
++#else
+       BKE_report(op->reports, RPT_ERROR, "Particle pick depth readback failed");
++#endif
+       return OPERATOR_CANCELLED;
+     }
+     changed = particle_result == ParticleEditOperationResult::Finished;
+@@ -4245,10 +4272,7 @@
+       return OPERATOR_RUNNING_MODAL;
+     }
+     if (status == GPU_READBACK_FAILED) {
+-      BKE_reportf(op->reports,
+-                  RPT_ERROR,
+-                  "WebGPU selection readback failed (error %d)",
+-                  int(view3d_select_async_error()));
++      view3d_select_async_web_failure_log("initial request", view3d_select_async_error());
+       return OPERATOR_CANCELLED;
+     }
+   }
+@@ -4339,7 +4363,7 @@
+       return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
+     }
+     if (!view3d_select_async_event_push(data, event)) {
+-      BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");
++      view3d_select_async_web_failure_log("input queue exceeded its bound");
+       view3d_select_async_events_requeue(C, data);
+       view3d_select_async_finish(C, op);
+       return OPERATOR_CANCELLED;
+@@ -4352,7 +4376,11 @@
+    * loss or an undelivered browser callback (roughly 2.4 seconds at 10 ms). */
+   constexpr int max_tick_count = 240;
+   if (++data->tick_count > max_tick_count) {
++#ifdef __EMSCRIPTEN__
++    view3d_select_async_web_failure_log("readback timeout");
++#else
+     BKE_report(op->reports, RPT_ERROR, "Timed out waiting for WebGPU selection readback");
++#endif
+ #ifdef __EMSCRIPTEN__
+     view3d_select_async_events_requeue(C, data);
+ #endif
+@@ -4367,7 +4395,11 @@
+       return OPERATOR_RUNNING_MODAL;
+     }
+     if (state == ParticleEditDepthCacheState::Failed) {
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_web_failure_log("particle depth context changed");
++#else
+       BKE_report(op->reports, RPT_ERROR, "Particle pick depth context changed");
++#endif
+ #ifdef __EMSCRIPTEN__
+       view3d_select_async_events_requeue(C, data);
+ #endif
+@@ -4381,10 +4413,14 @@
+       return OPERATOR_RUNNING_MODAL;
+     }
+     if (status != GPU_READBACK_READY) {
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_web_failure_log("modal request", view3d_select_async_error());
++#else
+       BKE_reportf(op->reports,
+                   RPT_ERROR,
+                   "WebGPU selection readback failed (error %d)",
+                   int(view3d_select_async_error()));
++#endif
+ #ifdef __EMSCRIPTEN__
+       view3d_select_async_events_requeue(C, data);
+ #endif

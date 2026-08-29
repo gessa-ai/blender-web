@@ -3694,7 +3694,19 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   orbits in 332/11,875/bounded milliseconds with zero selection/page/lifecycle errors. RELINKED
   CAPTURE `.wasm.orig` is `fb5223a06ee9` (119,001,291 bytes). This remains device-free evidence:
   P0-I/J require this exact inventory to pass Apple 10/10 plus the same-generation composed P0-E
-  gauntlet. See `notes/p0-selection-draw-validation-20260829.md`.
+  gauntlet. See `notes/p0-selection-draw-validation-20260829.md`. **Browser selection failure
+  teardown made non-modal/relinked/pending hardware (patch 0309):** source tracing confirmed that
+  every `BKE_report` on a canceled operator becomes a popup, so the prior readback error report
+  captured the continuation's correctly replayed input and presented as a total freeze. All seven
+  browser asynchronous selection failure exits now use one 16-line-capped console diagnostic,
+  replay retained input, and leave `op->reports` empty; native reports are unchanged. The Apple
+  producer rejects either failure spelling, so this fail-safe cannot manufacture a pass. Focused
+  mutation/replay, canonical source, native/Wasm compile, CAPTURE preflight, adjacent selection,
+  and exact slow/sparse software controls are green. RELINKED CAPTURE `.wasm.orig` is
+  `c22cc2e373d5` (119,001,697 bytes); the control selects Cube and retires both orbits with zero
+  selection-fallback/page/lifecycle errors. P0-I/J remain open for this exact inventory to pass
+  Apple 10/10 and the same-generation composed P0-E gauntlet. See
+  `notes/p0-selection-failure-nonmodal-20260829.md`.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

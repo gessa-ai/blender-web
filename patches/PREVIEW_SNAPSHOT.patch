@@ -23519,10 +23519,18 @@ index 505d4bf4404522fdadff19e8111dbd535810bb69..5f69d64335f9ab1992ee43d862a2790a
    ot->poll = view3d_zoom_border_poll;
  
 diff --git a/source/blender/editors/space_view3d/view3d_select.cc b/source/blender/editors/space_view3d/view3d_select.cc
-index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454cc1707fa2 100644
+index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..fe0ec2c194c971912e1b29dedf1fdc693a1f9093 100644
 --- a/source/blender/editors/space_view3d/view3d_select.cc
 +++ b/source/blender/editors/space_view3d/view3d_select.cc
-@@ -197,7 +197,17 @@ static bool object_deselect_all_except(const Main &bmain,
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include <cfloat>
++#include <cstdio>
+ #include <cstring>
+ #include <optional>
+ 
+@@ -197,7 +198,17 @@ static bool object_deselect_all_except(const Main &bmain,
   * \{ */
  
  struct EditSelectBuf_Cache {
@@ -23541,7 +23549,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  };
  
  static void editselect_buf_cache_init(const ViewContext *vc, short select_mode)
-@@ -221,6 +231,7 @@ static void editselect_buf_cache_init(const ViewContext *vc, short select_mode)
+@@ -221,6 +232,7 @@ static void editselect_buf_cache_init(const ViewContext *vc, short select_mode)
  static void editselect_buf_cache_free(EditSelectBuf_Cache *esel)
  {
    MEM_SAFE_DELETE(esel->select_bitmap);
@@ -23549,7 +23557,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  }
  
  static void editselect_buf_cache_free_voidp(void *esel_voidp)
-@@ -233,13 +244,99 @@ static void editselect_buf_cache_init_with_generic_userdata(wmGenericUserData *w
+@@ -233,13 +245,99 @@ static void editselect_buf_cache_init_with_generic_userdata(wmGenericUserData *w
                                                              const ViewContext *vc,
                                                              short select_mode)
  {
@@ -23650,7 +23658,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  /** \} */
  
  /* -------------------------------------------------------------------- */
-@@ -838,6 +935,20 @@ static bool do_lasso_select_mesh(const ViewContext *vc,
+@@ -838,6 +936,20 @@ static bool do_lasso_select_mesh(const ViewContext *vc,
  
    view3d_userdata_lassoselect_init(&data, vc, &rect, mcoords, sel_op);
  
@@ -23671,7 +23679,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
        EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
-@@ -854,18 +965,6 @@ static bool do_lasso_select_mesh(const ViewContext *vc,
+@@ -854,18 +966,6 @@ static bool do_lasso_select_mesh(const ViewContext *vc,
  
    GPU_matrix_set(vc->rv3d->viewmat);
  
@@ -23690,7 +23698,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -1421,10 +1520,7 @@ static bool view3d_lasso_select(bContext *C,
+@@ -1421,10 +1521,7 @@ static bool view3d_lasso_select(bContext *C,
        }
      }
      else if (ob && (ob->mode & OB_MODE_PARTICLE_EDIT)) {
@@ -23702,7 +23710,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
      }
      else if (ob &&
               ((ob->mode & OB_MODE_POSE) | ((ob->mode & OB_MODE_WEIGHT_PAINT) &&
-@@ -1522,13 +1618,333 @@ static bool view3d_lasso_select(bContext *C,
+@@ -1522,13 +1619,333 @@ static bool view3d_lasso_select(bContext *C,
    return changed_multi;
  }
  
@@ -24037,7 +24045,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    }
  
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-@@ -1539,12 +1955,88 @@ static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
+@@ -1539,12 +1956,88 @@ static wmOperatorStatus view3d_lasso_select_exec(bContext *C, wmOperator *op)
    ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
  
    eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
@@ -24129,7 +24137,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  }
  
  void VIEW3D_OT_select_lasso(wmOperatorType *ot)
-@@ -1553,11 +2045,11 @@ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
+@@ -1553,11 +2046,11 @@ void VIEW3D_OT_select_lasso(wmOperatorType *ot)
    ot->description = "Select items using lasso selection";
    ot->idname = "VIEW3D_OT_select_lasso";
  
@@ -24144,7 +24152,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  
    /* flags */
    ot->flag = OPTYPE_UNDO | OPTYPE_DEPENDS_ON_CURSOR;
-@@ -2169,6 +2661,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
+@@ -2169,6 +2662,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
                                  select_filter,
                                  eV3DSelectShape::BOX,
                                  do_material_slot_selection);
@@ -24155,7 +24163,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (hits15 == 1) {
      hits = selectbuffer_ret_hits_15(storage.as_mutable_span(), hits15);
      goto finally;
-@@ -2180,6 +2676,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
+@@ -2180,6 +2677,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
      ofs = hits15;
      BLI_rcti_init_pt_radius(&rect, mval, 9);
      hits9 = view3d_gpu_select(vc, buffer, &rect, select_mode, select_filter, eV3DSelectShape::BOX);
@@ -24166,7 +24174,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
      if (hits9 == 1) {
        hits = selectbuffer_ret_hits_9(storage.as_mutable_span(), hits15, hits9);
        goto finally;
-@@ -2191,6 +2691,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
+@@ -2191,6 +2692,10 @@ static int mixed_bones_object_selectbuffer(const ViewContext *vc,
        BLI_rcti_init_pt_radius(&rect, mval, 5);
        hits5 = view3d_gpu_select(
            vc, buffer, &rect, select_mode, select_filter, eV3DSelectShape::BOX);
@@ -24177,7 +24185,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
        if (hits5 == 1) {
          hits = selectbuffer_ret_hits_5(storage.as_mutable_span(), hits15, hits9, hits5);
          goto finally;
-@@ -2658,6 +3162,10 @@ static bool ed_object_select_pick(bContext *C,
+@@ -2658,6 +3163,10 @@ static bool ed_object_select_pick(bContext *C,
                                    VIEW3D_SELECT_FILTER_NOP);
      gpu->hits = mixed_bones_object_selectbuffer_extended(
          &vc, &gpu->buffer, mval, select_filter, true, enumerate, &gpu->do_nearest);
@@ -24188,7 +24196,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
      gpu->has_bones = (object_only && gpu->hits > 0) ?
                           false :
                           selectbuffer_has_bones(gpu->buffer.storage.as_span().slice(0, gpu->hits));
-@@ -3512,6 +4020,74 @@ static bool ed_grease_pencil_select_pick(bContext *C,
+@@ -3512,6 +4021,96 @@ static bool ed_grease_pencil_select_pick(bContext *C,
    return true;
  }
  
@@ -24229,6 +24237,28 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +};
 +
 +#ifdef __EMSCRIPTEN__
++static void view3d_select_async_web_failure_log(
++    const char *message,
++    const eGPUReadbackError error = GPU_READBACK_ERROR_NONE)
++{
++  constexpr int max_log_count = 16;
++  static int log_count = 0;
++  if (log_count >= max_log_count) {
++    return;
++  }
++  log_count++;
++  if (error == GPU_READBACK_ERROR_NONE) {
++    std::fprintf(stderr, "[bw] WebGPU selection continuation canceled: %s\n", message);
++  }
++  else {
++    std::fprintf(stderr,
++                 "[bw] WebGPU selection readback failed (error %d): %s\n",
++                 int(error),
++                 message);
++  }
++  std::fflush(stderr);
++}
++
 +static bool view3d_select_async_event_push(View3DSelectAsyncData *data, const wmEvent *event)
 +{
 +  constexpr int max_queued_events = 512;
@@ -24263,7 +24293,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
  {
    Scene *scene = CTX_data_scene(C);
-@@ -3572,8 +4148,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3572,8 +4171,10 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
          GPUSelectBuffer buffer;
          const int hits = mixed_bones_object_selectbuffer(
              &vc, &buffer, mval, VIEW3D_SELECT_FILTER_NOP, false, true, false);
@@ -24276,7 +24306,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
        }
        if (!changed) {
          changed = ED_armature_edit_select_pick(C, mval, params);
-@@ -3602,7 +4180,50 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3602,7 +4203,54 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      }
    }
    else if (obact && obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24300,7 +24330,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +        if (async_data->timer == nullptr) {
 +          PE_depth_cache_session_free(depth_session);
 +          MEM_delete(async_data);
-+          BKE_report(op->reports, RPT_ERROR, "Unable to retain particle pick depth request");
++          view3d_select_async_web_failure_log("unable to retain particle pick depth request");
 +          return OPERATOR_CANCELLED;
 +        }
 +        op->customdata = async_data;
@@ -24321,14 +24351,18 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +      PE_depth_cache_session_free(depth_session);
 +    }
 +    if (particle_result == ParticleEditOperationResult::Failed) {
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_web_failure_log("particle depth readback failed");
++#else
 +      BKE_report(op->reports, RPT_ERROR, "Particle pick depth readback failed");
++#endif
 +      return OPERATOR_CANCELLED;
 +    }
 +    changed = particle_result == ParticleEditOperationResult::Finished;
    }
    else if (obact && BKE_paint_select_face_test(obact)) {
      changed = paintface_mouse_select(C, mval, params, obact);
-@@ -3617,6 +4238,22 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3617,6 +4265,19 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
      changed = ed_object_select_pick(C, mval, params, center, enumerate, object_only);
    }
  
@@ -24339,10 +24373,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +      return OPERATOR_RUNNING_MODAL;
 +    }
 +    if (status == GPU_READBACK_FAILED) {
-+      BKE_reportf(op->reports,
-+                  RPT_ERROR,
-+                  "WebGPU selection readback failed (error %d)",
-+                  int(view3d_select_async_error()));
++      view3d_select_async_web_failure_log("initial request", view3d_select_async_error());
 +      return OPERATOR_CANCELLED;
 +    }
 +  }
@@ -24351,7 +24382,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    /* Pass-through flag may be cleared, see #WM_operator_flag_only_pass_through_on_press. */
  
    /* Pass-through allows tweaks
-@@ -3629,15 +4266,149 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
+@@ -3629,15 +4290,161 @@ static wmOperatorStatus view3d_select_exec(bContext *C, wmOperator *op)
    return OPERATOR_PASS_THROUGH | OPERATOR_CANCELLED;
  }
  
@@ -24428,7 +24459,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +      return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;
 +    }
 +    if (!view3d_select_async_event_push(data, event)) {
-+      BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");
++      view3d_select_async_web_failure_log("input queue exceeded its bound");
 +      view3d_select_async_events_requeue(C, data);
 +      view3d_select_async_finish(C, op);
 +      return OPERATOR_CANCELLED;
@@ -24441,7 +24472,11 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +   * loss or an undelivered browser callback (roughly 2.4 seconds at 10 ms). */
 +  constexpr int max_tick_count = 240;
 +  if (++data->tick_count > max_tick_count) {
++#ifdef __EMSCRIPTEN__
++    view3d_select_async_web_failure_log("readback timeout");
++#else
 +    BKE_report(op->reports, RPT_ERROR, "Timed out waiting for WebGPU selection readback");
++#endif
 +#ifdef __EMSCRIPTEN__
 +    view3d_select_async_events_requeue(C, data);
 +#endif
@@ -24456,7 +24491,11 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +      return OPERATOR_RUNNING_MODAL;
 +    }
 +    if (state == ParticleEditDepthCacheState::Failed) {
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_web_failure_log("particle depth context changed");
++#else
 +      BKE_report(op->reports, RPT_ERROR, "Particle pick depth context changed");
++#endif
 +#ifdef __EMSCRIPTEN__
 +      view3d_select_async_events_requeue(C, data);
 +#endif
@@ -24470,10 +24509,14 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
 +      return OPERATOR_RUNNING_MODAL;
 +    }
 +    if (status != GPU_READBACK_READY) {
++#ifdef __EMSCRIPTEN__
++      view3d_select_async_web_failure_log("modal request", view3d_select_async_error());
++#else
 +      BKE_reportf(op->reports,
 +                  RPT_ERROR,
 +                  "WebGPU selection readback failed (error %d)",
 +                  int(view3d_select_async_error()));
++#endif
 +#ifdef __EMSCRIPTEN__
 +      view3d_select_async_events_requeue(C, data);
 +#endif
@@ -24501,7 +24544,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  void VIEW3D_OT_select(wmOperatorType *ot)
  {
    PropertyRNA *prop;
-@@ -3650,6 +4421,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
+@@ -3650,6 +4457,8 @@ void VIEW3D_OT_select(wmOperatorType *ot)
    /* API callbacks. */
    ot->invoke = view3d_select_invoke;
    ot->exec = view3d_select_exec;
@@ -24510,7 +24553,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    ot->poll = ED_operator_view3d_active;
    ot->get_name = ED_select_pick_get_name;
  
-@@ -4071,6 +4844,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4071,6 +4880,20 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    view3d_userdata_boxselect_init(&data, vc, rect, sel_op);
  
@@ -24531,7 +24574,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
        EDBM_flag_disable_all(vc->em, BM_ELEM_SELECT);
-@@ -4087,18 +4874,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
+@@ -4087,18 +4910,6 @@ static bool do_mesh_box_select(const ViewContext *vc,
  
    GPU_matrix_set(vc->rv3d->viewmat);
  
@@ -24550,7 +24593,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        data.is_changed |= edbm_backbuf_check_and_select_verts(
-@@ -4535,6 +5310,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
+@@ -4535,6 +5346,15 @@ static bool do_curves_sculpt_box_select(const ViewContext &vc,
    return do_curves_select_box(vc, object, rect, sel_op);
  }
  
@@ -24566,7 +24609,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
-@@ -4553,6 +5337,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4553,6 +5373,30 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
    eSelectOp sel_op = static_cast<eSelectOp>(RNA_enum_get(op->ptr, "mode"));
    WM_operator_properties_border_to_rcti(op, &rect);
  
@@ -24597,7 +24640,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (vc.obedit) {
      FOREACH_OBJECT_IN_MODE_BEGIN (
          vc.bmain, vc.scene, vc.view_layer, vc.v3d, vc.obedit->type, vc.obedit->mode, ob_iter)
-@@ -4650,7 +5458,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4650,7 +5494,7 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
        }
      }
      else if (vc.obact && vc.obact->mode & OB_MODE_PARTICLE_EDIT) {
@@ -24606,7 +24649,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
      }
      else if (vc.obact && ((vc.obact->mode & OB_MODE_POSE) ||
                            ((vc.obact->mode & OB_MODE_WEIGHT_PAINT) &&
-@@ -4671,10 +5479,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
+@@ -4671,10 +5515,77 @@ static wmOperatorStatus view3d_box_select_exec(bContext *C, wmOperator *op)
  
    WM_generic_user_data_free(wm_userdata);
  
@@ -24687,7 +24730,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  }
  
  void VIEW3D_OT_select_box(wmOperatorType *ot)
-@@ -4685,11 +5560,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
+@@ -4685,11 +5596,11 @@ void VIEW3D_OT_select_box(wmOperatorType *ot)
    ot->idname = "VIEW3D_OT_select_box";
  
    /* API callbacks. */
@@ -24702,7 +24745,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  
    /* flags */
    ot->flag = OPTYPE_UNDO;
-@@ -4803,6 +5678,20 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4803,6 +5714,20 @@ static bool mesh_circle_select(const ViewContext *vc,
    CircleSelectUserData data;
    BLI_assert(vc->em == BKE_editmesh_from_object(vc->obedit));
  
@@ -24723,7 +24766,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    bool changed = false;
    if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
      if (vc->em->bm->totvertsel) {
-@@ -4824,22 +5713,6 @@ static bool mesh_circle_select(const ViewContext *vc,
+@@ -4824,22 +5749,6 @@ static bool mesh_circle_select(const ViewContext *vc,
  
    view3d_userdata_circleselect_init(&data, vc, select, mval, rad);
  
@@ -24746,7 +24789,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    if (ts->selectmode & SCE_SELECT_VERTEX) {
      if (use_zbuf) {
        if (esel->select_bitmap != nullptr) {
-@@ -5544,19 +6417,331 @@ static void view3d_circle_select_recalc(void *user_data)
+@@ -5544,19 +6453,331 @@ static void view3d_circle_select_recalc(void *user_data)
    }
  }
  
@@ -25078,7 +25121,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    WM_gesture_circle_cancel(C, op);
    view3d_circle_select_recalc(C);
  }
-@@ -5564,17 +6749,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
+@@ -5564,17 +6785,37 @@ static void view3d_circle_select_cancel(bContext *C, wmOperator *op)
  static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
  {
    Depsgraph *depsgraph = CTX_data_ensure_evaluated_depsgraph(C);
@@ -25121,7 +25164,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    ViewContext vc = ED_view3d_viewcontext_init(C, depsgraph);
  
    Object *obact = vc.obact;
-@@ -5631,10 +6836,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5631,10 +6872,30 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
      FOREACH_OBJECT_IN_MODE_END;
    }
    else if (obact && (obact->mode & OB_MODE_PARTICLE_EDIT)) {
@@ -25155,7 +25198,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
    }
    else if (obact && obact->mode & OB_MODE_SCULPT) {
      return OPERATOR_CANCELLED;
-@@ -5662,13 +6887,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
+@@ -5662,13 +6923,44 @@ static wmOperatorStatus view3d_circle_select_exec(bContext *C, wmOperator *op)
    }
    else {
      EditSelectBuf_Cache *esel = static_cast<EditSelectBuf_Cache *>(wm_userdata->data);
@@ -25204,7 +25247,7 @@ index 27b6fea7b19275a0d8dc85222a6b6baaef4e07aa..bd17b588db420dc73896c9733fc9454c
  }
  
  void VIEW3D_OT_select_circle(wmOperatorType *ot)
-@@ -5677,7 +6933,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
+@@ -5677,7 +6969,7 @@ void VIEW3D_OT_select_circle(wmOperatorType *ot)
    ot->description = "Select items using circle selection";
    ot->idname = "VIEW3D_OT_select_circle";
  

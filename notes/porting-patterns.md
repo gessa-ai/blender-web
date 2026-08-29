@@ -2166,3 +2166,16 @@ miss in native/wasm32 models. See `platform_web/ghost/GHOST_WebDisplayState.hh`,
 `upstream/source/blender/gpu/intern/gpu_select_next.cc`,
 `upstream/source/blender/gpu/webgpu/wgpu_batch.cc`, and
 `sandbox/p0-interaction-stress/verify_select_draw_validation.py`.
+
+## Class 146 — canceled modal continuations must not report backend failures through operator UI
+
+Signature: an asynchronous browser operator correctly replays retained input and returns
+`OPERATOR_CANCELLED`, yet every later action appears frozen. Blender's window manager opens a popup
+for any entry in the completed operator's report list, regardless of report severity, so the popup
+can immediately capture the replayed input and masquerade as a dead input/render loop. Keep backend
+failure diagnostics bounded and fail-visible in the browser console, leave the operator report list
+empty, replay retained input before teardown, and make the hardware producer reject the diagnostic
+so graceful degradation cannot manufacture a pass. Preserve native reports. See
+`upstream/source/blender/editors/space_view3d/view3d_select.cc`,
+`upstream/source/blender/windowmanager/intern/wm_event_system.cc`, and
+`sandbox/p0-interaction-stress/verify_select_stream_continuation.py`.

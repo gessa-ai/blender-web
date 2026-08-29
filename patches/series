@@ -1230,3 +1230,6 @@
 # 0308: keep cleared selection readback private until every encoded browser draw validates, and
 # retry instead of publishing it when a late command-scope rejection invalidates the attempt.
 0308-gpu-webgpu-select-draw-validation.patch
+# 0309: keep browser selection backend failures non-modal while replaying retained input, so a
+# failed pick cannot capture every later user action behind an operator-report popup.
+0309-view3d-web-selection-failure-nonmodal.patch

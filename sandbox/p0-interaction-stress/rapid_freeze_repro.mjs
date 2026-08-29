@@ -605,7 +605,7 @@ try {
     lifecycle,
     pointerLockLines: consoleLines.filter((line) => /Pointer Lock|pointerlock/i.test(line)),
     selectionReadbackFailureLines: consoleLines.filter(
-      (line) => /WebGPU selection readback failed/.test(line)),
+      (line) => /WebGPU selection (?:readback failed|continuation canceled)/.test(line)),
     selectionGpuLines: consoleLines.filter(
       (line) => /WGPUWeb-(?:bind-pending|select-)|BW_SHADER_CACHE_RESULT .*select|WebGPU.*pipeline.*rejected/.test(line)),
     wmEventLines: consoleLines.filter((line) => /^wmEvent type:/.test(line)),
@@ -638,7 +638,7 @@ catch (error) {
     pointerLockLines: (failureContext?.consoleLines || [])
       .filter((line) => /Pointer Lock|pointerlock/i.test(line)),
     selectionReadbackFailureLines: (failureContext?.consoleLines || [])
-      .filter((line) => /WebGPU selection readback failed/.test(line)),
+      .filter((line) => /WebGPU selection (?:readback failed|continuation canceled)/.test(line)),
     selectionGpuLines: (failureContext?.consoleLines || [])
       .filter((line) => /WGPUWeb-(?:bind-pending|select-)|BW_SHADER_CACHE_RESULT .*select|WebGPU.*pipeline.*rejected/.test(line)),
     wmEventLines: (failureContext?.consoleLines || [])

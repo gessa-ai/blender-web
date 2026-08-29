@@ -17,6 +17,7 @@ BUFFER = ROOT / "upstream/source/blender/gpu/webgpu/wgpu_buffer.cc"
 VIEW3D_SELECT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_select.cc"
 PRODUCER = ROOT / "sandbox/p0-interaction-stress/rapid_freeze_repro.mjs"
 PATCH = ROOT / "patches/0305-gpu-webgpu-select-stream-continuation.patch"
+NONMODAL_PATCH = ROOT / "patches/0309-view3d-web-selection-failure-nonmodal.patch"
 SERIES = ROOT / "patches/series"
 
 
@@ -33,6 +34,7 @@ def validate(sources: dict[str, str]) -> None:
     view3d_select = sources["view3d_select"]
     producer = sources["producer"]
     patch = sources["patch"]
+    nonmodal_patch = sources["nonmodal_patch"]
     series = sources["series"]
 
     for token in (
@@ -68,13 +70,47 @@ def validate(sources: dict[str, str]) -> None:
         "Vector<wmEvent> queued_events;",
         "static bool view3d_select_async_event_push(",
         "static void view3d_select_async_events_requeue(",
+        "static void view3d_select_async_web_failure_log(",
+        "[bw] WebGPU selection continuation canceled: %s\\n",
+        "[bw] WebGPU selection readback failed (error %d): %s\\n",
         "for (int64_t index = data->queued_events.size() - 1; index >= 0; index--)",
         "wmEvent *queued = WM_event_add(data->window, &data->queued_events[index]);",
         "BLI_addhead(&data->window->runtime->event_queue, queued);",
         "if (ISTIMER(event->type) || event->customdata != nullptr)",
-        'BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");',
+        'view3d_select_async_web_failure_log("input queue exceeded its bound");',
+        'view3d_select_async_web_failure_log("readback timeout");',
     ):
         require(view3d_select, token)
+    require(view3d_select, "view3d_select_async_web_failure_log(", 8)
+    require(view3d_select, "constexpr int max_log_count = 16;")
+    for forbidden in (
+        'BKE_report(op->reports, RPT_ERROR, "Unable to retain particle pick depth request");',
+        'BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");',
+    ):
+        if forbidden in view3d_select:
+            raise ValueError(f"browser selection failure can still populate modal reports: {forbidden!r}")
+    for indent, browser_log, native_report in (
+        (
+            6,
+            'view3d_select_async_web_failure_log("particle depth readback failed");',
+            'BKE_report(op->reports, RPT_ERROR, "Particle pick depth readback failed");',
+        ),
+        (
+            4,
+            'view3d_select_async_web_failure_log("readback timeout");',
+            'BKE_report(op->reports, RPT_ERROR, "Timed out waiting for WebGPU selection readback");',
+        ),
+        (
+            6,
+            'view3d_select_async_web_failure_log("particle depth context changed");',
+            'BKE_report(op->reports, RPT_ERROR, "Particle pick depth context changed");',
+        ),
+    ):
+        spaces = " " * indent
+        require(
+            view3d_select,
+            f"#ifdef __EMSCRIPTEN__\n{spaces}{browser_log}\n#else\n{spaces}{native_report}\n#endif",
+        )
     require(
         view3d_select,
         "static bool view3d_select_async_event_push(View3DSelectAsyncData *data, "
@@ -109,7 +145,7 @@ def validate(sources: dict[str, str]) -> None:
     ):
         require(producer, token)
     require(producer, "selectionDrainMs: selectionDrain?.settleMs ?? null")
-    require(producer, "/WebGPU selection readback failed/.test(line)", 2)
+    require(producer, "/WebGPU selection (?:readback failed|continuation canceled)/.test(line)", 2)
     require(
         producer,
         "(current) => nativeSelectionComplete(current, selectionBaseline),\n"
@@ -139,6 +175,20 @@ def validate(sources: dict[str, str]) -> None:
         series,
         "0305-gpu-webgpu-select-stream-continuation.patch",
     )
+    require(
+        nonmodal_patch,
+        "diff --git a/source/blender/editors/space_view3d/view3d_select.cc "
+        "b/source/blender/editors/space_view3d/view3d_select.cc",
+    )
+    for token in (
+        "+static void view3d_select_async_web_failure_log(",
+        '+      view3d_select_async_web_failure_log("particle depth readback failed");',
+        '+    view3d_select_async_web_failure_log("readback timeout");',
+        '+      view3d_select_async_web_failure_log("modal request", '
+        "view3d_select_async_error());",
+    ):
+        require(nonmodal_patch, token)
+    require(series, "0309-view3d-web-selection-failure-nonmodal.patch")
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -175,6 +225,11 @@ def self_check(sources: dict[str, str]) -> None:
             "if (ISTIMER(event->type) || event->customdata != nullptr) {\n"
             "      return OPERATOR_RUNNING_MODAL;\n    }",
         ),
+        (
+            "view3d_select",
+            'view3d_select_async_web_failure_log("input queue exceeded its bound");',
+            'BKE_report(op->reports, RPT_ERROR, "WebGPU selection input queue exceeded its bound");',
+        ),
         ("producer", 'throw new Error("BW_P0_STATE_ONLY cannot weaken the Apple pixel diagnostic")', ""),
         (
             "producer",
@@ -200,6 +255,11 @@ def self_check(sources: dict[str, str]) -> None:
             "diff --git a/source/blender/gpu/webgpu/wgpu_buffer.cc "
             "b/source/blender/gpu/webgpu/wgpu_buffer.cc",
             "",
+        ),
+        (
+            "nonmodal_patch",
+            "+static void view3d_select_async_web_failure_log(",
+            "+static void view3d_select_async_modal_report(",
         ),
         (
             "series",
@@ -233,6 +293,7 @@ def main() -> int:
         "view3d_select": VIEW3D_SELECT.read_text(),
         "producer": PRODUCER.read_text(),
         "patch": PATCH.read_text(),
+        "nonmodal_patch": NONMODAL_PATCH.read_text(),
         "series": SERIES.read_text(),
     }
     try:

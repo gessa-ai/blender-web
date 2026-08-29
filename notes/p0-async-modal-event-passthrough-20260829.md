@@ -71,6 +71,22 @@ Fresh navigation/source mutation, selection-stream, and selection-sync-stage che
 `ledger/buildlogs/20260829T183052-229483.log`. Pinned REUSE 6.2.0 covers 2,825/2,825 files at
 `ledger/buildlogs/20260829T183245-230896.log`.
 
+### Applied-source census
+
+The focused verifier now also scans every browser-owned asynchronous modal source in this defect
+class. Exactly two combined `RUNNING_MODAL | PASS_THROUGH` returns remain: the cursor invoke owns
+its initiating click-drag, and the navigation continuation owns and later replays its queued event.
+Selection, screenshot, gesture-selection, cursor-poll, view-center, zoom-border, and NDOF poll
+branches contain zero combined returns. An extra combined return in either an otherwise-zero file
+or either owned function fails the mutation contract, so a newly added continuation cannot escape
+the named sibling list silently.
+
+The missing-census fail-first check is `ledger/buildlogs/20260829T183906-234896.log`. The final
+23-mutation census, selection-stream, selection-sync, rapid-input, capture, and syntax checks are
+green at `ledger/buildlogs/20260829T184003-235872.log` through
+`ledger/buildlogs/20260829T184003-235905.log`. This is a source/test hardening only; it does not
+change or relink the CAPTURE product.
+
 ## Product identity and boundary
 
 The relinked CAPTURE inventory at `8e5df79` is JS `bba3f480bb3b`, Wasm

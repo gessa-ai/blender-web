@@ -3916,7 +3916,15 @@ splash decoder (imbuf). Evidence: platform_web/shell/evidence/viewport-recon-*.
   direct M4 remains Apple-pixel RED and pinned-oracle regression restores M0 6/6 while preserving
   the named strict/hardware/APPLY/product boundaries. This binds software stability only: the
   driver must still pass exact Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet. See
-  `notes/p0-async-modal-event-passthrough-20260829.md`.
+  `notes/p0-async-modal-event-passthrough-20260829.md`. **Applied async-modal combined-return
+  census verified/pending Apple:** the focused source contract now fail-closes over the complete
+  browser async sibling set, permitting `RUNNING_MODAL | PASS_THROUGH` only at the cursor invoke
+  that owns its initiating click-drag and the navigation continuation that owns/replays its queued
+  event. Selection, screenshot, gesture-selection, cursor-poll, view-center, zoom-border, and NDOF
+  poll paths require zero combined returns. The fail-first missing-census check and final
+  23-mutation census plus adjacent selection-stream/sync/rapid/capture contracts are green. This
+  changes no runtime byte or hardware verdict: CAPTURE `.wasm.orig` remains `79c4a0f9edf4`, and
+  P0-I/J remain open for exact Apple 10/10 plus the same-generation P0-E/zero-artifact gauntlet.
 - [x] **P1-RELEASE-FIRST-PIXEL-LOADER-COHERENCE [shell] (`125f552`):** the release shell's
   nominal printf-based first-pixel path was correct, but its 2.5-second `WM_main` fallback hid the
   loader with the uncapped presentation counter still at zero. Exact-product tracing measures an

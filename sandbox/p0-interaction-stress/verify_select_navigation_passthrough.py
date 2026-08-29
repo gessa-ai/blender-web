@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 
@@ -14,6 +15,7 @@ VIEW3D_SELECT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_sele
 WM_EVENT_SYSTEM = ROOT / "upstream/source/blender/windowmanager/intern/wm_event_system.cc"
 SCREENDUMP = ROOT / "upstream/source/blender/editors/screen/screendump.cc"
 VIEW3D_EDIT = ROOT / "upstream/source/blender/editors/space_view3d/view3d_edit.cc"
+VIEW3D_NAVIGATE = ROOT / "upstream/source/blender/editors/space_view3d/view3d_navigate.cc"
 VIEW_CENTER = (
     ROOT / "upstream/source/blender/editors/space_view3d/view3d_navigate_view_center_pick.cc"
 )
@@ -52,7 +54,43 @@ def definition(source: str, marker: str) -> str:
     raise ValueError(f"unterminated definition after {marker!r}")
 
 
-def validate(sources: dict[str, str]) -> None:
+def async_combined_passthrough_census(sources: dict[str, str]) -> int:
+    """Allow combined modal/pass-through only where the continuation owns the event."""
+    combined_return = re.compile(
+        r"return\s+\(?OPERATOR_RUNNING_MODAL\s*\|\s*OPERATOR_PASS_THROUGH\)?;"
+    )
+    expected_counts = {
+        "view3d_select": 0,
+        "screendump": 0,
+        "view3d_edit": 1,
+        "view3d_navigate": 1,
+        "view_center": 0,
+        "zoom_border": 0,
+        "view_ndof": 0,
+    }
+    actual_counts = {
+        key: len(combined_return.findall(sources[key])) for key in expected_counts
+    }
+    if actual_counts != expected_counts:
+        raise ValueError(
+            "browser async combined pass-through census differs: "
+            f"expected={expected_counts} actual={actual_counts}"
+        )
+
+    cursor_invoke = definition(
+        sources["view3d_edit"], "static wmOperatorStatus view3d_cursor3d_invoke("
+    )
+    navigation_modal = definition(
+        sources["view3d_navigate"], "static wmOperatorStatus view3d_navigation_depth_modal("
+    )
+    if len(combined_return.findall(cursor_invoke)) != 1:
+        raise ValueError("cursor invoke lost its owned click-drag combined return")
+    if len(combined_return.findall(navigation_modal)) != 1:
+        raise ValueError("navigation continuation lost its owned queued-event combined return")
+    return sum(actual_counts.values())
+
+
+def validate(sources: dict[str, str]) -> int:
     view3d_select = sources["view3d_select"]
     wm_event_system = sources["wm_event_system"]
     producer = sources["producer"]
@@ -240,6 +278,7 @@ def validate(sources: dict[str, str]) -> None:
     require(series, EVENT_PATCH.name)
     require(series, GESTURE_PATCH.name)
     require(series, SIBLING_PATCH.name)
+    return async_combined_passthrough_census(sources)
 
 
 def replace_once(source: str, old: str, new: str) -> str:
@@ -249,7 +288,7 @@ def replace_once(source: str, old: str, new: str) -> str:
 
 
 def self_check(sources: dict[str, str]) -> None:
-    validate(sources)
+    async_combined = validate(sources)
     mutations = (
         (
             "view3d_select",
@@ -295,6 +334,12 @@ def self_check(sources: dict[str, str]) -> None:
             "  {\n"
             "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
             "  }",
+        ),
+        (
+            "view3d_navigate",
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n",
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n"
+            "    return OPERATOR_RUNNING_MODAL | OPERATOR_PASS_THROUGH;\n",
         ),
         (
             "screendump",
@@ -395,7 +440,10 @@ def self_check(sources: dict[str, str]) -> None:
             rejected += 1
     if rejected != len(mutations):
         raise ValueError(f"mutation self-check rejected {rejected}/{len(mutations)}")
-    print(f"P0J_SELECT_NAVIGATION_PASSTHROUGH_SELFCHECK_PASS mutations={rejected}")
+    print(
+        "P0J_SELECT_NAVIGATION_PASSTHROUGH_SELFCHECK_PASS "
+        f"mutations={rejected} async_combined={async_combined}"
+    )
 
 
 def main() -> int:
@@ -407,6 +455,7 @@ def main() -> int:
         "wm_event_system": WM_EVENT_SYSTEM.read_text(),
         "screendump": SCREENDUMP.read_text(),
         "view3d_edit": VIEW3D_EDIT.read_text(),
+        "view3d_navigate": VIEW3D_NAVIGATE.read_text(),
         "view_center": VIEW_CENTER.read_text(),
         "zoom_border": ZOOM_BORDER.read_text(),
         "view_ndof": VIEW_NDOF.read_text(),

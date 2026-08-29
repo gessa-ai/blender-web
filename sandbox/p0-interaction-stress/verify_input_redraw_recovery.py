@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 blender-web contributors
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Bind ordinary web input to a full bounded redraw-retry tail."""
+"""Bind ordinary web input to a bounded burst plus a terminal full retry tail."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def validate(header: str, system: str, bridge: str, context: str) -> None:
 
     helper = method(system, HELPER)
     if helper.count("ghost_web::request_input_redraw_retry()") != 1:
-        raise ValueError("system helper no longer publishes exactly one bounded input tail")
+        raise ValueError("system helper no longer publishes exactly one input activity edge")
     if "ghost_web::request_redraw_retry();" in helper:
         raise ValueError("ordinary input collapsed back into shader-readiness ownership")
     if "request_redraw_episode" in helper:
@@ -202,7 +202,7 @@ def main() -> int:
         validate(header, system, bridge, context)
         print(
             "P0J_INPUT_REDRAW_RECOVERY_SOURCE_PASS "
-            "events=move,button,wheel,key mode=coalesced-full-tail"
+            "events=move,button,wheel,key mode=bounded-burst+terminal-full-tail"
         )
     return 0
 

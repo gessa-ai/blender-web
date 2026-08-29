@@ -223,17 +223,24 @@ def validate(
         "resize present barrier trace lifetime",
     )
     for token in (
-        "retry_generation != retry_generation_seen",
+        "const uint64_t retry_delta = retry_generation - retry_generation_seen;",
+        "const uint64_t input_delta = input_retry_generation - input_retry_generation_seen;",
+        "const bool retry_published = retry_delta != 0u;",
+        "const bool input_published = input_delta != 0u;",
+        "const bool readiness_published = retry_delta != input_delta;",
         "retry_generation_seen = retry_generation;",
         "episode_generation != episode_generation_seen",
         "episode_generation_seen = episode_generation;",
         "drop_generation != drop_generation_seen",
         "drop_generation_seen = drop_generation;",
-        "input_retry_generation != input_retry_generation_seen",
         "input_retry_generation_seen = input_retry_generation;",
+        "input_terminal_generation != input_terminal_generation_seen",
+        "input_terminal_generation_seen = input_terminal_generation;",
+        "const bool input_rearmed = input_terminal_published ||",
+        "input_published && heartbeat >= FIRST_PIXEL_SETTLE_TICKS",
         "const bool reopen_trace = heartbeat >= FIRST_PIXEL_SETTLE_TICKS;",
         "if (reopen_trace && viewport_content_present_count() == 0u)",
-        "episode_published || input_published || readiness_published ||",
+        "episode_published || input_rearmed || readiness_published ||",
         "draw_dropped ||",
         "(heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u",
         "heartbeat++;",
@@ -255,7 +262,12 @@ def validate(
     require_once(
         system_header,
         "uint64_t input_redraw_retry_generation_seen_ = 0;",
-        "per-window input-tail state",
+        "per-window input activity state",
+    )
+    require_once(
+        system_header,
+        "uint64_t input_redraw_terminal_generation_seen_ = 0;",
+        "per-window terminal input-tail state",
     )
     require_once(
         system_header,
@@ -287,6 +299,8 @@ def validate(
         "\n                                      redraw_retry_generation_seen_,",
         "ghost_web::input_redraw_retry_generation()",
         "\n                                      input_redraw_retry_generation_seen_,",
+        "\n                                      ghost_web::input_redraw_terminal_count(),",
+        "\n                                      input_redraw_terminal_generation_seen_,",
         "ghost_web::redraw_episode_generation()",
         "redraw_episode_generation_seen_",
         "ghost_web::redraw_drop_generation()",
@@ -340,6 +354,9 @@ def validate(
     input_generation = (
         "input_redraw_retry_generation_seen_ = ghost_web::input_redraw_retry_generation();"
     )
+    input_terminal_generation = (
+        "input_redraw_terminal_generation_seen_ = ghost_web::input_redraw_terminal_count();"
+    )
     episode_generation = (
         "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();"
     )
@@ -347,6 +364,7 @@ def validate(
     heartbeat = "redraw_heartbeat_ = 0;"
     require_once(creation, generation, "window publication")
     require_once(creation, input_generation, "window publication")
+    require_once(creation, input_terminal_generation, "window publication")
     require_once(creation, episode_generation, "window publication")
     require_once(creation, drop_generation, "window publication")
     barrier_completion = (
@@ -362,6 +380,7 @@ def validate(
     if max(
         creation.index(generation),
         creation.index(input_generation),
+        creation.index(input_terminal_generation),
         creation.index(episode_generation),
         creation.index(drop_generation),
     ) > creation.index(heartbeat):
@@ -588,19 +607,20 @@ def selfcheck(
         (replace_once(display_header, "phase_ = Phase::Ready;", "phase_ = Phase::Scheduled;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "completion(valid);", "completion(false);"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "episode_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
-        (replace_once(display_header, "input_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "input_rearmed ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "readiness_published ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "draw_dropped ||", "false ||"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "episode_generation != episode_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "episode_generation_seen = episode_generation;\n    heartbeat = 0;", "episode_generation_seen = episode_generation;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
-        (replace_once(display_header, "retry_generation != retry_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
-        (replace_once(display_header, "input_retry_generation != input_retry_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "const bool retry_published = retry_delta != 0u;", "const bool retry_published = false;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
+        (replace_once(display_header, "const bool input_published = input_delta != 0u;", "const bool input_published = false;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline uint64_t request_input_redraw_retry()", "input_redraw_retry_counter.fetch_add(1u, std::memory_order_release) + 1u;", "0;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline uint64_t request_input_redraw_retry()", "\n  redraw_retry_counter.fetch_add(1u, std::memory_order_release);", ""), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (mutate_method(display_header, "inline uint64_t input_redraw_retry_generation()", "return input_redraw_retry_counter.load(std::memory_order_acquire);", "return 0;"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (replace_once(display_header, "drop_generation != drop_generation_seen", "false"), system_header, system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_retry_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t input_redraw_retry_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
+        (display_header, replace_once(system_header, "uint64_t input_redraw_terminal_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_episode_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_drop_generation_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
         (display_header, replace_once(system_header, "uint64_t redraw_present_barrier_completion_seen_ = 0;", ""), system_source, wm_window_source, shader_source, pipeline_source),
@@ -609,6 +629,7 @@ def selfcheck(
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_episode_generation()", "ghost_web::redraw_episode_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_drop_generation()", "ghost_web::redraw_drop_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::input_redraw_retry_generation()", "ghost_web::input_redraw_retry_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "\n                                      ghost_web::input_redraw_terminal_count(),", "\n                                      ghost_web::input_redraw_terminal_count_disabled(),"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "GHOST_kEventWindowUpdate", "GHOST_kEventWindowActivate"), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::filter_redraw_present_barrier_update(", "ghost_web::filter_redraw_present_barrier_update_disabled("), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::redraw_present_barrier_completion_generation()", "ghost_web::redraw_present_barrier_completion_generation_disabled()"), wm_window_source, shader_source, pipeline_source),
@@ -616,6 +637,7 @@ def selfcheck(
         (display_header, system_header, mutate_method(system_source, PROCESS_MARKER, "ghost_web::request_redraw_retry();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "input_redraw_retry_generation_seen_ = ghost_web::input_redraw_retry_generation();", ""), wm_window_source, shader_source, pipeline_source),
+        (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "input_redraw_terminal_generation_seen_ = ghost_web::input_redraw_terminal_count();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();", ""), wm_window_source, shader_source, pipeline_source),
         (display_header, system_header, mutate_method(system_source, CREATE_MARKER, "present_replay_generation_seen_ = ghost_web::present_replay_generation();", ""), wm_window_source, shader_source, pipeline_source),
@@ -767,7 +789,7 @@ def main() -> int:
         selfcheck(*inputs)
     else:
         validate(*inputs)
-    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=70 bounded=180 readiness=4 input=full-tail drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound,incomplete-withheld,post-layout-redraw,view3d-frame-complete,commit-superseded")
+    print("REDRAW_RECOVERY_CONTRACT PASS sources=7 mutations=73 bounded=180 readiness=4 input=bounded-burst+terminal-tail drops=1 resize=requested,commit-fresh,frame-bound,present-barrier-trace-bound,incomplete-withheld,post-layout-redraw,view3d-frame-complete,commit-superseded")
     return 0
 
 

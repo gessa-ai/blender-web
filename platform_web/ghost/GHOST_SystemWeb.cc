@@ -1419,8 +1419,8 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
    * Their readiness generation requests an ordinary full-screen update so every dropped region is
    * retried without user input. The boot burst discovers visible lazy variants; resource readiness
    * can rearm a completed burst but cannot extend an active one past the 180-tick hard ceiling.
-   * Real input separately restarts one full coalesced tail after its last callback; repeated
-   * draw-drop signals remain acknowledged without rearming at the ceiling. */
+   * Real input opens a bounded burst, while its terminal callback restarts one full coalesced
+   * tail; repeated motion and draw-drop signals cannot perpetually rearm the ceiling. */
   const uint64_t redraw_episode_generation = ghost_web::redraw_episode_generation();
   const uint64_t barrier_completion_generation =
       ghost_web::redraw_present_barrier_completion_generation();
@@ -1446,6 +1446,8 @@ bool GHOST_SystemWeb::processEvents(bool /*waitForEvent*/)
                                       redraw_drop_generation_seen_,
                                       input_redraw_generation,
                                       input_redraw_retry_generation_seen_,
+                                      ghost_web::input_redraw_terminal_count(),
+                                      input_redraw_terminal_generation_seen_,
                                       redraw_heartbeat_);
   const uint64_t input_redraw_admitted_generation =
       ghost_web::input_redraw_admitted_count();
@@ -1580,9 +1582,10 @@ void GHOST_SystemWeb::requestInputRedrawRetry(const char *terminal_kind,
                                               const uint32_t terminal_code)
 {
   /* Input can expose a region whose first-use browser resource was not ready during the
-   * preceding bounded burst. Publish a distinct input-tail generation in addition to the
-   * aggregate retry edge: callbacks observed in one WM tick coalesce, and the last real input
-   * always leaves one complete bounded recovery budget without entering resize's barrier. */
+   * preceding bounded burst. Every accepted callback publishes aggregate readiness, but only a
+   * complete input advances the distinct tail generation. Continuous mouse motion can therefore
+   * open/retry a bounded burst without resetting its ceiling on every sample; the final release
+   * still leaves one complete recovery budget without entering resize's barrier. */
   const uint64_t episode_before = ghost_web::redraw_episode_generation();
   const uint64_t input_generation = ghost_web::request_input_redraw_retry();
   const uint64_t episode_after = ghost_web::redraw_episode_generation();
@@ -1973,6 +1976,7 @@ GHOST_IWindow *GHOST_SystemWeb::createWindow(const char *title,
           }
           redraw_retry_generation_seen_ = ghost_web::redraw_retry_generation();
           input_redraw_retry_generation_seen_ = ghost_web::input_redraw_retry_generation();
+          input_redraw_terminal_generation_seen_ = ghost_web::input_redraw_terminal_count();
           redraw_episode_generation_seen_ = ghost_web::redraw_episode_generation();
           redraw_drop_generation_seen_ = ghost_web::redraw_drop_generation();
           redraw_present_barrier_completion_seen_ =

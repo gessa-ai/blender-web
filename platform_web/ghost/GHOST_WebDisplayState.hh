@@ -391,10 +391,10 @@ inline uint64_t redraw_retry_generation()
 }
 
 /**
- * Ordinary input needs a full bounded recovery tail after its final accepted callback. Keep a
- * distinct generation so an input arriving near the end of a shader-readiness burst can restart
- * that tail without changing the hard-ceiling semantics of asynchronous resource publication.
- * The aggregate retry generation still advances for the browser diagnostic and immediate update.
+ * Ordinary input needs a bounded recovery burst, while its final accepted callback needs one full
+ * trailing budget. Publish both aggregate and input-specific generations here; the recovery
+ * consumer subtracts their per-tick deltas so input activity is not mistaken for asynchronous
+ * resource readiness. The separately recorded terminal generation restarts the full tail.
  */
 inline uint64_t request_input_redraw_retry()
 {
@@ -881,18 +881,37 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
                                  uint64_t &drop_generation_seen,
                                  const uint64_t input_retry_generation,
                                  uint64_t &input_retry_generation_seen,
+                                 const uint64_t input_terminal_generation,
+                                 uint64_t &input_terminal_generation_seen,
                                  uint32_t &heartbeat)
 {
-  const bool readiness_published = retry_generation != retry_generation_seen;
+  const uint64_t retry_delta = retry_generation - retry_generation_seen;
+  const uint64_t input_delta = input_retry_generation - input_retry_generation_seen;
+  const bool retry_published = retry_delta != 0u;
+  const bool input_published = input_delta != 0u;
+  /* request_input_redraw_retry() advances both counters exactly once. Any unmatched aggregate
+   * edge is real resource/resize readiness and retains immediate-retry ownership. */
+  const bool readiness_published = retry_delta != input_delta;
   const bool episode_published = episode_generation != episode_generation_seen;
   const bool draw_dropped = drop_generation != drop_generation_seen;
-  const bool input_published = input_retry_generation != input_retry_generation_seen;
+  const bool input_terminal_published =
+      input_terminal_generation != input_terminal_generation_seen;
   if (episode_published) {
     episode_generation_seen = episode_generation;
     heartbeat = 0;
   }
+  if (retry_published) {
+    retry_generation_seen = retry_generation;
+  }
   if (input_published) {
     input_retry_generation_seen = input_retry_generation;
+  }
+  const bool input_rearmed = input_terminal_published ||
+                             (input_published && heartbeat >= FIRST_PIXEL_SETTLE_TICKS);
+  if (input_terminal_published) {
+    input_terminal_generation_seen = input_terminal_generation;
+  }
+  if (input_rearmed) {
     const bool reopen_trace = heartbeat >= FIRST_PIXEL_SETTLE_TICKS;
     heartbeat = 0;
     if (reopen_trace && viewport_content_present_count() == 0u) {
@@ -900,7 +919,6 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
     }
   }
   if (readiness_published) {
-    retry_generation_seen = retry_generation;
     if (heartbeat >= FIRST_PIXEL_SETTLE_TICKS) {
       heartbeat = 0;
       if (viewport_content_present_count() == 0u) {
@@ -918,7 +936,7 @@ inline bool redraw_recovery_tick(const uint64_t retry_generation,
     redraw_trace_finish(episode_generation);
     return false;
   }
-  const bool request_update = episode_published || input_published || readiness_published ||
+  const bool request_update = episode_published || input_rearmed || readiness_published ||
                               draw_dropped ||
                               (heartbeat % FIRST_PIXEL_SETTLE_INTERVAL) == 0u;
   heartbeat++;
